@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, sprint]
   pull_request:
-    branches: [main, master]
+    branches: [main, master, sprint]
 
 # Отменять предыдущий run при новом push в ту же ветку
 concurrency:
@@ -47,8 +47,19 @@ jobs:
           sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
           PGPASSWORD=postgres psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE pizdo_test;" || true
 
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
       - name: Install dependencies
-        run: uv pip install -r requirements.txt
+        run: uv pip install -r requirements.txt pdfplumber
 
       - name: Install Pandoc 3.9
         run: |
@@ -56,6 +67,14 @@ jobs:
             | tar -xz -C /tmp
           sudo mv /tmp/pandoc-3.9/bin/pandoc /usr/local/bin/pandoc
           pandoc --version | head -1
+
+      - name: Install Typst 0.14.2
+        run: |
+          curl -sSL https://github.com/typst/typst/releases/download/v0.14.2/typst-x86_64-unknown-linux-musl.tar.xz \
+            | tar -xJ -C /tmp
+          sudo mv /tmp/typst-x86_64-unknown-linux-musl/typst /usr/local/bin/typst
+          chmod +x /usr/local/bin/typst
+          typst --version
 
       - name: Run tests
         env:
@@ -65,6 +84,23 @@ jobs:
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: pizdo_test
         run: uv run pytest tests/ -m "not integration" -v --tb=short
+
+      - name: Run integration tests
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: 5432
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: pizdo_test
+        run: uv run pytest tests/ -m integration -v --tb=short
+
+      - name: Frontend tests
+        working-directory: frontend
+        run: npm test -- --run
+
+      - name: Frontend build
+        working-directory: frontend
+        run: npm run build
 
   lint:
     runs-on: ubuntu-latest
