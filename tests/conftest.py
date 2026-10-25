@@ -20,9 +20,9 @@ from app.database import Base, get_session
 from app.main import app
 
 
-@pytest.fixture(scope="session", autouse=True)
-async def _check_db_connection():
-    """Check DB availability before running tests."""
+@pytest.fixture(scope="session")
+async def db_available():
+    """True, если Postgres доступен. Не пропускает тесты: решение принимают DB-фикстуры."""
     import asyncpg
 
     host = os.environ.get("POSTGRES_HOST", "localhost")
@@ -55,15 +55,16 @@ async def _check_db_connection():
         if not db_exists:
             await conn.execute(f'CREATE DATABASE "{database}"')
         await conn.close()
-    except Exception as e:
-        pytest.skip(
-            f"Postgres недоступен на {host}:{port}. Запустите: docker-compose up -d db\nОшибка: {e}"
-        )
+        return True
+    except Exception:
+        return False
 
 
-@pytest.fixture(scope="session", autouse=True)
-def _run_migrations(_check_db_connection):
-    """Apply Alembic migrations to test DB so schema matches current models."""
+@pytest.fixture(scope="session")
+def _run_migrations(db_available):
+    """Применяет Alembic-миграции к тестовой БД. Только для DB-тестов."""
+    if not db_available:
+        return
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     result = subprocess.run(
         ["uv", "run", "alembic", "upgrade", "head"],
@@ -73,12 +74,16 @@ def _run_migrations(_check_db_connection):
         text=True,
     )
     if result.returncode != 0:
-        pytest.skip(f"Миграции не применились к тестовой БД: {result.stderr or result.stdout}")
+        raise RuntimeError(
+            f"Миграции не применились к тестовой БД: {result.stderr or result.stdout}"
+        )
 
 
-@pytest.fixture(scope="session", autouse=True)
-async def _ensure_schema(_run_migrations):
+@pytest.fixture(scope="session")
+async def _ensure_schema(_run_migrations, db_available):
     """Create any missing tables from ORM (migrations may not create base tables)."""
+    if not db_available:
+        return
     engine = create_async_engine(TEST_DATABASE_URL, future=True)
     try:
         async with engine.begin() as conn:
@@ -98,8 +103,10 @@ TEST_DATABASE_URL = (
 
 
 @pytest.fixture(scope="function")
-async def test_engine():
+async def test_engine(db_available):
     """Create test engine per test to avoid event loop issues."""
+    if not db_available:
+        pytest.skip("Postgres недоступен: DB-тесты пропущены")
     engine = create_async_engine(TEST_DATABASE_URL, echo=False, future=True)
     yield engine
     await engine.dispose()
@@ -116,9 +123,9 @@ def test_session_factory(test_engine):
     )
 
 
-@pytest.fixture(scope="function", autouse=True)
-async def _setup_db(test_engine):
-    """Clean all tables before each test (schema from Alembic in _run_migrations)."""
+@pytest.fixture(scope="function")
+async def _setup_db(test_engine, _ensure_schema):
+    """Clean all tables before each DB test (schema from Alembic in _run_migrations)."""
     async with test_engine.begin() as conn:
         tables = [t.name for t in Base.metadata.sorted_tables]
         if tables:
@@ -126,7 +133,7 @@ async def _setup_db(test_engine):
 
 
 @pytest.fixture
-def _test_get_session(test_session_factory):
+def _test_get_session(test_session_factory, _setup_db):
     """Factory for test session."""
 
     async def _get() -> AsyncGenerator[AsyncSession, None]:
