@@ -33,3 +33,8 @@ exclude = ["alembic/versions"]
 [tool.ruff.lint]
 select = ["E", "F", "W"]  # E: pycodestyle, F: Pyflakes, W: warnings
 ignore = ["E501"]  # line length handled by formatter
+
+[dependency-groups]
+dev = [
+    "pdfplumber>=0.11.10",
+]
