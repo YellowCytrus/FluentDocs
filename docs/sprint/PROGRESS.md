@@ -57,19 +57,37 @@
 ORM + тело Pandoc) в `tests/fixtures/golden/<stem>.typ`. Профиль снимка:
 все стили с дефолтными значениями моделей, без `text_override`, заголовки 1–6.
 
+## G0-fix — чек-лист
+
+| Пункт | Статус | Где |
+|---|---|---|
+| Pandoc 3.9 в Dockerfile | ✔ (`ARG PANDOC_VERSION=3.9`) | `Dockerfile` |
+| Тест падает, если `pandoc --version` не 3.9 | ✔ | `tests/test_versions.py` |
+| CI устанавливает Pandoc 3.9 | ✔ | `.github/workflows/ci.yml` |
+| conftest не пропускает весь набор без Postgres | ✔ | `tests/conftest.py` |
+| Golden-тест выполняется без Postgres | ✔ 8 passed | `tests/test_typst_golden.py` |
+| Golden-снимки пересозданы на Pandoc 3.9 | ✔ изменён только `figure.typ` (`alt` удалён) | `tests/fixtures/golden/` |
+| S5b: подпись формулы через `: Подпись` | ✔ | `spikes/S5b-*`, `SPIKES.md` |
+| `VERSIONS.md` + тест версий | ✔ | `docs/sprint/VERSIONS.md`, `tests/test_versions.py` |
+| B-01…B-05 отмечены решёнными | ✔ | `BLOCKERS.md` |
+| S9: коэффициент — свойство шрифта, в G2 из реестра | ✔ дописано | `SPIKES.md` |
+
 ## Проверки
 
 | Команда | Результат |
 |---|---|
 | `typst compile` для 8 golden-снимков | 8/8 OK |
-| `typst compile` для 12 `.typ` прототипов | 12/12 OK |
-| `uv run pytest tests/ -m "not integration"` | 51 skipped (нет Postgres) |
-| `uv run pytest tests/ -m integration` | 9 skipped (нет Postgres) |
+| `typst compile` для 13 `.typ` прототипов | 13/13 OK |
+| `uv run pytest tests/test_typst_golden.py -m integration` | 8 passed |
+| `uv run pytest tests/ -m "not integration"` | 5 passed, 51 skipped, 9 deselected |
+| `uv run pytest tests/ -m integration` | 8 passed, 1 skipped, 56 deselected |
 | `cd frontend && npm test` | 5 passed |
 | `cd frontend && npm run build` | OK (15.13 s) |
 | `uvx ruff check app/ tests/` | All checks passed |
-| `uvx ruff check` (только новые файлы G0) | All checks passed |
-| `uvx ruff format --check ...` | новые файлы G0 отформатированы; в репозитории 16 старых файлов требуют форматирования |
+| `uvx ruff format --check ...` | новые файлы G0/G0-fix отформатированы; в репозитории остаются старые файлы, требующие форматирования |
+
+Пропущенные тесты — только DB-тесты (`client` → `test_engine`): Postgres в
+окружении отсутствует. Golden и тест версий выполняются без БД.
 
 PDF-измерения прототипов: pdfplumber 0.11.10, запускался через
 `uv run --with pdfplumber`. В dev-зависимости пока не добавлен; добавить на G1
@@ -77,6 +95,5 @@ PDF-измерения прототипов: pdfplumber 0.11.10, запуска�
 
 ## Открытые решения владельца
 
-1. B-01: принять fallback S4 (ручной разрыв формулы).
-2. B-02: как выравнивать Pandoc 3.11 (сервер) и 3.9 (`pandoc-wasm`).
-3. B-03: подтвердить фактическую раскладку документов в `docs/sprint/`.
+B-01…B-05 отмечены решёнными в `BLOCKERS.md`. GitHub CI в этом окружении не
+прогонялся; workflow дополнен установкой Pandoc 3.9.

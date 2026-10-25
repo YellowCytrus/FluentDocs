@@ -24,7 +24,7 @@
 <рисунок>
 Ссылка на рисунок: @fig:sample.
 
-#figure(image("sample.png", width: 60.0%, alt: "Рисунок 1 — Эталонное изображение"),
+#figure(image("sample.png", width: 60.0%),
   caption: [
     Рисунок 1 --- Эталонное изображение
   ]

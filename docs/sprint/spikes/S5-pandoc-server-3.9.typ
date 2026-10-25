@@ -2,7 +2,7 @@
 <заголовок-без-номера>
 Текст с обычной ссылкой @fig:x и на таблицу @tbl:y.
 
-#figure(image("sample.png", width: 50.0%, alt: "Подпись рисунка"),
+#figure(image("sample.png", width: 50.0%),
   caption: [
     Подпись рисунка
   ]
