@@ -20,8 +20,8 @@ async def test_get_preamble_returns_404_for_nonexistent_profile(client):
     assert "detail" in resp.json()
 
 
-async def test_get_preamble_includes_par_show_set_text_when_par_has_text_override(client):
-    """When profile has par_style with text_override_style, preamble must contain #show par: set text(...)."""
+async def test_get_preamble_serializes_par_text_override_for_fd(client):
+    """Preamble must route par text_override through fd and serialize its values."""
     create = await client.post("/profiles", json={"name": f"ParOverride {uuid.uuid4().hex[:8]}"})
     pid = create.json()["id"]
     # Set par style with text override (e.g. font_size) so that show-set rule is emitted
@@ -35,5 +35,7 @@ async def test_get_preamble_includes_par_show_set_text_when_par_has_text_overrid
     resp = await client.get(f"/profiles/{pid}/preamble")
     assert resp.status_code == 200
     body = resp.text
-    assert "#show par: set text(" in body
-    assert "14pt" in body or "14" in body
+    assert "show par: it => text-override-body" in body
+    assert "text_override: (" in body
+    assert "font_size: 14.0" in body
+    assert 'font: "DejaVu Sans"' in body

@@ -1,7 +1,8 @@
-"""Сборка эталонного Typst-источника для golden-снимков G0.
+"""Сборка эталонных Typst-источников для golden-снимков G0/G1b.
 
-Профиль — все стили с дефолтами ORM (как после создания профиля через API),
-без text_override. Панок вызывается без фильтров, как в продакшене.
+Два профиля: дефолтный (все стили с дефолтами ORM) и профиль с локальными
+text_override на нескольких элементах. Pandoc вызывается без фильтров,
+как в продакшене.
 """
 
 from __future__ import annotations
@@ -27,12 +28,14 @@ from app.models.sqlalchemy.styles import (
     RawStyle,
     TableStyle,
     TermsStyle,
+    TextOverrideStyle,
 )
-from app.utils.typst_preamble import build_typst_preamble
+from app.utils.typst_source import build_typst_source
 
 FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
 DOCS_DIR = FIXTURES_DIR / "docs"
 GOLDEN_DIR = FIXTURES_DIR / "golden"
+TEXT_OVERRIDE_GOLDEN_DIR = GOLDEN_DIR / "text_override"
 
 StyleT = TypeVar("StyleT")
 
@@ -76,6 +79,56 @@ def default_profile(name: str = "golden-default") -> Profile:
     return profile
 
 
+def text_override_profile(name: str = "golden-text-override") -> Profile:
+    """Второй снимок: локальные переопределения текста на нескольких элементах."""
+    profile = default_profile(name)
+    profile.par_style.text_override_style = _with_defaults(
+        TextOverrideStyle,
+        font="DejaVu Sans",
+        font_size=13.0,
+        weight="bold",
+        style="italic",
+        fill="#7a1f1f",
+        lang="ru",
+        region="RU",
+        tracking=0.2,
+        word_spacing=95.0,
+        hyphenate=False,
+        ligatures=False,
+        number_type="lining",
+        number_width="tabular",
+    )
+    profile.heading_level_styles[0].text_override_style = _with_defaults(
+        TextOverrideStyle,
+        font_size=16.0,
+        weight="bold",
+    )
+    profile.bullet_list_style.text_override_style = _with_defaults(
+        TextOverrideStyle,
+        font="DejaVu Sans",
+        font_size=11.5,
+    )
+    profile.table_style.text_override_style = _with_defaults(
+        TextOverrideStyle,
+        font_size=10.0,
+        style="italic",
+        fill="#003366",
+    )
+    profile.figure_style.text_override_style = _with_defaults(
+        TextOverrideStyle,
+        font="DejaVu Serif",
+        font_size=11.0,
+        weight="semibold",
+    )
+    profile.footnote_style.text_override_style = _with_defaults(
+        TextOverrideStyle,
+        font_size=9.0,
+        lang="ru",
+        hyphenate=True,
+    )
+    return profile
+
+
 def markdown_to_typst(markdown: str) -> str:
     """Pandoc CLI: markdown+raw_attribute -> typst (без фильтров)."""
     result = subprocess.run(
@@ -89,19 +142,22 @@ def markdown_to_typst(markdown: str) -> str:
 
 
 def build_source(markdown: str, profile: Profile | None = None) -> str:
-    """Полный Typst-источник: преамбула профиля + тело из Pandoc."""
-    preamble = build_typst_preamble(profile or default_profile())
+    """Полный Typst-источник: fd-префикс профиля + тело из Pandoc."""
     body = markdown_to_typst(markdown)
-    return preamble + "\n" + body
+    return build_typst_source(profile or default_profile(), body)
 
 
 def main() -> None:
     GOLDEN_DIR.mkdir(parents=True, exist_ok=True)
+    TEXT_OVERRIDE_GOLDEN_DIR.mkdir(parents=True, exist_ok=True)
     for doc in sorted(DOCS_DIR.glob("*.md")):
-        source = build_source(doc.read_text(encoding="utf-8"))
-        target = GOLDEN_DIR / f"{doc.stem}.typ"
-        target.write_text(source, encoding="utf-8")
-        print(f"wrote {target}")
+        markdown = doc.read_text(encoding="utf-8")
+        default_source = build_source(markdown, default_profile())
+        (GOLDEN_DIR / f"{doc.stem}.typ").write_text(default_source, encoding="utf-8")
+        print(f"wrote {GOLDEN_DIR / f'{doc.stem}.typ'}")
+        override_source = build_source(markdown, text_override_profile())
+        (TEXT_OVERRIDE_GOLDEN_DIR / f"{doc.stem}.typ").write_text(override_source, encoding="utf-8")
+        print(f"wrote {TEXT_OVERRIDE_GOLDEN_DIR / f'{doc.stem}.typ'}")
 
 
 if __name__ == "__main__":

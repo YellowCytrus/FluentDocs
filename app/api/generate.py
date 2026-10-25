@@ -18,12 +18,14 @@ from app.deps import get_profile_repository, get_title_page_repository
 from app.database import get_session
 from app.models.pydantic.page_editor import TitlePageContent
 from app.models.sqlalchemy.image_asset import ImageAsset
+from app.models.sqlalchemy.profile import Profile
+from app.registry import RegistryError
 from app.repositories.profile_repository import ProfileRepository
 from app.repositories.title_page_repository import TitlePageRepository
 from app.api.upload import IMAGES_DIR
 from app.utils.pandoc_converter import PandocError, markdown_to_typst
 from app.utils.typst_compiler import TypstCompileError, compile_typst_to_pdf
-from app.utils.typst_preamble import build_typst_preamble
+from app.utils.typst_source import build_typst_preamble, build_typst_source
 from app.utils.typst_title_exporter import generate_fragment
 
 logger = logging.getLogger(__name__)
@@ -196,16 +198,70 @@ _SFU_STU_TITLE_TYPST = r"""
 # endregion
 
 
+async def _resolve_title_source(
+    title_page_id: int | None,
+    title_repo: TitlePageRepository,
+) -> tuple[str | None, bool]:
+    """Возвращает Typst-фрагмент титульника и признак «до преамбулы».
+
+    SFU-титульник идёт перед преамбулой, чтобы правило профиля
+    ``show table.cell`` не переопределяло подписи на титульной странице.
+    """
+    if title_page_id is None:
+        return None, False
+    if title_page_id == TITLE_PAGE_ID_SFU_STU:
+        return (
+            _SFU_STU_TITLE_TYPST.strip() + "\n#pagebreak()\n#counter(page).update(2)\n",
+            True,
+        )
+    title_page = await title_repo.get_by_id(title_page_id)
+    if title_page is None:
+        raise HTTPException(status_code=404, detail="Title page not found")
+    tc = TitlePageContent.model_validate(title_page.content)
+    return (
+        generate_fragment(
+            tc.elements,
+            tc.paper,
+            tc.variables,
+            ignore_document_styles=tc.ignore_document_styles,
+        ),
+        False,
+    )
+
+
+def _build_profile_source(
+    profile: Profile,
+    typst_body: str,
+    *,
+    title_source: str | None,
+    title_before_prefix: bool,
+) -> str:
+    """Единая сборка для PDF и export-typ; ошибки реестра → 409."""
+    try:
+        return build_typst_source(
+            profile,
+            typst_body,
+            title_source=title_source,
+            title_before_prefix=title_before_prefix,
+        )
+    except RegistryError as e:
+        raise HTTPException(status_code=409, detail=f"Invalid profile options: {e}") from e
+
+
 @router.get("/{profile_id}/preamble", response_class=PlainTextResponse)
 async def get_preamble(
     profile_id: int,
     repo: ProfileRepository = Depends(get_profile_repository),
 ) -> PlainTextResponse:
-    """Возвращает текст преамбулы Typst #set для данного профиля."""
+    """Возвращает общий Typst-префикс профиля (fd + конфиг) для превью."""
     profile = await repo.get_by_id_with_styles(profile_id)
     if profile is None:
         raise HTTPException(status_code=404, detail="Profile not found")
-    return PlainTextResponse(build_typst_preamble(profile))
+    try:
+        preamble = build_typst_preamble(profile)
+    except RegistryError as e:
+        raise HTTPException(status_code=409, detail=f"Invalid profile options: {e}") from e
+    return PlainTextResponse(preamble)
 
 
 async def _resolve_image_asset_urls(
@@ -268,31 +324,13 @@ async def generate_pdf(
         logger.exception("Pandoc failed: %s", e.stderr)
         raise HTTPException(status_code=500, detail="Markdown conversion failed") from e
 
-    preamble = build_typst_preamble(profile)
-
-    parts: list[str] = []
-    if title_page_id == TITLE_PAGE_ID_SFU_STU:
-        # SFU титульник — до преамбулы, чтобы #show table.cell: set text(...) не переопределял подписи
-        parts.append(_SFU_STU_TITLE_TYPST.strip() + "\n#pagebreak()\n#counter(page).update(2)\n")
-    parts.append(preamble)
-    if title_page_id is not None:
-        if title_page_id == TITLE_PAGE_ID_SFU_STU:
-            pass  # уже добавлено выше
-        else:
-            title_page = await title_repo.get_by_id(title_page_id)
-            if title_page is None:
-                raise HTTPException(status_code=404, detail="Title page not found")
-            tc = TitlePageContent.model_validate(title_page.content)
-            parts.append(
-                generate_fragment(
-                    tc.elements,
-                    tc.paper,
-                    tc.variables,
-                    ignore_document_styles=tc.ignore_document_styles,
-                )
-            )
-    parts.append(typst_body)
-    full_typst = "\n".join(parts)
+    title_source, title_before_prefix = await _resolve_title_source(title_page_id, title_repo)
+    full_typst = _build_profile_source(
+        profile,
+        typst_body,
+        title_source=title_source,
+        title_before_prefix=title_before_prefix,
+    )
 
     full_typst, asset_files = await _resolve_image_asset_urls(full_typst, session)
 
@@ -339,26 +377,13 @@ async def export_typ(
         logger.exception("Pandoc failed: %s", e.stderr)
         raise HTTPException(status_code=500, detail="Markdown conversion failed") from e
 
-    preamble = build_typst_preamble(profile)
-    parts: list[str] = []
-    if title_page_id == TITLE_PAGE_ID_SFU_STU:
-        parts.append(_SFU_STU_TITLE_TYPST.strip() + "\n#pagebreak()\n#counter(page).update(2)\n")
-    parts.append(preamble)
-    if title_page_id is not None and title_page_id != TITLE_PAGE_ID_SFU_STU:
-        title_page = await title_repo.get_by_id(title_page_id)
-        if title_page is None:
-            raise HTTPException(status_code=404, detail="Title page not found")
-        tc = TitlePageContent.model_validate(title_page.content)
-        parts.append(
-            generate_fragment(
-                tc.elements,
-                tc.paper,
-                tc.variables,
-                ignore_document_styles=tc.ignore_document_styles,
-            )
-        )
-    parts.append(typst_body)
-    full_typst = "\n".join(parts)
+    title_source, title_before_prefix = await _resolve_title_source(title_page_id, title_repo)
+    full_typst = _build_profile_source(
+        profile,
+        typst_body,
+        title_source=title_source,
+        title_before_prefix=title_before_prefix,
+    )
 
     filename = file.filename or "document.md"
     typ_name = filename.rsplit(".", 1)[0] + ".typ" if "." in filename else "document.typ"

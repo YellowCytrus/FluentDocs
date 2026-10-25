@@ -169,3 +169,19 @@ async def test_export_typ_500_on_pandoc_error(client):
         resp = await client.post(f"/profiles/{pid}/export-typ", files=files)
         assert resp.status_code == 500
         assert "detail" in resp.json()
+
+
+async def test_pdf_and_export_use_identical_source(client, _mock_pandoc_typst):
+    """PDF-компилятор получает ровно тот же полный Typst, что и export-typ."""
+    _m_pandoc, m_typst = _mock_pandoc_typst
+    create = await client.post("/profiles", json={"name": f"Parity {uuid.uuid4().hex[:8]}"})
+    pid = create.json()["id"]
+    files = {"file": ("doc.md", b"# Hello\n\nWorld", "text/markdown")}
+
+    exported = await client.post(f"/profiles/{pid}/export-typ", files=files)
+    assert exported.status_code == 200
+
+    generated = await client.post(f"/profiles/{pid}/generate-pdf", files=files)
+    assert generated.status_code == 200
+    compiled_source = m_typst.await_args.args[0]
+    assert compiled_source == exported.text
