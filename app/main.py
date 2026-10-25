@@ -17,6 +17,7 @@ from app.api.elements import get_element_routers
 from app.api.upload import IMAGES_DIR, router as upload_router
 from app.api.generate import router as generate_router
 from app.api.profiles import router as profiles_router
+from app.api.registry import router as registry_router
 from app.api.title_pages import router as title_pages_router
 from app.database import init_db
 
@@ -47,6 +48,7 @@ app.add_middleware(
 )
 
 app.include_router(profiles_router)
+app.include_router(registry_router)
 app.include_router(generate_router)
 app.include_router(title_pages_router)
 app.include_router(upload_router)

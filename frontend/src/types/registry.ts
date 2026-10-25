@@ -1,0 +1,46 @@
+export type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonValue[]
+  | { [key: string]: JsonValue };
+
+export interface RegistryOption {
+  id: string;
+  group: string;
+  group_label: string;
+  applies_to: string[];
+  type: 'number' | 'integer' | 'boolean' | 'string' | 'select' | 'markers';
+  default: JsonValue;
+  path: string[];
+  ui: {
+    control: string;
+    label: string;
+    tab: string;
+    order: number;
+    options?: { value: string; label: string }[];
+  };
+  rationale: string;
+  source: string;
+  unit: string | null;
+  allowed_units: string[];
+  min: number | null;
+  max: number | null;
+  step: number | null;
+  enum: string[];
+  depends_on: string[];
+  nullable: boolean;
+}
+
+export interface RegistrySchema {
+  schema_version: number;
+  groups: { id: string; label: string }[];
+  options: RegistryOption[];
+}
+
+export interface ProfileOptions {
+  schema_version: number;
+  source: 'jsonb' | 'legacy';
+  values: Record<string, JsonValue>;
+}

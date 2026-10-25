@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import Editor from '../views/Editor.vue';
 import Styles from '../views/Styles.vue';
+import Rules from '../views/Rules.vue';
 import PageEditor from '../views/PageEditor.vue';
 
 const router = createRouter({
@@ -15,6 +16,11 @@ const router = createRouter({
       path: '/styles',
       name: 'styles',
       component: Styles,
+    },
+    {
+      path: '/rules',
+      name: 'rules',
+      component: Rules,
     },
     {
       path: '/pages',
