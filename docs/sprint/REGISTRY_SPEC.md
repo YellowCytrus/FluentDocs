@@ -37,6 +37,10 @@
 path — адрес значения в JSONB. Например, `heading.h1.break_before` имеет path
 `("heading_levels", "1", "break_before")`.
 
+Опции G1a помечены `legacy=True`: их конкретные `rationale`/`source`/`test_ids`
+дописываются до G6. Новые опции G1c (`outline.indent_mode`, `outline.indent_mm`)
+имеют `legacy=False` и собственные тесты.
+
 ## Группы опций
 
 | Группа (`group`) | Обычные | `text_override` | Всего |
@@ -54,8 +58,8 @@ path — адрес значения в JSONB. Например, `heading.h1.bre
 | `quote` — цитата | 3 | 13 | 16 |
 | `footnote` — сноска | 4 | 13 | 17 |
 | `raw` — код | 3 | 13 | 16 |
-| `outline` — оглавление | 2 | 13 | 15 |
-| **Итого** | **82** | **221** | **303** |
+| `outline` — оглавление | 3 | 13 | 16 |
+| **Итого** | **83** | **221** | **304** |
 
 `text_override` — не отдельная опция-переключатель. Наличие объекта
 `"text_override": {...}` включает переопределение текста для элемента; `null`
@@ -92,6 +96,12 @@ path — адрес значения в JSONB. Например, `heading.h1.bre
   `null` / `True` / `False`.
 - `text_override` для элемента либо `null`, либо объект со всеми 13 полями.
   Неполный объект при `PUT` дополняется дефолтами.
+- `outline.indent_mode` — `auto` / `none` / `custom`, `outline.indent_mm` — мм.
+  В режиме `auto` `indent` в `#set outline(...)` не передаётся, `none` даёт
+  `0mm`, `custom` — `indent_mm`. Произвольные строки в этих полях отвергаются.
+  Старая колонка `outline_styles.indent` и старый JSONB-ключ `outline.indent`
+  миграцией `b1c2d3e4f5a6` переводятся в `indent_mode`/`indent_mm`; колонка
+  остаётся в БД, но генератором не читается.
 - `PUT /profiles/{id}/options` принимает неполный объект: отсутствующие поля
   дополняются дефолтами реестра. Неизвестные ключи, неверные типы и выход за
   `min`/`max` отвергаются с `400`.
@@ -116,15 +126,37 @@ path — адрес значения в JSONB. Например, `heading.h1.bre
 
 | Опция | Причина |
 |---|---|
-| `heading_level_styles.outlined` | Мёртвое поле; по AGENTS.md не вносится в реестр, колонка БД не удаляется |
+| `heading_level_styles.outlined` | Мёртвое поле; в реестр не внесено, удалено из API/UI на G1c, колонка БД остаётся |
 | `heading_level_styles.bookmarked` | То же |
 | `heading_level_styles.offset` | То же |
+| `outline_styles.indent` | Старая строка-выражение; заменена `outline.indent_mode`/`indent_mm`, колонка БД остаётся |
 | `id`, `profile_id`, `text_override_style_id`, `level` | Технические ключи, не опции оформления |
 | `text_override` как единое поле | Заменено набором опций полей; включение — наличие объекта |
 
 `figure.outlined` **включён**: генератор использует его для списка фигур.
 
 ## API
+
+`GET /registry/options` возвращает схему для универсального UI:
+
+```json
+{
+  "schema_version": 1,
+  "groups": [{"id": "page", "label": "Страница"}],
+  "options": [
+    {
+      "id": "page.margin_left",
+      "type": "number",
+      "unit": "mm",
+      "min": 0,
+      "max": 100,
+      "default": 25.0,
+      "path": ["page", "margin_left"],
+      "ui": {"control": "number", "label": "Поле слева", "tab": "Страница", "order": 2}
+    }
+  ]
+}
+```
 
 `GET /profiles/{profile_id}/options` →
 
@@ -161,14 +193,16 @@ path — адрес значения в JSONB. Например, `heading.h1.bre
 2. Добавление новой опции с дефолтом совместимо: старый JSONB при чтении
    дополняется дефолтом через `normalize_values`.
 3. Удаление/переименование опции требует явного переноса старых значений в
-   миграции; молчаливое отбрасывание запрещено.
+   миграции; молчаливое отбрасывание запрещено. Пример G1c:
+   `b1c2d3e4f5a6` переносит `outline.indent` в `indent_mode`/`indent_mm`
+   и в старых колонках, и в `profiles.options`.
 4. После миграции `profiles.options_schema_version` обновляется, а JSONB
    пересобирается из старых таблиц. Старые таблицы остаются для совместимости,
    но с G1b генератор читает JSONB; пустой JSONB — fallback на старые таблицы.
 5. Пока поддерживается только версия 1. Чтение JSONB с другой версией даёт
    `409`, запись — `400`.
 
-## Рантайм G1b
+## Рантайм G1b (обновлено в G1c)
 
 Полный Typst-исходник собирает одна функция
 `app.utils.typst_source.build_typst_source`:
@@ -187,3 +221,40 @@ SFU-титульник идёт до `fd-config`/`fd.apply`, чтобы прав
 `GET /profiles/{id}/preamble` возвращает шаги 1–3. PDF и `export-typ` вызывают
 ту же `build_typst_source`, поэтому их исходники совпадают; это проверяется
 тестом `test_pdf_and_export_use_identical_source`.
+
+## UI G1c
+
+Страница `/rules` (`frontend/src/views/Rules.vue`) строится одним рендерером
+`RuleField.vue` по схеме `/registry/options`; отдельного Vue-кода под правила
+нет. Поддерживаемые контролы: number/integer (ползунок + число + единицы),
+boolean (переключатель), string, select (выпадающий список), markers (3 поля).
+Значения читаются и пишутся через `GET`/`PUT /profiles/{id}/options`.
+Секции `text_override` включаются переключателем и заполняются дефолтами
+реестра. Старая страница `/styles` не удалена.
+
+## Golden G1c
+
+Снимки `tests/fixtures/golden/**/*.typ` больше не содержат библиотеку `fd`.
+Формат снимка:
+
+```text
+#let fd-config = (...)
+// --- document body ---
+<body from Pandoc>
+```
+
+`build_golden_source` пишет только конфиг и тело; `golden_to_full_source`
+подставляет текущую `fd` перед компиляцией. Поэтому правка `fd.typ` не меняет
+снимки, а сама библиотека проверяется рендер-тестами и golden-компиляцией.
+
+## Паритет и скорость G1c
+
+`tests/test_preview_parity.py` собирает один Markdown + профиль двумя путями
+(серверный `build_typst_source` и превью `preamble + "\n" + body`), компилирует
+PDF через Typst CLI и Node + `typst.ts`, затем сравнивает источник, число
+страниц, текст страниц и имена шрифтов. Скрипты:
+`frontend/scripts/typst-parity.mjs`, `frontend/scripts/typst-render.mjs`,
+`frontend/scripts/typst-preview-bench.mjs`.
+
+Замер перерисовки: документ 152 страницы, `typst.ts` компилирует правку за
+135 мс (порог S8 — 2 с). Конфигурация машины и числа — в `PROGRESS.md`.

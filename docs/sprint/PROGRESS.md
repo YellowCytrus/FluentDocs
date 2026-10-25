@@ -9,8 +9,8 @@
 |---|---|---|
 | G0 — страховка и прототипы | выполнен, принят владельцем | отчёт отправлен |
 | G1a — реестр и хранение | выполнен, принят владельцем | отчёт отправлен |
-| G1b — рантайм `fd` и единая сборка | выполнен, ждёт приёмки владельца | отчёт отправлен |
-| G1c — UI и паритет | не начат | — |
+| G1b — рантайм `fd` и единая сборка | выполнен, принят владельцем | отчёт отправлен |
+| G1c — UI и паритет | выполнен, ждёт приёмки владельца | отчёт отправлен |
 | G2 — дешёвые параметры и окружения | не начат | — |
 | G3 — нумерация, подписи, сущности | не начат | — |
 | G4 — таблицы и оглавление | не начат | — |
@@ -173,6 +173,129 @@ ORM + тело Pandoc) в `tests/fixtures/golden/<stem>.typ`. Профиль с�
 | `uvx ruff format --check` для файлов G1b | 16 files already formatted |
 
 Вне G1b в репозитории остаются старые файлы, которые `ruff format` предлагает
+переформатировать; массовый рефакторинг не выполнялся.
+
+## G1c — чек-лист
+
+Коммиты: `e9f5aea`, `508a339`, `8ddc970`, `bc52dd3`, `8a7e534`, финальный
+коммит документации.
+
+| Пункт | Статус | Где |
+|---|---|---|
+| Убрать `eval` из `fd.typ` | ✔ осталось структурное `auto`/`none`/`custom` | `app/typst/fd.typ` |
+| Тест: нет `eval`/`read`/`include`/`plugin` | ✔ | `tests/test_typst_runtime.py::test_fd_library_has_no_dynamic_code_execution` |
+| Реестр: `outline.indent_mode` / `indent_mm` | ✔ `legacy=False`, отдельные тесты | `app/registry/options.py` |
+| Миграция старого `outline.indent` | ✔ колонки + JSONB | `alembic/versions/add_outline_structured_indent.py` |
+| Произвольная строка отвергается | ✔ 400 на `outline.indent`, `indent_mode`, `indent_mm` | `tests/test_profile_options_api.py` |
+| Golden хранит только конфиг и тело | ✔ 16 снимков | `tests/golden_helpers.py`, `tests/fixtures/golden/` |
+| Правка `fd.typ` не меняет golden | ✔ тест на отсутствие `fd` в снимке | `test_golden_does_not_embed_fd_library` |
+| Универсальная страница «Правила» | ✔ одна форма на все 304 опции | `frontend/src/views/Rules.vue`, `RuleField.vue` |
+| UI из реестра, без Vue-кода под правила | ✔ | `GET /registry/options` |
+| Паритет превью/PDF | ✔ 8 документов | `tests/test_preview_parity.py` |
+| Одинаковые шрифты | ✔ имена в PDF совпадают, файлы сверены по SHA-256 | ниже |
+| Скорость перерисовки 100+ страниц | ✔ 135 мс на 152 страницах | `typst-preview-bench.mjs` |
+| Мёртвые поля заголовков убраны из API/UI | ✔ `outlined`, `bookmarked`, `offset` | `tests/test_heading_level_api.py` |
+| Колонки БД не удалены | ✔ | `heading_level_styles` |
+| Тесты версий не пропускаются молча | ✔ `pytest.skip` с причиной | `tests/test_versions.py` |
+| CI: Typst 0.14.2 + Node + `npm ci` | ✔ | `.github/workflows/ci.yml` |
+
+### Безопасность отступа оглавления
+
+Старое поле `outline.indent` содержало произвольную строку Typst и исполнялось
+через `eval`. Замена: `outline.indent_mode` (`auto`/`none`/`custom`) и
+`outline.indent_mm` (мм). В `fd.typ`:
+
+- `auto` — `indent` не передаётся (поведение Typst по умолчанию);
+- `none` — `indent: 0mm`;
+- `custom` — `indent: indent_mm * 1mm`.
+
+Строковые выражения и неизвестные ключи отвергаются реестром с `400`.
+Колонка `outline_styles.indent` остаётся в БД; миграция переносит её значения
+(включая старый JSONB-ключ) в новые поля. `em` при миграции пересчитан по
+базовым 12 pt и это единственное приближение.
+
+### Golden G1c
+
+Формат снимка: `#let fd-config = (...)` + маркер `// --- document body ---` +
+тело Pandoc. Библиотека `fd` в снимок не входит, поэтому её правка снимки не
+меняет. Перед компиляцией `golden_to_full_source` подставляет текущую `fd` и
+`#show: fd.apply.with(fd-config)`. Все 16 снимков пересозданы; изменился только
+блок `outline` (`indent` → `indent_mode`/`indent_mm`), тела документов не
+менялись. Размер снимка `simple.typ`: 3 512 байт (было 19 323).
+
+### Универсальный UI
+
+`/rules`: `ProfileSidebar` + вкладки `ui.tab` + секции по элементу/уровню
+заголовка. Данные — `GET /registry/options` (схема) и
+`GET/PUT /profiles/{id}/options` (значения). Контролы: number/integer
+(ползунок + число + единицы), boolean, string, select, markers. Секции
+`text_override` включаются переключателем и заполняются дефолтами реестра.
+Вкладки: Страница 9, Текст 15, Абзац 17, Заголовки 91, Маркированный список 18,
+Нумерованный список 22, Определения 17, Таблица 17, Изображение 20, Цитата 16,
+Сноска 17, Код 16, Оглавление 16, Формула 13. Всего 304 опции, из них
+`legacy=False` только две новые опции отступа оглавления.
+
+### Паритет превью и PDF
+
+`tests/test_preview_parity.py`: один Markdown + профиль, источник сервера и
+превью совпадают байт в байт; PDF собираются Typst CLI и Node + `typst.ts`.
+Проверены 8 документов: источник, число страниц, текст страниц и имена шрифтов.
+
+| Документ | Страниц | Текст совпал | Шрифты совпали |
+|---|---:|---|---|
+| simple | 1 | ✔ | ✔ LibertinusSerif Regular/Bold |
+| headings | 1 | ✔ | ✔ LibertinusSerif Regular/Bold |
+| lists | 1 | ✔ | ✔ LibertinusSerif Regular/Bold |
+| figure | 1 | ✔ | ✔ LibertinusSerif Regular/Bold |
+| table | 1 | ✔ | ✔ LibertinusSerif Regular/Bold |
+| formula | 1 | ✔ | ✔ LibertinusSerif Regular/Bold + NewCMMath-Book |
+| footnote | 1 | ✔ | ✔ LibertinusSerif Regular/Bold |
+| appendix | 1 | ✔ | ✔ LibertinusSerif Regular/Bold |
+
+### Шрифты: файлы и хэши
+
+`typst.ts` загружает текстовые ассеты `typst-assets@v0.13.1`; Typst CLI 0.14.2
+встраивает те же файлы. SHA-256 файлов (скачанные ассеты; для CLI совпали
+извлечённые из бинаря sfnt-блоки с учётом padding):
+
+| Файл | SHA-256 |
+|---|---|
+| `LibertinusSerif-Regular.otf` | `fcf06307a77367394fcb0ccb241e59eea70dba3d732be309647611224679c733` |
+| `LibertinusSerif-Bold.otf` | `0264914210ed51b3231ebc92ce529e9f2e166ba9eebf0cd4a579558690a27b64` |
+| `LibertinusSerif-Italic.otf` | `9a393d63d6e05f620d3dc0190dfd35a8ede58c0808cf0fc9de7fcb9c723e4c24` |
+| `LibertinusSerif-BoldItalic.otf` | `47a665259f09f554f5d133d7718cdad43ff462c6a6b2328f38023465e62d57ce` |
+| `LibertinusSerif-Semibold.otf` | `a4b3f28e85881db34695c1f005e4c79233a6caf3a2bd286c9b418c025fb99308` |
+| `LibertinusSerif-SemiboldItalic.otf` | `397f0d7aba35ae6a988948ae046c14c6b1e0d270fcc6e292b8bc29fd625c6101` |
+| `NewCMMath-Book.otf` | `b2e655d5cae5ab9569fa6f5d94e929156fe70bd3548d916b4b23d1a1c1a55693` |
+| `DejaVuSansMono.ttf` | `b4a6c3e4faab8773f4ff761d56451646409f29abedd68f05d38c2df667d3c582` |
+| `DejaVuSansMono-Bold.ttf` | `bce60f1b4421acd9ea51ba6623d7024ecbe6817a953e3654df62a5e6bdf8f769` |
+
+### Скорость превью
+
+Конфигурация: Linux 7.2.11, Intel Core i5-1135G7, 4 ядра / 8 потоков,
+7.4 GiB RAM, Node v26.12.0, Typst 0.14.2, Pandoc 3.9.
+
+| Документ | Страниц | Холодная сборка | Перерисовка после правки |
+|---|---:|---:|---:|
+| 1 200 абзацев | 152 | 655 мс | **135 мс** |
+| 4 000 абзацев | 507 | 1 479–1 634 мс | **394–1 123 мс** |
+
+Порог S8 — 2 000 мс; на 507 страницах порог тоже выдержан. Тест
+`test_preview_redraw_under_two_seconds` проверяет 152-страничный документ.
+
+### Проверки G1c
+
+| Команда | Результат |
+|---|---|
+| `uv run pytest tests/ -m "not integration"` (Postgres 16.2, `pgserver`) | 99 passed, 42 deselected |
+| `uv run pytest tests/ -m integration` | 42 passed, 99 deselected |
+| `cd frontend && npm test -- --run` | 8 passed (3 files) |
+| `cd frontend && npm run build` | OK |
+| `uvx ruff check app tests` | All checks passed |
+| `uvx ruff format --check` для файлов G1c | 18 files already formatted |
+| Alembic на чистой БД | `upgrade head` без ошибок |
+
+Вне G1c остаются старые файлы, которые `ruff format` предлагает
 переформатировать; массовый рефакторинг не выполнялся.
 
 ## Проверки G0 (исторические)
