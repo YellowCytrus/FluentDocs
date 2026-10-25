@@ -110,6 +110,47 @@ def test_config_escaping_and_region_none():
     assert "region: none" in source
 
 
+def test_outline_indent_modes_config():
+    """Оглавление: auto не передаёт indent, none даёт 0, custom — мм."""
+    profile = default_profile()
+    auto_source = build_typst_preamble(profile)
+    assert 'indent_mode: "auto"' in auto_source
+    assert "indent_mm: 0.0" in auto_source
+    assert 'indent: "auto"' not in auto_source
+
+    profile.outline_style.indent_mode = "none"
+    profile.outline_style.indent_mm = 0.0
+    none_source = build_typst_preamble(profile)
+    assert 'indent_mode: "none"' in none_source
+
+    profile.outline_style.indent_mode = "custom"
+    profile.outline_style.indent_mm = 5.5
+    custom_source = build_typst_preamble(profile)
+    assert 'indent_mode: "custom"' in custom_source
+    assert "indent_mm: 5.5" in custom_source
+
+
+def test_outline_indent_rejects_arbitrary_strings():
+    """Строка-выражение в отступе оглавления отвергается на уровне реестра."""
+    from app.registry import RegistryError, normalize_values
+
+    with pytest.raises(RegistryError):
+        normalize_values({"outline": {"indent": "1.5em"}})
+    with pytest.raises(RegistryError):
+        normalize_values({"outline": {"indent_mode": "1.5em"}})
+    with pytest.raises(RegistryError):
+        normalize_values({"outline": {"indent_mm": "5mm"}})
+
+
+def test_fd_library_has_no_dynamic_code_execution():
+    """fd.typ не должен исполнять пользовательские строки и читать внешние файлы."""
+    import re
+
+    source = FD_LIBRARY_PATH.read_text(encoding="utf-8")
+    for forbidden in ("eval", "read", "include", "plugin"):
+        assert re.search(rf"\b{forbidden}\s*\(", source) is None, forbidden
+
+
 def test_options_schema_version_error_is_reported():
     profile = default_profile()
     profile.options = cast(dict[str, JsonValue], {"page": {"paper": "a4"}})

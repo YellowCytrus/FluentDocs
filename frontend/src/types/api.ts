@@ -140,13 +140,15 @@ export interface NumberedListStylesUpdate {
 
 export interface OutlineStyles {
   depth: number | null;
-  indent: string;
+  indent_mode: 'auto' | 'none' | 'custom';
+  indent_mm: number;
   text_override: TextOverrideStyles | null;
 }
 
 export interface OutlineStylesUpdate {
   depth?: number | null;
-  indent?: string;
+  indent_mode?: 'auto' | 'none' | 'custom';
+  indent_mm?: number;
 }
 
 export interface PageStyles {
@@ -225,18 +227,12 @@ export interface EquationStylesUpdate {
 
 export interface HeadingLevelStyles {
   level: number;
-  outlined: boolean;
-  bookmarked: string;
-  offset: number;
   break_before: boolean;
   numbering_enabled: boolean;
   text_override: TextOverrideStyles | null;
 }
 
 export interface HeadingLevelStylesUpdate {
-  outlined?: boolean;
-  bookmarked?: string;
-  offset?: number;
   break_before?: boolean;
   numbering_enabled?: boolean;
   text_override?: TextOverrideStyles | null;

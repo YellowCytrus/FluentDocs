@@ -14,6 +14,7 @@ from app.registry.options import (
     OPTIONS,
     OPTIONS_BY_ID,
     OPTIONS_BY_PATH,
+    TEST_IDS,
     TEXT_OVERRIDE_ELEMENTS,
     TEXT_OVERRIDE_FIELDS,
 )
@@ -49,6 +50,9 @@ def test_registry_option_contract() -> None:
         assert option.source.strip()
         assert option.test_ids
         assert set(option.test_ids) <= known_tests, option.test_ids - known_tests
+        if not option.legacy:
+            assert option.test_ids != tuple(TEST_IDS)
+            assert all(name.startswith("test_") for name in option.test_ids)
         assert option.ui.get("control")
         assert option.ui.get("label")
         assert option.ui.get("tab")
@@ -87,6 +91,9 @@ def test_registry_covers_orm_fields(element: str) -> None:
     """Каждая колонка стилей (кроме мёртвых) представлена опцией реестра."""
     model, _ = ELEMENT_MODELS[element]
     ignored = {"id", "profile_id", "text_override_style_id", "level"}
+    # Старая строковая колонка отступа оглавления заменена структурными опциями.
+    if element == "outline":
+        ignored.add("indent")
     for column in model.__table__.columns:
         if column.name in ignored:
             continue

@@ -46,6 +46,7 @@ class Option:
     enum: tuple[str, ...] = ()
     depends_on: tuple[str, ...] = ()
     nullable: bool = False
+    legacy: bool = True
 
 
 GROUP_LABELS: dict[str, str] = {
@@ -107,6 +108,11 @@ SELECT_LABELS: dict[str, list[tuple[str, str]]] = {
         ("tabular", "Табличные"),
     ],
     "spacing": [("auto", "Авто"), ("tight", "Компактный"), ("loose", "Свободный")],
+    "outline_indent_mode": [
+        ("auto", "Авто"),
+        ("none", "Без отступа"),
+        ("custom", "Свой отступ"),
+    ],
     "align": [("auto", "Авто"), ("left", "Слева"), ("center", "По центру"), ("right", "Справа")],
     "quotes": [("auto", "Авто"), ("true", "Да"), ("false", "Нет")],
     "hyphenate": [("auto", "Авто"), ("true", "Да"), ("false", "Нет")],
@@ -280,6 +286,9 @@ def _option(
     depends_on: tuple[str, ...] = (),
     nullable: bool = False,
     rationale: str | None = None,
+    source: str | None = None,
+    test_ids: tuple[str, ...] | None = None,
+    legacy: bool = True,
 ) -> Option:
     control = {
         "number": "number",
@@ -298,7 +307,7 @@ def _option(
         path=path,
         ui=_ui(label, group, control, order, enum),
         rationale=rationale or _rationale(label, applies_to[0]),
-        source=SOURCE[group],
+        source=source or SOURCE[group],
         unit=unit,
         allowed_units=allowed_units,
         min=min,
@@ -307,6 +316,8 @@ def _option(
         enum=enum,
         depends_on=depends_on,
         nullable=nullable,
+        test_ids=test_ids or TEST_IDS,
+        legacy=legacy,
     )
 
 
@@ -1211,14 +1222,51 @@ def _base_options() -> list[Option]:
             nullable=True,
         ),
         _option(
-            "outline.indent",
+            "outline.indent_mode",
             "outline",
             ("outline",),
-            "string",
+            "select",
             "auto",
-            ("outline", "indent"),
-            "Отступ вложенности",
+            ("outline", "indent_mode"),
+            "Режим отступа вложенности",
             order=o(opts),
+            enum=tuple(v for v, _ in SELECT_LABELS["outline_indent_mode"]),
+            rationale=(
+                "Управляет отступом вложенных записей оглавления: авто — правило Typst, "
+                "без отступа — ноль, свой — явное значение в мм вместо исполняемой строки."
+            ),
+            source="СТУ 6.4; plan_v2 toc.indent",
+            test_ids=(
+                "test_outline_indent_modes_config",
+                "test_outline_indent_rejects_arbitrary_strings",
+            ),
+            legacy=False,
+        ),
+        _option(
+            "outline.indent_mm",
+            "outline",
+            ("outline",),
+            "number",
+            0.0,
+            ("outline", "indent_mm"),
+            "Свой отступ вложенности",
+            order=o(opts),
+            unit="mm",
+            allowed_units=MM_UNITS,
+            min=0,
+            max=100,
+            step=0.1,
+            depends_on=("outline.indent_mode",),
+            rationale=(
+                "Задаёт величину отступа вложенных записей оглавления в миллиметрах; "
+                "применяется только в режиме «Свой отступ»."
+            ),
+            source="СТУ 6.4; plan_v2 toc.indent",
+            test_ids=(
+                "test_outline_indent_modes_config",
+                "test_outline_indent_rejects_arbitrary_strings",
+            ),
+            legacy=False,
         ),
     ]
     return opts

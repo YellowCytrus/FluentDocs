@@ -434,18 +434,6 @@ export const STYLE_TAB_TREE: TabNode[] = [
         fields: [
           { key: 'break_before', label: 'С новой страницы', type: 'boolean' },
           { key: 'numbering_enabled', label: 'Нумерация', type: 'boolean' },
-          { key: 'outlined', label: 'В оглавлении', type: 'boolean' },
-          {
-            key: 'bookmarked',
-            label: 'Закладка в PDF',
-            type: 'select',
-            options: [
-              { value: 'auto', label: 'Авто' },
-              { value: 'true', label: 'Да' },
-              { value: 'false', label: 'Нет' },
-            ],
-          },
-          { key: 'offset', label: 'Смещение уровня', type: 'number', min: 0, max: 5, step: 1 },
         ],
       },
       {
@@ -456,18 +444,6 @@ export const STYLE_TAB_TREE: TabNode[] = [
         fields: [
           { key: 'break_before', label: 'С новой страницы', type: 'boolean' },
           { key: 'numbering_enabled', label: 'Нумерация', type: 'boolean' },
-          { key: 'outlined', label: 'В оглавлении', type: 'boolean' },
-          {
-            key: 'bookmarked',
-            label: 'Закладка в PDF',
-            type: 'select',
-            options: [
-              { value: 'auto', label: 'Авто' },
-              { value: 'true', label: 'Да' },
-              { value: 'false', label: 'Нет' },
-            ],
-          },
-          { key: 'offset', label: 'Смещение уровня', type: 'number', min: 0, max: 5, step: 1 },
         ],
       },
       {
@@ -478,18 +454,6 @@ export const STYLE_TAB_TREE: TabNode[] = [
         fields: [
           { key: 'break_before', label: 'С новой страницы', type: 'boolean' },
           { key: 'numbering_enabled', label: 'Нумерация', type: 'boolean' },
-          { key: 'outlined', label: 'В оглавлении', type: 'boolean' },
-          {
-            key: 'bookmarked',
-            label: 'Закладка в PDF',
-            type: 'select',
-            options: [
-              { value: 'auto', label: 'Авто' },
-              { value: 'true', label: 'Да' },
-              { value: 'false', label: 'Нет' },
-            ],
-          },
-          { key: 'offset', label: 'Смещение уровня', type: 'number', min: 0, max: 5, step: 1 },
         ],
       },
       {
@@ -500,18 +464,6 @@ export const STYLE_TAB_TREE: TabNode[] = [
         fields: [
           { key: 'break_before', label: 'С новой страницы', type: 'boolean' },
           { key: 'numbering_enabled', label: 'Нумерация', type: 'boolean' },
-          { key: 'outlined', label: 'В оглавлении', type: 'boolean' },
-          {
-            key: 'bookmarked',
-            label: 'Закладка в PDF',
-            type: 'select',
-            options: [
-              { value: 'auto', label: 'Авто' },
-              { value: 'true', label: 'Да' },
-              { value: 'false', label: 'Нет' },
-            ],
-          },
-          { key: 'offset', label: 'Смещение уровня', type: 'number', min: 0, max: 5, step: 1 },
         ],
       },
       {
@@ -522,18 +474,6 @@ export const STYLE_TAB_TREE: TabNode[] = [
         fields: [
           { key: 'break_before', label: 'С новой страницы', type: 'boolean' },
           { key: 'numbering_enabled', label: 'Нумерация', type: 'boolean' },
-          { key: 'outlined', label: 'В оглавлении', type: 'boolean' },
-          {
-            key: 'bookmarked',
-            label: 'Закладка в PDF',
-            type: 'select',
-            options: [
-              { value: 'auto', label: 'Авто' },
-              { value: 'true', label: 'Да' },
-              { value: 'false', label: 'Нет' },
-            ],
-          },
-          { key: 'offset', label: 'Смещение уровня', type: 'number', min: 0, max: 5, step: 1 },
         ],
       },
       {
@@ -544,18 +484,6 @@ export const STYLE_TAB_TREE: TabNode[] = [
         fields: [
           { key: 'break_before', label: 'С новой страницы', type: 'boolean' },
           { key: 'numbering_enabled', label: 'Нумерация', type: 'boolean' },
-          { key: 'outlined', label: 'В оглавлении', type: 'boolean' },
-          {
-            key: 'bookmarked',
-            label: 'Закладка в PDF',
-            type: 'select',
-            options: [
-              { value: 'auto', label: 'Авто' },
-              { value: 'true', label: 'Да' },
-              { value: 'false', label: 'Нет' },
-            ],
-          },
-          { key: 'offset', label: 'Смещение уровня', type: 'number', min: 0, max: 5, step: 1 },
         ],
       },
     ],
@@ -985,9 +913,23 @@ export const STYLE_TAB_TREE: TabNode[] = [
         step: 1,
       },
       {
-        key: 'indent',
-        label: 'Отступ вложенности',
-        type: 'string',
+        key: 'indent_mode',
+        label: 'Режим отступа вложенности',
+        type: 'select',
+        options: [
+          { value: 'auto', label: 'Авто' },
+          { value: 'none', label: 'Без отступа' },
+          { value: 'custom', label: 'Свой отступ' },
+        ],
+      },
+      {
+        key: 'indent_mm',
+        label: 'Свой отступ вложенности',
+        type: 'number',
+        min: 0,
+        max: 100,
+        step: 0.1,
+        unit: 'mm',
       },
     ],
   },

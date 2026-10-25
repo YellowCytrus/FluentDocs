@@ -212,7 +212,8 @@ function termsLine(e: DTO): string {
 function outlineLine(e: DTO): string {
   const a: string[] = [];
   if (e.depth != null) a.push(`depth: ${e.depth}`);
-  if (e.indent && e.indent !== 'auto') a.push(`indent: ${e.indent}`);
+  if (e.indent_mode === 'none') a.push('indent: 0mm');
+  if (e.indent_mode === 'custom') a.push(`indent: ${(e.indent_mm as number) ?? 0}mm`);
   return a.length ? `#set outline(${a.join(', ')})` : '';
 }
 

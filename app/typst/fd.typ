@@ -467,8 +467,10 @@
     if config.outline.depth != none {
       outline-args.insert("depth", config.outline.depth)
     }
-    if config.outline.indent != "auto" {
-      outline-args.insert("indent", eval(config.outline.indent))
+    if config.outline.indent_mode == "none" {
+      outline-args.insert("indent", 0mm)
+    } else if config.outline.indent_mode == "custom" {
+      outline-args.insert("indent", config.outline.indent_mm * 1mm)
     }
     if outline-args.len() > 0 {
       set outline(..outline-args)

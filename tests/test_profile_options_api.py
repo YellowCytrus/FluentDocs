@@ -115,6 +115,24 @@ async def test_options_legacy_write_updates_jsonb(client):
 async def test_options_api_rejects_bad_input(client):
     profile_id = await _create_profile(client)
 
+    legacy_indent = await client.put(
+        f"/profiles/{profile_id}/options",
+        json={
+            "schema_version": SCHEMA_VERSION,
+            "values": {"outline": {"indent": "1.5em"}},
+        },
+    )
+    assert legacy_indent.status_code == 400
+
+    bad_indent_mode = await client.put(
+        f"/profiles/{profile_id}/options",
+        json={
+            "schema_version": SCHEMA_VERSION,
+            "values": {"outline": {"indent_mode": "1.5em", "indent_mm": 0}},
+        },
+    )
+    assert bad_indent_mode.status_code == 400
+
     bad_version = await client.put(
         f"/profiles/{profile_id}/options",
         json={"schema_version": 999, "values": {}},

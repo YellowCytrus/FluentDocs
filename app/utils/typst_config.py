@@ -190,7 +190,7 @@ def config_tree(values: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
         ),
         "outline": _element_tree(
             _element(values, "outline"),
-            ("depth", "indent", "text_override"),
+            ("depth", "indent_mode", "indent_mm", "text_override"),
         ),
     }
 
