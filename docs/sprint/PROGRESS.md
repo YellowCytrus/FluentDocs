@@ -8,8 +8,8 @@
 | Ворота | Статус | Отчёт |
 |---|---|---|
 | G0 — страховка и прототипы | выполнен, принят владельцем | отчёт отправлен |
-| G1a — реестр и хранение | выполнен, ждёт приёмки владельца | отчёт отправлен |
-| G1b — рантайм `fd` и единая сборка | не начат | — |
+| G1a — реестр и хранение | выполнен, принят владельцем | отчёт отправлен |
+| G1b — рантайм `fd` и единая сборка | выполнен, ждёт приёмки владельца | отчёт отправлен |
 | G1c — UI и паритет | не начат | — |
 | G2 — дешёвые параметры и окружения | не начат | — |
 | G3 — нумерация, подписи, сущности | не начат | — |
@@ -112,26 +112,86 @@ ORM + тело Pandoc) в `tests/fixtures/golden/<stem>.typ`. Профиль с�
 Ожидания заменены на константы `app/models/constants/style_defaults.py`; это не
 ослабление, а приведение к действующему контракту мм.
 
-## Проверки
+## G1b — чек-лист
+
+| Пункт | Статус | Где |
+|---|---|---|
+| Библиотека `fd` | ✔ 502 строки, 15 766 байт | `app/typst/fd.typ` |
+| Конфиг профиля — Typst-литерал | ✔ `fd-config` | `app/utils/typst_config.py` |
+| Одна сборка полного источника | ✔ PDF, export-typ, превью | `app/utils/typst_source.py`, `app/api/generate.py` |
+| PDF и export-typ получают один источник | ✔ тест | `tests/test_generate_pdf_api.py::test_pdf_and_export_use_identical_source` |
+| Все элементы переведены на реестр/`fd` | ✔ 15 элементов, `heading_levels` | `fd-config`, `fd.apply` |
+| Дефолтный вывод совпадает со старыми golden | ✔ тела снимков байт в байт, PDF-символы совпадают | `tests/fixtures/golden/`, отчёт G1b |
+| Второй golden-профиль с `text_override` | ✔ 8 снимков | `tests/fixtures/golden/text_override/` |
+| Рендер `text_override` в PDF | ✔ 6 integration-тестов | `tests/test_typst_render_override.py` |
+| Инвариант после записей в старые таблицы | ✔ все пути ниже | `tests/test_options_invariant.py` |
+| Буквальные мм в четырёх тестах | ✔ | `tests/test_element_styles_api.py` |
+| `pdfplumber` для тестов рендера | ✔ dev-группа | `pyproject.toml`, `uv.lock` |
+| Тесты версий не ослаблены | ✔ | `tests/test_versions.py` |
+
+### Пути записи в старые таблицы
+
+| Путь | Синхронизация `profiles.options` | Тест |
+|---|---|---|
+| `POST /profiles/{id}/{element}` | после `persist`/text override | `test_invariant_after_element_post_patch_put` |
+| `PATCH /profiles/{id}/{element}` | после `persist` | тот же |
+| `PUT /profiles/{id}/{element}` | после `persist` | тот же |
+| `GET /profiles/{id}/{element}` при создании строки | после `get_or_create` | `test_invariant_after_get_creates_legacy_rows` |
+| `PATCH /profiles/{id}/heading/{level}` | после `persist` | `test_invariant_after_heading_level_patch_put` |
+| `PUT /profiles/{id}/heading/{level}` | после `persist` | тот же |
+| `GET /profiles/{id}/heading/{level}` при создании строки | после `_get_or_create_level` | `test_invariant_after_get_creates_legacy_rows` |
+| `PUT /profiles/{id}/options` | пишет JSONB и старые таблицы | `test_invariant_after_options_put` |
+| `POST /profiles`, `DELETE /profiles/{id}` | строк стилей не создаёт; удаление каскадное | `test_profile_create_delete_do_not_write_legacy_tables` |
+
+Копирования/дублирования профиля в API нет. `PATCH /profiles/{id}` меняет
+только имя и стилей не касается.
+
+### Golden-изменения G1b
+
+- 8 дефолтных снимков: изменился только общий префикс (`fd` + конфиг),
+  тело документа байт в байт совпадает со старым снимком. Тело проверено
+  сравнением с выводом Pandoc; PDF старых и новых снимков совпадают по
+  страницам, координатам, кеглю и именам шрифтов (`pdfplumber`, 8/8).
+- 8 новых снимков `tests/fixtures/golden/text_override/`.
+- Размер префикса: было 21 строка / 1 090 байт, стало 659 строк /
+  18 688 байт. Полный `simple.typ`: 670 строк / 19 323 байта.
+- Исправлен счётчик подписи рисунка: старый шаблон без `{N}` не компилировался,
+  а с `{N}` первый рисунок получал 0/2. Теперь счётчики сбрасываются в 0,
+  `{N}` показывает текущий номер + 1. На дефолтные снимки не влияет.
+
+### Проверки G1b
 
 | Команда | Результат |
 |---|---|
-| `typst compile` для 8 golden-снимков | 8/8 OK |
+| `uv run pytest tests/ -m "not integration"` (Postgres 16.2, `pgserver`) | 93 passed, 39 deselected |
+| `uv run pytest tests/ -m integration` (Postgres 16.2, `pgserver`) | 39 passed, 93 deselected |
+| `uv run pytest tests/test_typst_golden.py -m integration` | 32 passed |
+| `uv run pytest tests/test_typst_render_override.py -m integration` | 6 passed |
+| `cd frontend && npm test` | 5 passed |
+| `cd frontend && npm run build` | OK (15.16 s) |
+| `uvx ruff check app tests` | All checks passed |
+| `uvx ruff format --check` для файлов G1b | 16 files already formatted |
+
+Вне G1b в репозитории остаются старые файлы, которые `ruff format` предлагает
+переформатировать; массовый рефакторинг не выполнялся.
+
+## Проверки G0 (исторические)
+
+| Команда | Результат |
+|---|---|
+| `typst compile` для 8 golden-снимков G0 | 8/8 OK |
 | `typst compile` для 13 `.typ` прототипов | 13/13 OK |
-| `uv run pytest tests/test_typst_golden.py -m integration` | 8 passed |
-| `uv run pytest tests/ -m "not integration"` | 5 passed, 51 skipped, 9 deselected |
-| `uv run pytest tests/ -m integration` | 8 passed, 1 skipped, 56 deselected |
+| `uv run pytest tests/ -m "not integration"` (без Postgres в окружении G0) | 5 passed, 51 skipped, 9 deselected |
+| `uv run pytest tests/ -m integration` (без Postgres в окружении G0) | 8 passed, 1 skipped, 56 deselected |
 | `cd frontend && npm test` | 5 passed |
 | `cd frontend && npm run build` | OK (15.13 s) |
-| `uvx ruff check app/ tests/` | All checks passed |
-| `uvx ruff format --check ...` | новые файлы G0/G0-fix отформатированы; в репозитории остаются старые файлы, требующие форматирования |
 
-Пропущенные тесты — только DB-тесты (`client` → `test_engine`): Postgres в
-окружении отсутствует. Golden и тест версий выполняются без БД.
+Пропуск DB-тестов в G0 был следствием отсутствия Postgres; на G1a/G1b Postgres
+16.2 (`pgserver`) запущен, глобальных пропусков нет, актуальные цифры — в
+разделах G1a/G1b.
 
-PDF-измерения прототипов: pdfplumber 0.11.10, запускался через
-`uv run --with pdfplumber`. В dev-зависимости пока не добавлен; добавить на G1
-вместе с тестами рендера.
+PDF-измерения прототипов: pdfplumber 0.11.10. На G1b зависимость добавлена в
+dev-группу `pyproject.toml`, тесты рендера используют её без `uv run --with`.
 
 ## Открытые решения владельца
 
