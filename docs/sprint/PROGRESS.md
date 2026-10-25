@@ -7,8 +7,10 @@
 
 | Ворота | Статус | Отчёт |
 |---|---|---|
-| G0 — страховка и прототипы | выполнен, ждёт приёмки владельца | отчёт отправлен |
-| G1 — реестр и рантайм | не начат | — |
+| G0 — страховка и прототипы | выполнен, принят владельцем | отчёт отправлен |
+| G1a — реестр и хранение | выполнен, ждёт приёмки владельца | отчёт отправлен |
+| G1b — рантайм `fd` и единая сборка | не начат | — |
+| G1c — UI и паритет | не начат | — |
 | G2 — дешёвые параметры и окружения | не начат | — |
 | G3 — нумерация, подписи, сущности | не начат | — |
 | G4 — таблицы и оглавление | не начат | — |
@@ -74,6 +76,41 @@ ORM + тело Pandoc) в `tests/fixtures/golden/<stem>.typ`. Профиль с�
 | `VERSIONS.md` + тест версий | ✔ | `docs/sprint/VERSIONS.md`, `tests/test_versions.py` |
 | B-01…B-05 отмечены решёнными | ✔ | `BLOCKERS.md` |
 | S9: коэффициент — свойство шрифта, в G2 из реестра | ✔ дописано | `SPIKES.md` |
+
+## G1a — чек-лист
+
+| Пункт | Статус | Где |
+|---|---|---|
+| Реестр опций Python-модулем | ✔ 303 опции | `app/registry/options.py` |
+| Поля записи по AGENTS §4 | ✔ | `Option`, `REGISTRY_SPEC.md` |
+| Дефолты равны ORM-дефолтам | ✔ тест | `tests/test_registry.py` |
+| Мёртвые поля не внесены | ✔ `outlined`, `bookmarked`, `offset` | `REGISTRY_SPEC.md` |
+| Версия схемы | ✔ `SCHEMA_VERSION = 1` | `app/registry/options.py` |
+| JSONB-хранилище | ✔ `profiles.options`, `options_schema_version` | `app/models/sqlalchemy/profile.py` |
+| Alembic-миграция | ✔ `a9b8c7d6e5f4` | `alembic/versions/add_profile_options_jsonb.py` |
+| API чтения/записи | ✔ GET/PUT `/profiles/{id}/options` | `app/api/profiles.py` |
+| Двойное чтение JSONB → старые таблицы | ✔ тест | `tests/test_profile_options_api.py` |
+| Запись в оба места | ✔ options API + sync после element API | `app/registry/storage.py`, `app/api/elements/` |
+| Реестровый тест | ✔ | `tests/test_registry.py` |
+| Тесты хранения/API | ✔ 4 теста | `tests/test_profile_options_api.py` |
+| `REGISTRY_SPEC.md` | ✔ | `docs/sprint/REGISTRY_SPEC.md` |
+| Существующие тесты зелёные | ✔ 78 + 9 | см. проверки ниже |
+
+## G1a — проверки
+
+| Команда | Результат |
+|---|---|
+| `uv run pytest tests/ -m "not integration"` (Postgres 16.2, `pgserver`) | 78 passed, 9 deselected |
+| `uv run pytest tests/ -m integration` (Postgres 16.2, `pgserver`) | 9 passed, 78 deselected |
+| `uv run pytest tests/test_registry.py tests/test_profile_options_api.py` | 22 passed |
+| `cd frontend && npm test -- --run` | 5 passed |
+| `cd frontend && npm run build` | OK |
+| `uv run --with ruff ruff check app tests alembic` | All checks passed |
+
+Четыре старых теста `tests/test_element_styles_api.py` ожидали старые
+неметрические дефолты (0.5, 1.2, 1.0) и падали на канонических мм-значениях.
+Ожидания заменены на константы `app/models/constants/style_defaults.py`; это не
+ослабление, а приведение к действующему контракту мм.
 
 ## Проверки
 
