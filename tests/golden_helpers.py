@@ -30,9 +30,12 @@ from app.models.sqlalchemy.styles import (
     TermsStyle,
     TextOverrideStyle,
 )
-from app.utils.typst_source import build_typst_source
+from app.registry import options_payload
+from app.utils.typst_config import build_fd_config
+from app.utils.typst_source import build_typst_source, fd_library_source
 
 FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
+GOLDEN_BODY_MARKER = "\n// --- document body ---\n"
 DOCS_DIR = FIXTURES_DIR / "docs"
 GOLDEN_DIR = FIXTURES_DIR / "golden"
 TEXT_OVERRIDE_GOLDEN_DIR = GOLDEN_DIR / "text_override"
@@ -147,15 +150,32 @@ def build_source(markdown: str, profile: Profile | None = None) -> str:
     return build_typst_source(profile or default_profile(), body)
 
 
+def build_golden_source(markdown: str, profile: Profile | None = None) -> str:
+    """Снимок без библиотеки fd: литерал конфига + тело документа.
+
+    Правка ``fd.typ`` не должна менять golden: библиотека проверяется
+    рендер-тестами, а снимок фиксирует только значения профиля и вывод Pandoc.
+    """
+    body = markdown_to_typst(markdown)
+    values, _source = options_payload(profile or default_profile())
+    return f"#let fd-config = {build_fd_config(values)}\n{GOLDEN_BODY_MARKER}{body}"
+
+
+def golden_to_full_source(golden_text: str) -> str:
+    """Собирает исполняемый исходник из снимка, подставляя текущую fd."""
+    config_part, body = golden_text.split(GOLDEN_BODY_MARKER, 1)
+    return f"{fd_library_source()}\n{config_part}\n#show: fd.apply.with(fd-config)\n{body}"
+
+
 def main() -> None:
     GOLDEN_DIR.mkdir(parents=True, exist_ok=True)
     TEXT_OVERRIDE_GOLDEN_DIR.mkdir(parents=True, exist_ok=True)
     for doc in sorted(DOCS_DIR.glob("*.md")):
         markdown = doc.read_text(encoding="utf-8")
-        default_source = build_source(markdown, default_profile())
+        default_source = build_golden_source(markdown, default_profile())
         (GOLDEN_DIR / f"{doc.stem}.typ").write_text(default_source, encoding="utf-8")
         print(f"wrote {GOLDEN_DIR / f'{doc.stem}.typ'}")
-        override_source = build_source(markdown, text_override_profile())
+        override_source = build_golden_source(markdown, text_override_profile())
         (TEXT_OVERRIDE_GOLDEN_DIR / f"{doc.stem}.typ").write_text(override_source, encoding="utf-8")
         print(f"wrote {TEXT_OVERRIDE_GOLDEN_DIR / f'{doc.stem}.typ'}")
 

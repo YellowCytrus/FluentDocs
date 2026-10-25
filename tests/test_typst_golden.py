@@ -17,8 +17,9 @@ from golden_helpers import (
     DOCS_DIR,
     GOLDEN_DIR,
     TEXT_OVERRIDE_GOLDEN_DIR,
-    build_source,
+    build_golden_source,
     default_profile,
+    golden_to_full_source,
     text_override_profile,
 )
 
@@ -40,7 +41,7 @@ PROFILES = [
 @pytest.mark.parametrize("doc", DOCS, ids=[d.stem for d in DOCS])
 @pytest.mark.parametrize("profile_factory,golden_dir", PROFILES)
 def test_typst_output_matches_golden(doc, profile_factory, golden_dir):
-    source = build_source(doc.read_text(encoding="utf-8"), profile_factory())
+    source = build_golden_source(doc.read_text(encoding="utf-8"), profile_factory())
     golden_path = golden_dir / f"{doc.stem}.typ"
     if os.environ.get("UPDATE_GOLDEN") == "1":
         golden_dir.mkdir(parents=True, exist_ok=True)
@@ -49,12 +50,21 @@ def test_typst_output_matches_golden(doc, profile_factory, golden_dir):
     assert source == golden_path.read_text(encoding="utf-8")
 
 
+def test_golden_does_not_embed_fd_library():
+    """Снимок хранит конфиг и тело, а не библиотеку fd."""
+    source = build_golden_source(DOCS_DIR.joinpath("simple.md").read_text(encoding="utf-8"))
+    assert "#let fd = {" not in source
+    assert "fd.apply" not in source
+    assert "#let fd-config = (" in source
+
+
 @pytest.mark.skipif(not typst_available, reason="typst must be in PATH")
 @pytest.mark.parametrize("doc", DOCS, ids=[d.stem for d in DOCS])
 @pytest.mark.parametrize("profile_factory,golden_dir", PROFILES)
 def test_golden_source_compiles(doc, profile_factory, golden_dir, tmp_path):
     """Снимок каждого профиля компилируется тем же Typst CLI, что и PDF."""
-    source = build_source(doc.read_text(encoding="utf-8"), profile_factory())
+    golden_text = (golden_dir / f"{doc.stem}.typ").read_text(encoding="utf-8")
+    source = golden_to_full_source(golden_text)
     source_path = tmp_path / "input.typ"
     source_path.write_text(source, encoding="utf-8")
     sample = DOCS_DIR / "sample.png"
