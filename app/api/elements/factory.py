@@ -63,6 +63,7 @@ def create_element_router(descriptor: ElementDescriptor[Any, Any, Any]) -> APIRo
             raise HTTPException(status_code=404, detail="Profile not found")
         style_repo: StyleRepository[Any] = StyleRepository(session, orm_model)
         row = await style_repo.get_or_create(profile_id)
+        await sync_options_jsonb(session, profile_id)
         return styles_model.model_validate(row, from_attributes=True)
 
     @router.patch("", response_model=styles_model)

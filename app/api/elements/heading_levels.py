@@ -49,6 +49,7 @@ async def get_heading_level(
     if await profile_repo.get_by_id(profile_id) is None:
         raise HTTPException(status_code=404, detail="Profile not found")
     row = await _get_or_create_level(session, profile_id, level)
+    await sync_options_jsonb(session, profile_id)
     return HeadingLevelStyles.model_validate(row, from_attributes=True)
 
 
