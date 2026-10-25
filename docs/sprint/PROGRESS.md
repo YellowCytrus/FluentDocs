@@ -64,11 +64,12 @@ ORM + тело Pandoc) в `tests/fixtures/golden/<stem>.typ`. Профиль с�
 | `typst compile` для 8 golden-снимков | 8/8 OK |
 | `typst compile` для 12 `.typ` прототипов | 12/12 OK |
 | `uv run pytest tests/ -m "not integration"` | 51 skipped (нет Postgres) |
-| `uv run pytest tests/ -m integration` | 8 skipped (нет Postgres) |
+| `uv run pytest tests/ -m integration` | 9 skipped (нет Postgres) |
 | `cd frontend && npm test` | 5 passed |
 | `cd frontend && npm run build` | OK (15.13 s) |
-| `uvx ruff check tests/golden_helpers.py tests/test_typst_golden.py` | All checks passed |
-| `uvx ruff format --check ...` | 2 files already formatted |
+| `uvx ruff check app/ tests/` | All checks passed |
+| `uvx ruff check` (только новые файлы G0) | All checks passed |
+| `uvx ruff format --check ...` | новые файлы G0 отформатированы; в репозитории 16 старых файлов требуют форматирования |
 
 PDF-измерения прототипов: pdfplumber 0.11.10, запускался через
 `uv run --with pdfplumber`. В dev-зависимости пока не добавлен; добавить на G1
