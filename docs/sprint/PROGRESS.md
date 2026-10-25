@@ -59,6 +59,9 @@ ORM + тело Pandoc) в `tests/fixtures/golden/<stem>.typ`. Профиль с�
 
 ## G0-fix — чек-лист
 
+Коммиты: `dd4b272` (conftest), `a8d1cbd` (версии), `62f1539` (golden, S5b,
+решения блокеров).
+
 | Пункт | Статус | Где |
 |---|---|---|
 | Pandoc 3.9 в Dockerfile | ✔ (`ARG PANDOC_VERSION=3.9`) | `Dockerfile` |
