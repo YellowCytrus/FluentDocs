@@ -9,6 +9,7 @@ from app.database import get_session
 from app.deps import get_profile_repository
 from app.models.pydantic.heading_level import HeadingLevelStyles, HeadingLevelStylesUpdate
 from app.models.sqlalchemy.styles import HeadingLevelStyle
+from app.registry import sync_options_jsonb
 from app.repositories.profile_repository import ProfileRepository
 
 router = APIRouter(
@@ -74,6 +75,7 @@ async def patch_heading_level(
         await apply_text_override(session, row, text_override_val)
     await session.flush()
     await session.refresh(row)
+    await sync_options_jsonb(session, profile_id)
     return HeadingLevelStyles.model_validate(row, from_attributes=True)
 
 
@@ -99,4 +101,5 @@ async def put_heading_level(
     await apply_text_override(session, row, to_data)
     await session.flush()
     await session.refresh(row)
+    await sync_options_jsonb(session, profile_id)
     return HeadingLevelStyles.model_validate(row, from_attributes=True)

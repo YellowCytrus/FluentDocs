@@ -2,6 +2,13 @@
 
 import uuid
 
+from app.models.constants.style_defaults import (
+    DOCUMENT_LINE_SPACING_MM_DEFAULT,
+    FIGURE_WIDTH_MM_DEFAULT,
+    LIST_BODY_INDENT_MM_DEFAULT,
+    PAR_SPACING_MM_DEFAULT,
+)
+
 
 async def test_post_bullet_list_creates_styles(client):
     create = await client.post("/profiles", json={"name": f"P {uuid.uuid4().hex[:8]}"})
@@ -77,7 +84,7 @@ async def test_bullet_list_default_values(client):
     assert data["marker"] == ["- ", "‣", "–"]
     assert data["spacing"] == "auto"
     assert data["indent"] == 0.0
-    assert data["body_indent"] == 0.5
+    assert data["body_indent"] == LIST_BODY_INDENT_MM_DEFAULT
 
 
 async def test_document_default_values(client):
@@ -89,7 +96,7 @@ async def test_document_default_values(client):
     data = resp.json()
     assert data["font"] == "Merriweather"
     assert data["font_size"] == 12.0
-    assert data["line_spacing"] == 1.2
+    assert data["line_spacing"] == DOCUMENT_LINE_SPACING_MM_DEFAULT
     assert data["justify"] is False
 
 
@@ -113,7 +120,7 @@ async def test_figure_default_values(client):
     resp = await client.get(f"/profiles/{pid}/figure")
     assert resp.status_code == 200
     data = resp.json()
-    assert data["width"] == 1.0
+    assert data["width"] == FIGURE_WIDTH_MM_DEFAULT
     assert data["placement"] == "none"
     assert data["outlined"] is True
     assert data["fit"] == "cover"
@@ -126,5 +133,5 @@ async def test_par_default_values(client):
     resp = await client.get(f"/profiles/{pid}/par")
     assert resp.status_code == 200
     data = resp.json()
-    assert data["spacing"] == 1.0
+    assert data["spacing"] == PAR_SPACING_MM_DEFAULT
     assert data["linebreaks"] == "auto"

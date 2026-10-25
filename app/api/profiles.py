@@ -3,10 +3,21 @@ CRUD для стилевых профилей: POST/GET/PATCH/DELETE /profiles.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.database import get_session
 from app.deps import get_profile_repository
 from app.models.pydantic.profile import ProfileCreate, ProfileRead, ProfileUpdate
+from app.models.pydantic.profile_options import ProfileOptionsRead, ProfileOptionsUpdate
 from app.models.sqlalchemy.profile import Profile
+from app.registry import (
+    SCHEMA_VERSION,
+    RegistryError,
+    RegistryVersionError,
+    apply_values_to_legacy,
+    normalize_values,
+    options_payload,
+)
 from app.repositories.profile_repository import ProfileRepository
 
 router = APIRouter(prefix="/profiles", tags=["profiles"])
@@ -50,6 +61,62 @@ async def update_profile(
     if profile is None:
         raise HTTPException(status_code=404, detail="Profile not found")
     return profile
+
+
+@router.get("/{profile_id}/options", response_model=ProfileOptionsRead)
+async def get_profile_options(
+    profile_id: int,
+    repo: ProfileRepository = Depends(get_profile_repository),
+) -> ProfileOptionsRead:
+    profile = await repo.get_by_id_with_styles(profile_id)
+    if profile is None:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    try:
+        values, source = options_payload(profile)
+    except RegistryVersionError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except RegistryError as exc:
+        raise HTTPException(status_code=409, detail=f"Повреждённые опции профиля: {exc}") from exc
+    return ProfileOptionsRead(
+        schema_version=profile.options_schema_version or SCHEMA_VERSION,
+        source=source,
+        values=values,
+    )
+
+
+@router.put("/{profile_id}/options", response_model=ProfileOptionsRead)
+async def put_profile_options(
+    profile_id: int,
+    body: ProfileOptionsUpdate,
+    repo: ProfileRepository = Depends(get_profile_repository),
+    session: AsyncSession = Depends(get_session),
+) -> ProfileOptionsRead:
+    if body.schema_version != SCHEMA_VERSION:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Неподдерживаемая версия схемы опций {body.schema_version}; "
+                f"ожидается {SCHEMA_VERSION}"
+            ),
+        )
+    profile = await repo.get_by_id_with_styles(profile_id)
+    if profile is None:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    try:
+        values = normalize_values(body.values)
+    except RegistryError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    await apply_values_to_legacy(session, profile_id, values)
+    profile.options = values
+    profile.options_schema_version = SCHEMA_VERSION
+    await session.flush()
+
+    return ProfileOptionsRead(
+        schema_version=SCHEMA_VERSION,
+        source="jsonb",
+        values=values,
+    )
 
 
 @router.delete("/{profile_id}", status_code=204)

@@ -14,6 +14,7 @@ from app.database import get_session
 from app.deps import get_profile_repository
 from app.repositories.profile_repository import ProfileRepository
 from app.repositories.style_repository import StyleRepository
+from app.registry import sync_options_jsonb
 
 TEXT_OVERRIDE_KEY = "text_override"
 
@@ -49,6 +50,7 @@ def create_element_router(descriptor: ElementDescriptor[Any, Any, Any]) -> APIRo
         if hasattr(row, "text_override_style_id"):
             await apply_text_override(session, row, text_override_val)
         await style_repo.persist(row)
+        await sync_options_jsonb(session, profile_id)
         return styles_model.model_validate(row, from_attributes=True)
 
     @router.get("", response_model=styles_model)
@@ -85,6 +87,7 @@ def create_element_router(descriptor: ElementDescriptor[Any, Any, Any]) -> APIRo
         if had_text_override and hasattr(row, "text_override_style_id"):
             await apply_text_override(session, row, text_override_val)
         await style_repo.persist(row)
+        await sync_options_jsonb(session, profile_id)
         return styles_model.model_validate(row, from_attributes=True)
 
     @router.put("", response_model=styles_model)
@@ -106,6 +109,7 @@ def create_element_router(descriptor: ElementDescriptor[Any, Any, Any]) -> APIRo
         if hasattr(row, "text_override_style_id"):
             await apply_text_override(session, row, text_override_val)
         await style_repo.persist(row)
+        await sync_options_jsonb(session, profile_id)
         return styles_model.model_validate(row, from_attributes=True)
 
     return router
