@@ -42,6 +42,7 @@ from app.models.sqlalchemy.styles import (
 )
 from app.registry.options import (
     AROUND_TARGETS,
+    DEFAULT_LEADING_EM,
     ELEMENT_PATHS,
     HEADING_LEVELS,
     OPTIONS,
@@ -51,6 +52,7 @@ from app.registry.options import (
     TEXT_OVERRIDE_FIELDS,
     JsonValue,
     Option,
+    line_height_coefficient,
 )
 from app.repositories.profile_repository import ProfileRepository
 from app.repositories.style_repository import StyleRepository
@@ -131,6 +133,11 @@ def _schema_key(field: Option) -> str:
 
 def validate_value(option: Option, value: JsonValue) -> JsonValue:
     """Проверяет одно значение по описанию опции и возвращает каноническую форму."""
+    # Старые профили хранили интервал одним числом миллиметров.
+    if option.id == "document.line_spacing" and isinstance(value, (int, float)):
+        if isinstance(value, bool):
+            raise RegistryError(f"Опция {option.id}: ожидается число")
+        value = {"mode": "mm", "value": float(value)}
     if value is None:
         if option.nullable or option.default is None:
             return None
@@ -188,6 +195,17 @@ def validate_value(option: Option, value: JsonValue) -> JsonValue:
                 raise RegistryError(f"Опция {option.id}: обязательно поле {_schema_key(field)}")
             else:
                 normalized[_schema_key(field)] = copy.deepcopy(field.default)
+        if option.id == "document.line_spacing":
+            mode = normalized["mode"]
+            spacing = normalized["value"]
+            if mode == "multiplier" and not 0.5 <= float(spacing) <= 3.0:
+                raise RegistryError(
+                    "document.line_spacing: множитель должен быть в диапазоне 0.5–3.0"
+                )
+            if mode == "mm" and not 2.116 <= float(spacing) <= 12.7:
+                raise RegistryError(
+                    "document.line_spacing: миллиметры должны быть в диапазоне 2.116–12.7"
+                )
         return normalized
 
     if option.type == "list":
@@ -320,6 +338,9 @@ def normalize_values(raw: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
                     raise RegistryError(f"Неизвестный элемент окружения: {target}")
                 if not isinstance(target_values, Mapping):
                     raise RegistryError(f"around.{target} должен быть объектом")
+                # Миграция старого режима none: вставок нет, остаётся max.
+                if target_values.get("collapse") == "none":
+                    target_values = {"before": [], "after": [], "collapse": "max"}
                 for key, value in target_values.items():
                     option = OPTIONS_BY_PATH.get(("around", target, key))
                     if option is None:
@@ -343,7 +364,31 @@ def _to_registry_value(option: Option, value: object) -> JsonValue:
         return "true" if value else "false"
     if option.type == "markers":
         return list(cast(list[str], value))
+    if option.id == "document.line_spacing" and isinstance(value, (int, float)):
+        return {"mode": "mm", "value": float(value)}
     return cast(JsonValue, value)
+
+
+def _document_line_spacing_mm(
+    values: Mapping[str, JsonValue], spacing: object | None = None
+) -> float:
+    """Переводит абстрактный интервал в мм для старой колонки."""
+    document = values.get("document")
+    if not isinstance(document, Mapping):
+        raise RegistryError("Нет значений document для межстрочного интервала")
+    if spacing is None:
+        spacing = document.get("line_spacing")
+    if not isinstance(spacing, Mapping) or "mode" not in spacing or "value" not in spacing:
+        raise RegistryError("document.line_spacing должен быть объектом {mode, value}")
+    value = float(spacing["value"])
+    if spacing["mode"] == "mm":
+        return value
+    font_size = float(document.get("font_size", 12.0))
+    font = str(document.get("font", ""))
+    manual = float(document.get("line_height_em", 1.308))
+    natural = line_height_coefficient(font, manual)
+    leading_em = value * natural - (natural - DEFAULT_LEADING_EM)
+    return leading_em * font_size * 25.4 / 72
 
 
 def _to_legacy_value(option: Option, value: JsonValue) -> object:
@@ -381,6 +426,8 @@ def serialize_profile(profile: Profile) -> dict[str, JsonValue]:
         for option in OPTIONS:
             if option.path[0] != element or "text_override" in option.path:
                 continue
+            if not hasattr(row, option.path[-1]):
+                continue
             _set_path(
                 values,
                 option.path,
@@ -399,6 +446,8 @@ def serialize_profile(profile: Profile) -> dict[str, JsonValue]:
                 continue
             if "text_override" in option.path:
                 continue
+            if not hasattr(row, option.path[-1]):
+                continue
             _set_path(
                 values,
                 option.path,
@@ -406,12 +455,48 @@ def serialize_profile(profile: Profile) -> dict[str, JsonValue]:
             )
         values["heading_levels"][str(level)]["text_override"] = _serialize_text_override(row)
 
-    # around не имеет старых колонок: сохраняем его из JSONB при пересборке.
+    # around и новые опции без старых колонок сохраняем из JSONB при пересборке.
     raw_options = profile.options
     if isinstance(raw_options, Mapping):
         around = raw_options.get("around")
         if isinstance(around, Mapping):
             values["around"] = copy.deepcopy(around)
+        for option in OPTIONS:
+            if option.path[0] == "around" or "text_override" in option.path:
+                continue
+            if option.path[0] == "heading_levels":
+                relation_name = "heading_level_styles"
+                level_row = next(
+                    (
+                        row
+                        for row in getattr(profile, relation_name, [])
+                        if str(row.level) == option.path[1]
+                    ),
+                    None,
+                )
+                legacy_row: object | None = level_row
+            else:
+                model = ELEMENT_MODELS.get(option.path[0])
+                legacy_row = getattr(profile, model[1], None) if model else None
+            if legacy_row is None or hasattr(legacy_row, option.path[-1]):
+                continue
+            raw_value = _get_path(raw_options, option.path)
+            if raw_value is not _MISSING:
+                _set_path(values, option.path, copy.deepcopy(raw_value))
+
+        # Множитель интервала хранится абстрактно; старая колонка получает мм.
+        raw_spacing = _get_path(raw_options, ("document", "line_spacing"))
+        document_row = getattr(profile, "document_style", None)
+        if (
+            isinstance(raw_spacing, Mapping)
+            and raw_spacing.get("mode") == "multiplier"
+            and document_row is not None
+            and hasattr(document_row, "line_spacing")
+        ):
+            expected = _document_line_spacing_mm(values, raw_spacing)
+            actual = float(getattr(document_row, "line_spacing"))
+            if abs(actual - expected) < 0.01:
+                values["document"]["line_spacing"] = copy.deepcopy(raw_spacing)
 
     return values
 
@@ -468,7 +553,13 @@ async def apply_values_to_legacy(
         for option in OPTIONS:
             if option.path[0] != element or "text_override" in option.path:
                 continue
+            if not hasattr(row, option.path[-1]):
+                continue
+            if option.id == "document.line_spacing":
+                continue
             setattr(row, option.path[-1], _to_legacy_value(option, _get_path(values, option.path)))
+        if element == "document" and hasattr(row, "line_spacing"):
+            setattr(row, "line_spacing", _document_line_spacing_mm(values))
         if hasattr(row, "text_override_style_id"):
             element_values = values.get(element)
             if isinstance(element_values, Mapping):
@@ -496,6 +587,8 @@ async def apply_values_to_legacy(
             if option.path[:2] != ("heading_levels", str(level)):
                 continue
             if "text_override" in option.path:
+                continue
+            if not hasattr(row, option.path[-1]):
                 continue
             setattr(
                 row,

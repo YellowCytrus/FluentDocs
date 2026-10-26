@@ -5,6 +5,7 @@ import { dirname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { performance } from 'node:perf_hooks';
 import { $typst } from '@myriaddreamin/typst.ts/contrib/snippet';
+import { loadProjectFonts } from './typst-fonts.mjs';
 
 const [inputPath, outputPath] = process.argv.slice(2);
 if (!inputPath || !outputPath) {
@@ -19,6 +20,7 @@ const wasmPath = fileURLToPath(
   ),
 );
 $typst.setCompilerInitOptions({ getModule: () => readFileSync(wasmPath) });
+loadProjectFonts($typst);
 
 const source = readFileSync(inputPath, 'utf8');
 await $typst.resetShadow();

@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { performance } from 'node:perf_hooks';
 import { $typst } from '@myriaddreamin/typst.ts/contrib/snippet';
+import { loadProjectFonts } from './typst-fonts.mjs';
 
 const inputPath = process.argv[2];
 if (!inputPath) {
@@ -18,6 +19,7 @@ const wasmPath = fileURLToPath(
   ),
 );
 $typst.setCompilerInitOptions({ getModule: () => readFileSync(wasmPath) });
+loadProjectFonts($typst);
 
 const source = readFileSync(inputPath, 'utf8');
 const edited = `${source}\n\nДополнительный абзац после правки.\n`;

@@ -12,7 +12,10 @@
   ),
   document: (
     font_size: 12.0,
-    line_spacing: 5.08,
+    line_spacing: (
+      mode: "mm",
+      value: 5.08,
+    ),
     font: "Merriweather",
     weight: "regular",
     style: "normal",
@@ -26,6 +29,8 @@
     number_type: "auto",
     number_width: "auto",
     justify: false,
+    line_height_em: 1.308,
+    default_leading_em: 0.65,
   ),
   par: (
     spacing: 4.2333333333,
@@ -50,6 +55,7 @@
   ),
   heading: (
     numbering: "1.1.1",
+    unnumbered_indent: -0.3,
   ),
   heading_levels: (
     (
@@ -113,6 +119,8 @@
     indent: 0.0,
     body_indent: 2.1166666667,
     spacing: "auto",
+    tight_spacing: 0.5,
+    loose_spacing: 1.0,
     text_override: (
       font: "DejaVu Sans",
       font_size: 11.5,
@@ -139,6 +147,8 @@
     full: false,
     reversed: false,
     number_align: "end+top",
+    tight_spacing: 0.5,
+    loose_spacing: 1.0,
     text_override: none,
   ),
   terms: (
@@ -146,6 +156,8 @@
     indent: 0.0,
     hanging_indent: 8.4666666667,
     spacing: "auto",
+    tight_spacing: 0.5,
+    loose_spacing: 1.0,
     text_override: none,
   ),
   table: (

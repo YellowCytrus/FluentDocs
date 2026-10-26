@@ -27,6 +27,25 @@ TEST_IDS = (
     "test_options_legacy_write_updates_jsonb",
 )
 
+# Коэффициент естественной высоты строки (в em) по данным S9. Это данные
+# реестра, а не константа fd.typ; для шрифта вне таблицы берётся ручное значение
+# опции document.line_height_em.
+FONT_LINE_HEIGHT_COEFFICIENTS: dict[str, float] = {
+    "libertinus serif": 1.308,
+    "times new roman": 1.308,
+    "times": 1.308,
+    "pt astra serif": 1.312,
+}
+
+# Стандартный leading Typst, нужный для пересчёта множителя в leading.
+DEFAULT_LEADING_EM = 0.65
+
+
+def line_height_coefficient(font: str, manual: float) -> float:
+    """Возвращает коэффициент строки: из таблицы S9 или ручной fallback."""
+    key = (font or "").strip().lower()
+    return FONT_LINE_HEIGHT_COEFFICIENTS.get(key, manual)
+
 
 @dataclass(frozen=True)
 class Option:
@@ -96,6 +115,7 @@ LENGTH_UNITS = ("mm", "cm", "in", "pt", "em")
 MM_UNITS = ("mm", "cm", "in", "pt")
 PT_UNITS = ("pt", "em")
 PERCENT_UNITS = ("%",)
+EM_UNITS = ("em",)
 
 SELECT_LABELS: dict[str, list[tuple[str, str]]] = {
     "weight": [
@@ -250,9 +270,8 @@ AROUND_TARGET_META: dict[str, tuple[str, str, str]] = {
 }
 
 AROUND_COLLAPSE_LABELS: tuple[tuple[str, str], ...] = (
-    ("max", "Максимум"),
-    ("sum", "Сумма"),
-    ("none", "Без пустых строк"),
+    ("max", "Max — слить"),
+    ("sum", "Sum — сложить"),
 )
 
 AROUND_ITEM_LABELS: tuple[tuple[str, str], ...] = (
@@ -304,6 +323,7 @@ def _ui(
     enum: tuple[str, ...] = (),
     enum_labels: tuple[tuple[str, str], ...] = (),
     section: str | None = None,
+    help_text: str | None = None,
 ) -> dict:
     ui: dict[str, JsonValue] = {
         "control": control,
@@ -313,6 +333,8 @@ def _ui(
     }
     if section:
         ui["section"] = section
+    if help_text:
+        ui["help"] = help_text
     if enum:
         labels = dict(enum_labels)
         if not labels:
@@ -364,6 +386,7 @@ def _option(
     item_fields: tuple[Option, ...] = (),
     item_variants: tuple[tuple[str, tuple[str, ...]], ...] = (),
     ui_section: str | None = None,
+    ui_help: str | None = None,
 ) -> Option:
     control = {
         "number": "number",
@@ -382,7 +405,7 @@ def _option(
         type=type,
         default=default,
         path=path,
-        ui=_ui(label, group, control, order, enum, enum_labels, ui_section),
+        ui=_ui(label, group, control, order, enum, enum_labels, ui_section, ui_help),
         rationale=rationale or _rationale(label, applies_to[0]),
         source=source or SOURCE[group],
         unit=unit,
@@ -657,13 +680,17 @@ def _around_options() -> list[Option]:
                 enum_labels=AROUND_COLLAPSE_LABELS,
                 rationale=(
                     f"Определяет, как складываются пустые строки вокруг {target_label}: "
-                    "max — слабые отступы Typst схлопываются до максимума, sum — "
-                    "жёсткая сумма, none — пустые строки не вставляются."
+                    "max заменяет штатный интервал элемента одной вставкой, sum "
+                    "добавляет вставку к штатному интервалу."
                 ),
                 source=f"{stu}; plan_v2 {rule}; reference: around.{target}.collapse",
                 test_ids=(f"test_around_{target}_options",),
                 legacy=False,
                 ui_section=section,
+                ui_help=(
+                    "max — слить, заменяет штатный интервал элемента; "
+                    "sum — сложить, добавляется к штатному."
+                ),
             )
         )
     return opts
@@ -812,16 +839,79 @@ def _base_options() -> list[Option]:
             "document.line_spacing",
             "document",
             ("document",),
-            "number",
-            5.08,
+            "object",
+            {"mode": "mm", "value": 5.08},
             ("document", "line_spacing"),
             "Межстрочный интервал",
             order=o(opts),
-            unit="mm",
-            allowed_units=MM_UNITS,
-            min=2.1166666667,
-            max=12.7,
-            step=0.01,
+            fields=(
+                _option(
+                    "document.line_spacing.mode",
+                    "document",
+                    ("document",),
+                    "select",
+                    "mm",
+                    ("mode",),
+                    "Режим интервала",
+                    order=0,
+                    enum=("mm", "multiplier"),
+                    enum_labels=(("mm", "Миллиметры"), ("multiplier", "Множитель")),
+                    rationale=(
+                        "Выбирает, задан интервал в миллиметрах или множителем "
+                        "естественной высоты строки выбранного шрифта."
+                    ),
+                    source="СТУ 7.3; AGENTS 5.4; S9",
+                    test_ids=("test_document_line_spacing_options",),
+                    legacy=False,
+                ),
+                _option(
+                    "document.line_spacing.value",
+                    "document",
+                    ("document",),
+                    "number",
+                    5.08,
+                    ("value",),
+                    "Значение интервала",
+                    order=1,
+                    min=0.5,
+                    max=12.7,
+                    step=0.01,
+                    rationale=(
+                        "Задаёт межстрочный интервал: миллиметры или множитель "
+                        "естественной высоты строки (1,5 = полуторный)."
+                    ),
+                    source="СТУ 7.3; AGENTS 5.4; S9",
+                    test_ids=("test_document_line_spacing_options",),
+                    legacy=False,
+                ),
+            ),
+            rationale=(
+                "Задаёт межстрочный интервал как длину в мм или как множитель "
+                "естественной высоты строки; старые значения читаются как мм."
+            ),
+            source="СТУ 7.3; AGENTS 5.4; S9",
+            test_ids=("test_document_line_spacing_options",),
+            legacy=False,
+        ),
+        _option(
+            "document.line_height_em",
+            "document",
+            ("document",),
+            "number",
+            1.308,
+            ("document", "line_height_em"),
+            "Коэффициент высоты строки",
+            order=o(opts),
+            min=0.5,
+            max=3.0,
+            step=0.001,
+            rationale=(
+                "Ручной коэффициент естественной высоты строки для шрифта, "
+                "которого нет в таблице S9; для известных шрифтов берётся таблица."
+            ),
+            source="СТУ 7.3; S9; AGENTS 5.4",
+            test_ids=("test_document_line_spacing_options",),
+            legacy=False,
         ),
         _option(
             "document.font",
@@ -1044,6 +1134,30 @@ def _base_options() -> list[Option]:
             order=o(opts),
         )
     )
+    opts.append(
+        _option(
+            "heading.unnumbered_indent",
+            "heading",
+            ("heading",),
+            "number",
+            -0.3,
+            ("heading", "unnumbered_indent"),
+            "Компенсация отступа ненумерованного заголовка",
+            order=o(opts),
+            unit="em",
+            allowed_units=EM_UNITS,
+            min=-2.0,
+            max=0.0,
+            step=0.01,
+            rationale=(
+                "Сдвигает ненумерованный заголовок так, чтобы его текст совпал "
+                "с началом нумерованного; значение em зависит от кегля."
+            ),
+            source="S10; СТУ 7.4.1",
+            test_ids=("test_heading_unnumbered_indent_option",),
+            legacy=False,
+        )
+    )
     for level in HEADING_LEVELS:
         opts += [
             _option(
@@ -1131,6 +1245,50 @@ def _base_options() -> list[Option]:
             enum=tuple(v for v, _ in SELECT_LABELS["spacing"]),
         ),
         _option(
+            "bullet_list.tight_spacing",
+            "bullet_list",
+            ("bullet_list",),
+            "number",
+            0.5,
+            ("bullet_list", "tight_spacing"),
+            "Интервал компактного списка",
+            order=o(opts),
+            unit="em",
+            allowed_units=EM_UNITS,
+            min=0.0,
+            max=5.0,
+            step=0.01,
+            rationale=(
+                "Задаёт расстояние между пунктами компактного маркированного "
+                "списка; ранее 0.5em было зашито в fd.typ."
+            ),
+            source="AGENTS G2b; S1; СТУ 7.4",
+            test_ids=("test_list_spacing_options",),
+            legacy=False,
+        ),
+        _option(
+            "bullet_list.loose_spacing",
+            "bullet_list",
+            ("bullet_list",),
+            "number",
+            1.0,
+            ("bullet_list", "loose_spacing"),
+            "Интервал некомпактного списка",
+            order=o(opts),
+            unit="em",
+            allowed_units=EM_UNITS,
+            min=0.0,
+            max=5.0,
+            step=0.01,
+            rationale=(
+                "Задаёт расстояние между пунктами некомпактного маркированного "
+                "списка; ранее 1em было зашито в fd.typ."
+            ),
+            source="AGENTS G2b; S1; СТУ 7.4",
+            test_ids=("test_list_spacing_options",),
+            legacy=False,
+        ),
+        _option(
             "numbered_list.tight",
             "numbered_list",
             ("numbered_list",),
@@ -1180,6 +1338,50 @@ def _base_options() -> list[Option]:
             "Межстрочный интервал",
             order=o(opts),
             enum=tuple(v for v, _ in SELECT_LABELS["spacing"]),
+        ),
+        _option(
+            "numbered_list.tight_spacing",
+            "numbered_list",
+            ("numbered_list",),
+            "number",
+            0.5,
+            ("numbered_list", "tight_spacing"),
+            "Интервал компактного списка",
+            order=o(opts),
+            unit="em",
+            allowed_units=EM_UNITS,
+            min=0.0,
+            max=5.0,
+            step=0.01,
+            rationale=(
+                "Задаёт расстояние между пунктами компактного нумерованного "
+                "списка; ранее 0.5em было зашито в fd.typ."
+            ),
+            source="AGENTS G2b; S1; СТУ 7.4",
+            test_ids=("test_list_spacing_options",),
+            legacy=False,
+        ),
+        _option(
+            "numbered_list.loose_spacing",
+            "numbered_list",
+            ("numbered_list",),
+            "number",
+            1.0,
+            ("numbered_list", "loose_spacing"),
+            "Интервал некомпактного списка",
+            order=o(opts),
+            unit="em",
+            allowed_units=EM_UNITS,
+            min=0.0,
+            max=5.0,
+            step=0.01,
+            rationale=(
+                "Задаёт расстояние между пунктами некомпактного нумерованного "
+                "списка; ранее 1em было зашито в fd.typ."
+            ),
+            source="AGENTS G2b; S1; СТУ 7.4",
+            test_ids=("test_list_spacing_options",),
+            legacy=False,
         ),
         _option(
             "numbered_list.numbering",
@@ -1285,6 +1487,50 @@ def _base_options() -> list[Option]:
             "Интервал",
             order=o(opts),
             enum=tuple(v for v, _ in SELECT_LABELS["spacing"]),
+        ),
+        _option(
+            "terms.tight_spacing",
+            "terms",
+            ("terms",),
+            "number",
+            0.5,
+            ("terms", "tight_spacing"),
+            "Интервал компактного списка определений",
+            order=o(opts),
+            unit="em",
+            allowed_units=EM_UNITS,
+            min=0.0,
+            max=5.0,
+            step=0.01,
+            rationale=(
+                "Задаёт расстояние между терминами компактного списка "
+                "определений; ранее 0.5em было зашито в fd.typ."
+            ),
+            source="AGENTS G2b; S1; СТУ 7.4",
+            test_ids=("test_list_spacing_options",),
+            legacy=False,
+        ),
+        _option(
+            "terms.loose_spacing",
+            "terms",
+            ("terms",),
+            "number",
+            1.0,
+            ("terms", "loose_spacing"),
+            "Интервал некомпактного списка определений",
+            order=o(opts),
+            unit="em",
+            allowed_units=EM_UNITS,
+            min=0.0,
+            max=5.0,
+            step=0.01,
+            rationale=(
+                "Задаёт расстояние между терминами некомпактного списка "
+                "определений; ранее 1em было зашито в fd.typ."
+            ),
+            source="AGENTS G2b; S1; СТУ 7.4",
+            test_ids=("test_list_spacing_options",),
+            legacy=False,
         ),
     ]
     # Таблица, изображение, цитата, сноска, код, оглавление

@@ -10,6 +10,9 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+# Шрифты проекта: тот же каталог загружает typst.ts в браузере.
+FONTS_DIR = Path(__file__).resolve().parents[2] / "assets" / "fonts"
+
 
 class TypstCompileError(Exception):
     """Ошибка компиляции Typst."""
@@ -56,8 +59,12 @@ def _compile_typst_to_pdf_sync(
                     shutil.copy2(src_file, root / rel_path)
 
         try:
+            command = ["typst", "compile"]
+            if FONTS_DIR.is_dir():
+                command.extend(["--font-path", str(FONTS_DIR)])
+            command.extend([str(inp), str(out)])
             result = subprocess.run(
-                ["typst", "compile", str(inp), str(out)],
+                command,
                 capture_output=True,
                 text=True,
                 check=False,

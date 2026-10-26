@@ -3,11 +3,13 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { $typst } from '@myriaddreamin/typst.ts/contrib/snippet';
+import { loadProjectFonts } from './typst-fonts.mjs';
 
 const wasmPath = fileURLToPath(
   new URL('../node_modules/@myriaddreamin/typst-ts-web-compiler/pkg/typst_ts_web_compiler_bg.wasm', import.meta.url),
 );
 $typst.setCompilerInitOptions({ getModule: () => readFileSync(wasmPath) });
+loadProjectFonts($typst);
 
 const svg = await $typst.svg({ mainContent: '#sys.version' });
 const match = svg.match(/\b\d+\.\d+\.\d+\b/);

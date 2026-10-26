@@ -10,6 +10,7 @@ import '@fontsource/libertinus-serif/400-italic.css';
 import '@fontsource/libertinus-serif/600.css';
 import '@fontsource/libertinus-serif/700.css';
 import { $typst } from '@myriaddreamin/typst.ts/contrib/snippet';
+import { registerProjectFonts } from './typstFonts';
 
 // Fix WASM loading in Vite: provide explicit URLs for typst modules
 import compilerWasm from '@myriaddreamin/typst-ts-web-compiler/pkg/typst_ts_web_compiler_bg.wasm?url';
@@ -17,6 +18,7 @@ import rendererWasm from '@myriaddreamin/typst-ts-renderer/pkg/typst_ts_renderer
 
 $typst.setCompilerInitOptions({ getModule: () => compilerWasm });
 $typst.setRendererInitOptions({ getModule: () => rendererWasm });
+registerProjectFonts();
 
 const app = createApp(App);
 app.use(createPinia());

@@ -15,6 +15,11 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 # Use test DB before any app imports
 os.environ.setdefault("POSTGRES_DB", "pizdo_test")
 os.environ.setdefault("POSTGRES_HOST", "localhost")
+# Прямые вызовы typst в тестах должны видеть те же шрифты, что сервер и typst.ts.
+os.environ.setdefault(
+    "TYPST_FONT_PATHS",
+    os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets", "fonts"),
+)
 
 from app.database import Base, get_session
 from app.main import app

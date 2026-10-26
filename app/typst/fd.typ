@@ -54,29 +54,41 @@
     }
   }
 
-  let list-spacing(s) = {
-    if s == "tight" { 0.5em } else if s == "loose" { 1em } else { auto }
+  // Межстрочный интервал: мм или множитель естественной высоты строки.
+  // Обслуживает document.line_spacing и around-blank.
+  let line-pitch(config) = {
+    let spacing = config.document.line_spacing
+    if spacing.mode == "mm" {
+      spacing.value * 1mm
+    } else {
+      let natural = config.document.line_height_em
+      (spacing.value * natural - (natural - config.document.default_leading_em)) * 1em
+    }
+  }
+
+  // Интервал списка: tight/loose — значения реестра, auto — штатный Typst.
+  let list-spacing(s, tight, loose) = {
+    if s == "tight" { tight * 1em } else if s == "loose" { loose * 1em } else { auto }
   }
 
   // --- окружение элемента (around) ---
 
-  // Пустая строка: weak при collapse=max, жёсткая при sum, нет при none.
+  // Пустая строка: weak при collapse=max (заменяет штатный интервал),
+  // жёсткая при sum (добавляется к штатному). count = 0 даёт v(0).
   let around-blank(item, collapse, base-line) = {
-    if collapse != "none" {
-      let raw = item.line_spacing.value
-      let spacing = if item.line_spacing.mode == "multiplier" {
-        raw * base-line
-      } else {
-        raw * 1mm
-      }
-      v(item.count * spacing, weak: collapse == "max")
+    let raw = item.line_spacing.value
+    let spacing = if item.line_spacing.mode == "multiplier" {
+      raw * base-line
+    } else {
+      raw * 1mm
     }
+    v(item.count * spacing, weak: collapse == "max")
   }
 
   // Одна вставка окружения. Обслуживает опции around.<element>.before/after.
   let around-item(config, item, collapse) = {
     if item.type == "blank" {
-      around-blank(item, collapse, config.document.line_spacing * 1mm)
+      around-blank(item, collapse, line-pitch(config))
     } else if item.type == "text" {
       let body = [#item.content]
       let styled = if item.text_override != none {
@@ -92,21 +104,10 @@
     }
   }
 
-  // Есть ли в списке вставка, которая реально меняет вывод.
-  let around-effective(items) = {
-    let result = false
-    for item in items {
-      if item.type != "blank" or item.count > 0 {
-        result = true
-      }
-    }
-    result
-  }
-
   // Оборачивает элемент вставками before/after; пустой around не меняет вывод.
   let around-body(config, target, it) = {
     let cfg = config.around.at(target)
-    if not around-effective(cfg.before) and not around-effective(cfg.after) {
+    if cfg.before.len() == 0 and cfg.after.len() == 0 {
       it
     } else {
       for item in cfg.before {
@@ -180,11 +181,11 @@
     }
   }
 
-  let heading-body(it, level) = {
+  let heading-body(it, level, config) = {
     let body = if level.numbering_enabled {
       it
     } else {
-      box(it, inset: (left: -0.3em))
+      box(it, inset: (left: config.heading.unnumbered_indent * 1em))
     }
     if level.text_override != none {
       [#set text(..text-args(level.text_override)); #body]
@@ -195,9 +196,9 @@
 
   let show-heading(it, level, config, target) = {
     let content = if level.break_before {
-      [#pagebreak(weak: true); #block[#heading-body(it, level)]]
+      [#pagebreak(weak: true); #block[#heading-body(it, level, config)]]
     } else {
-      block[#heading-body(it, level)]
+      block[#heading-body(it, level, config)]
     }
     around-body(config, target, content)
   }
@@ -406,7 +407,7 @@
 
     // Абзац: leading из документа, остальное из par.
     let par-args = (
-      leading: config.document.line_spacing * 1mm,
+      leading: line-pitch(config),
       spacing: config.par.spacing * 1mm,
     )
     if config.document.justify { par-args.insert("justify", true) }
@@ -432,7 +433,7 @@
       tight: config.bullet_list.tight,
       indent: config.bullet_list.indent * 1mm,
       body-indent: config.bullet_list.body_indent * 1mm,
-      spacing: list-spacing(config.bullet_list.spacing),
+      spacing: list-spacing(config.bullet_list.spacing, config.bullet_list.tight_spacing, config.bullet_list.loose_spacing),
       marker: config.bullet_list.marker,
     )
 
@@ -441,7 +442,7 @@
       tight: config.numbered_list.tight,
       indent: config.numbered_list.indent * 1mm,
       body-indent: config.numbered_list.body_indent * 1mm,
-      spacing: list-spacing(config.numbered_list.spacing),
+      spacing: list-spacing(config.numbered_list.spacing, config.numbered_list.tight_spacing, config.numbered_list.loose_spacing),
     )
     if config.numbered_list.numbering != "1." {
       enum-args.insert("numbering", config.numbered_list.numbering)
@@ -529,7 +530,7 @@
       tight: config.terms.tight,
       indent: config.terms.indent * 1mm,
       hanging-indent: config.terms.hanging_indent * 1mm,
-      spacing: list-spacing(config.terms.spacing),
+      spacing: list-spacing(config.terms.spacing, config.terms.tight_spacing, config.terms.loose_spacing),
     )
 
     // Код: правила нужны только при отличии от дефолтов Typst.

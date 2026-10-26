@@ -6,6 +6,7 @@ import { dirname, join, normalize } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { fileURLToPath } from 'node:url';
 import { $typst } from '@myriaddreamin/typst.ts/contrib/snippet';
+import { loadProjectFonts } from './typst-fonts.mjs';
 
 const manifestPath = process.argv[2];
 if (!manifestPath) {
@@ -20,6 +21,7 @@ const wasmPath = fileURLToPath(
   ),
 );
 $typst.setCompilerInitOptions({ getModule: () => readFileSync(wasmPath) });
+loadProjectFonts($typst);
 
 const jobs = JSON.parse(readFileSync(manifestPath, 'utf8'));
 const results = [];

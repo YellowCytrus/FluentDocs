@@ -11,7 +11,12 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import cast
 
-from app.registry.options import AROUND_TARGETS, JsonValue
+from app.registry.options import (
+    AROUND_TARGETS,
+    DEFAULT_LEADING_EM,
+    JsonValue,
+    line_height_coefficient,
+)
 from app.utils.typst_literals import typst_str
 
 
@@ -116,6 +121,46 @@ def _heading_levels(values: Mapping[str, JsonValue]) -> list[JsonValue]:
     return levels
 
 
+def _number(element: Mapping[str, JsonValue], key: str) -> float:
+    raw = _value(element, key)
+    if not isinstance(raw, (int, float)) or isinstance(raw, bool):
+        raise ValueError(f"Поле {key!r} должно быть числом")
+    return float(raw)
+
+
+def _document(values: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
+    raw = _element(values, "document")
+    tree = _element_tree(
+        raw,
+        (
+            "font_size",
+            "line_spacing",
+            "font",
+            "weight",
+            "style",
+            "fill",
+            "lang",
+            "region",
+            "tracking",
+            "word_spacing",
+            "hyphenate",
+            "ligatures",
+            "number_type",
+            "number_width",
+            "justify",
+        ),
+    )
+    spacing = tree["line_spacing"]
+    if not isinstance(spacing, Mapping) or "mode" not in spacing or "value" not in spacing:
+        raise ValueError("document.line_spacing должен быть объектом {mode, value}")
+    # Для известного шрифта коэффициент берётся из таблицы S9, иначе — ручной.
+    tree["line_height_em"] = line_height_coefficient(
+        str(_value(raw, "font")), _number(raw, "line_height_em")
+    )
+    tree["default_leading_em"] = DEFAULT_LEADING_EM
+    return tree
+
+
 def config_tree(values: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
     """Строит дерево конфига из полного набора значений реестра."""
     return {
@@ -133,26 +178,7 @@ def config_tree(values: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
                 "number_align",
             ),
         ),
-        "document": _element_tree(
-            _element(values, "document"),
-            (
-                "font_size",
-                "line_spacing",
-                "font",
-                "weight",
-                "style",
-                "fill",
-                "lang",
-                "region",
-                "tracking",
-                "word_spacing",
-                "hyphenate",
-                "ligatures",
-                "number_type",
-                "number_width",
-                "justify",
-            ),
-        ),
+        "document": _document(values),
         "par": _element_tree(
             _element(values, "par"),
             (
@@ -163,11 +189,20 @@ def config_tree(values: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
                 "text_override",
             ),
         ),
-        "heading": _element_tree(_element(values, "heading"), ("numbering",)),
+        "heading": _element_tree(_element(values, "heading"), ("numbering", "unnumbered_indent")),
         "heading_levels": _heading_levels(values),
         "bullet_list": _element_tree(
             _element(values, "bullet_list"),
-            ("tight", "marker", "indent", "body_indent", "spacing", "text_override"),
+            (
+                "tight",
+                "marker",
+                "indent",
+                "body_indent",
+                "spacing",
+                "tight_spacing",
+                "loose_spacing",
+                "text_override",
+            ),
         ),
         "numbered_list": _element_tree(
             _element(values, "numbered_list"),
@@ -181,12 +216,22 @@ def config_tree(values: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
                 "full",
                 "reversed",
                 "number_align",
+                "tight_spacing",
+                "loose_spacing",
                 "text_override",
             ),
         ),
         "terms": _element_tree(
             _element(values, "terms"),
-            ("tight", "indent", "hanging_indent", "spacing", "text_override"),
+            (
+                "tight",
+                "indent",
+                "hanging_indent",
+                "spacing",
+                "tight_spacing",
+                "loose_spacing",
+                "text_override",
+            ),
         ),
         "table": _element_tree(
             _element(values, "table"),

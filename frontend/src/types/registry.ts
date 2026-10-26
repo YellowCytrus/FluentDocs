@@ -28,6 +28,7 @@ export interface RegistryOption {
     tab: string;
     order: number;
     section?: string;
+    help?: string;
     options?: { value: string; label: string }[];
   };
   rationale: string;

@@ -11,8 +11,8 @@
 | G1a — реестр и хранение | выполнен, принят владельцем | отчёт отправлен |
 | G1b — рантайм `fd` и единая сборка | выполнен, принят владельцем | отчёт отправлен |
 | G1c — UI и паритет | выполнен, принят владельцем | отчёт отправлен |
-| G2a — типы реестра и окружения «до/после» | выполнен, ждёт приёмки владельца | этот файл |
-| G2b — интервал, шрифты, зашитые значения | не начат | — |
+| G2a — типы реестра и окружения «до/после» | выполнен, B-08 исправлен, ждёт приёмки | этот файл |
+| G2b — интервал, шрифты, зашитые значения | выполнен, ждёт приёмки владельца | этот файл |
 | G2c — остальные «дешёвые» правила | не начат | — |
 | G3 — нумерация, подписи, сущности | не начат | — |
 | G4 — таблицы и оглавление | не начат | — |
@@ -315,7 +315,7 @@ ORM + тело Pandoc) в `tests/fixtures/golden/<stem>.typ`. Профиль с�
 | Сохранение `around` при записи в старые таблицы | ✔ `serialize_profile` переносит JSONB-блок | `app/registry/storage.py` |
 | 15 целей `around` | ✔ 45 опций (`before`, `after`, `collapse`) | `app/registry/options.py` |
 | Вставки `blank`, `text`, `line`, `pagebreak` | ✔ | `app/typst/fd.typ` |
-| `collapse: max / sum / none` | ✔ | `app/typst/fd.typ`, `REGISTRY_SPEC.md` |
+| `collapse: max / sum` (`none` удалён в G2a-fix) | ✔ | `app/typst/fd.typ`, `REGISTRY_SPEC.md` |
 | Пустой `around` не меняет вывод | ✔ старые и новые PDF совпали 16/16 | сравнение `pdfplumber` |
 | Golden: только блок `around` | ✔ +77 строк на снимок, 0 удалений | `tests/fixtures/golden/` |
 | UI-рендерер списков/объектов | ✔ добавить/удалить/↑/↓, вложенные поля | `RuleField.vue` |
@@ -362,6 +362,91 @@ Playwright + Chromium (Xvfb, headed), документ 4 000 абзацев → 
 нужен отдельный механизм (ленивая отрисовка/виртуализация страниц или
 инкрементальная компиляция).
 
+## G2a-fix — чек-лист
+
+| Пункт | Статус | Где |
+|---|---|---|
+| Удалить `none` из enum, UI, fd | ✔ остались `max` и `sum` | `app/registry/options.py`, `app/typst/fd.typ` |
+| Миграция старых `none` | ✔ `max` + пустые `before/after` | `app/registry/storage.py` |
+| `blank.count = 0` при `max` | ✔ явный `v(0)`, заменяет штатный интервал | `app/typst/fd.typ` |
+| `blank.count = 0` при `sum` | ✔ ничего не добавляет | `app/typst/fd.typ` |
+| Калибровка теста «таблица → заголовок» | ✔ ±0.5 pt | `tests/test_around.py` |
+| Замеры | ✔ base 19.52, max 12.32, sum 48.32, count0 max −2.08, count0 sum 19.52 pt | `tests/test_around.py` |
+
+## G2b — чек-лист
+
+| Пункт | Статус | Где |
+|---|---|---|
+| `document.line_spacing = {mode, value}` | ✔ `multiplier` / `mm` | `app/registry/options.py` |
+| Множитель от естественной высоты строки | ✔ `fd.line-pitch` | `app/typst/fd.typ` |
+| Коэффициенты шрифтов — данные реестра | ✔ Libertinus 1.308, PT Astra 1.312 | `app/registry/options.py` |
+| Неизвестный шрифт — ручной коэффициент | ✔ `document.line_height_em`; автозамер отложен (B-09) | реестр, `REGISTRY_SPEC.md` |
+| Миграция старых значений в `mm` | ✔ JSONB + старые колонки | `app/registry/storage.py` |
+| PT Astra Serif (OFL-1.1) в репозитории | ✔ 4 TTF + лицензия | `assets/fonts/` |
+| Сервер и `typst.ts` загружают одни файлы | ✔ `--font-path assets/fonts`, `preloadFonts` | `typst_compiler.py`, `frontend/src/typstFonts.ts` |
+| Паритет с PT Astra | ✔ 3 passed (2 профиля + версии) | `tests/test_preview_parity.py` |
+| Вынести `-0.3em` | ✔ `heading.unnumbered_indent` | `app/registry/options.py` |
+| Вынести `0.5em` / `1em` | ✔ `tight_spacing` / `loose_spacing` у трёх списков | `app/registry/options.py` |
+| Вынести `0.65em` | ✔ `document.default_leading_em` | `app/registry/options.py` |
+| Дефолты сохранены | ✔ тела golden не изменились | `tests/fixtures/golden/` |
+| Golden: только блок конфига | ✔ новые ключи, тела байт в байт | `UPDATE_GOLDEN=1` |
+| B-07 разложен по этапам | ✔ таблица ниже | этот файл |
+| Тесты с реальной БД | ✔ 123 + 50 passed | ниже |
+
+### Проверки G2b
+
+| Команда | Результат |
+|---|---|
+| `uv run pytest tests/ -m "not integration"` (Postgres 16, `pgserver`) | 123 passed, 50 deselected |
+| `uv run pytest tests/ -m integration` (Postgres 16, `pgserver`) | 50 passed, 123 deselected |
+| `cd frontend && npm test -- --run` | 15 passed (4 files) |
+| `cd frontend && npm run build` | OK (`vue-tsc -b` + vite) |
+| `npx vue-tsc --noEmit` | OK |
+| `uvx ruff check app/ tests/` | All checks passed |
+
+### Golden-изменения G2b
+
+Все 16 снимков получили только новые ключи конфига: `document.line_spacing`
+стал объектом `{mode, value}`, добавлены `document.line_height_em = 1.308`,
+`document.default_leading_em = 0.65`, `heading.unnumbered_indent = -0.3`,
+`tight_spacing = 0.5`, `loose_spacing = 1.0` у маркированного, нумерованного
+списков и списка определений. Тела документов не изменились.
+
+### Шрифты G2b: SHA-256
+
+| Файл | SHA-256 |
+|---|---|
+| `pt-astra-serif_regular.ttf` | `cdb923648978a89f3851b6f844d31c36e2f1b14b09659bd0f0c310fbf9f5102b` |
+| `pt-astra-serif_italic.ttf` | `56c6fa4cac5a917c08c6957179f80e3ce277ac60e609c0c1584b7ad331d49897` |
+| `pt-astra-serif_bold.ttf` | `9420cec257b3e7ab2236edf76966c20ebca1528a5d0096786cd0b1a5be6277a4` |
+| `pt-astra-serif_bold-italic.ttf` | `ae5ac2d2596c92c600f52870b9eca5268b529233d701c4aeef987eeaf3e6a388` |
+| `OFL.txt` | `1d361a8f8e8ce6e68457dcd93fb56e162e6baa3bbb7e7573a290d44399f6b57e` |
+
+`Libertinus`, `New Computer Modern` и `DejaVu Sans Mono` скопированы из
+`typst-assets` v0.13.1 в тот же `assets/fonts/`, чтобы исключить CDN из
+паритета; SHA-256 этих файлов совпадают с таблицей G1c.
+
+### B-07: замер по этапам
+
+Playwright + Chromium (headless), редактор `/`, профиль по умолчанию,
+900 абзацев → **114 страниц**. Три прогона, первая видимая страница —
+первый тёмный `fill` в canvas превью:
+
+| Этап | Холодный старт | Правка первой страницы |
+|---|---:|---:|
+| Компиляция `typst.ts` | 501–554 мс | 339–365 мс |
+| Получение страниц | 31–40 мс | 37–47 мс |
+| Отрисовка всех canvas | 3 448–3 853 мс | 3 388–3 549 мс |
+| Текстовый слой | 17–21 мс | 78–85 мс |
+| Итого `$typst.canvas` | 3 997–4 465 мс | 3 842–4 030 мс |
+| **Первая видимая страница** | **2 039–2 145 мс** | **1 668–1 750 мс** |
+| Пик JS heap | 117.5–123.9 МБ | 71.0–74.1 МБ |
+| JS heap после отрисовки | 42.5–45.9 МБ | 43.1–54.8 МБ |
+
+Порог S8 переопределён владельцем: для 100+ страниц проверяется время до
+обновления видимой страницы. Тёплая правка укладывается (1.67–1.75 с),
+холодный старт — 2.04–2.15 с. Виртуализация/ленивая отрисовка — после G2c.
+
 ## Проверки G0 (исторические)
 
 | Команда | Результат |
@@ -382,6 +467,8 @@ dev-группу `pyproject.toml`, тесты рендера использую�
 
 ## Открытые решения владельца
 
-B-01…B-06 отмечены решёнными в `BLOCKERS.md`. GitHub Actions на ветке `sprint`
-впервые прогнан и зелёный (run `40273965590`). B-07 — открытый вопрос скорости
-перерисовки в настоящем браузере.
+B-01…B-06 и B-08 отмечены решёнными в `BLOCKERS.md`. B-07 замерен и отложен
+по решению владельца: порог проверяется по видимой странице, полная отрисовка
+всех страниц оптимизируется после G2c. B-09 — открытый вопрос автозамера
+коэффициента высоты строки для нового шрифта. GitHub Actions на ветке `sprint`
+прогонялся зелёным (run `40273965590`, до G2a).

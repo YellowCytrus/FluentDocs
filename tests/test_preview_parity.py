@@ -120,3 +120,59 @@ def test_preview_redraw_under_two_seconds(tmp_path):
     )
     payload = json.loads(result.stdout.strip().splitlines()[-1])
     assert payload["redraw_ms"] <= 2000, payload
+
+
+def test_preview_and_server_match_pt_astra(tmp_path):
+    """Паритет с PT Astra Serif и множителем интервала: те же файлы в CLI и typst.ts."""
+    from app.registry import SCHEMA_VERSION, normalize_values
+    from app.registry.storage import default_values
+
+    values = default_values()
+    values["document"]["font"] = "PT Astra Serif"
+    values["document"]["line_spacing"] = {"mode": "multiplier", "value": 1.5}
+    profile = default_profile()
+    profile.options = normalize_values(values)
+    profile.options_schema_version = SCHEMA_VERSION
+    preamble = build_typst_preamble(profile)
+
+    if (DOCS_DIR / "sample.png").exists():
+        shutil.copy(DOCS_DIR / "sample.png", tmp_path / "sample.png")
+    jobs = []
+    sources: dict[str, str] = {}
+    for stem in DOCS:
+        markdown = (DOCS_DIR / f"{stem}.md").read_text(encoding="utf-8")
+        body = markdown_to_typst(markdown)
+        server_source = build_typst_source(profile, body)
+        assert preamble + "\n" + body == server_source, stem
+        source_path = tmp_path / f"astra-{stem}.typ"
+        source_path.write_text(server_source, encoding="utf-8")
+        jobs.append({"input": str(source_path), "output": str(tmp_path / f"astra-{stem}.ts.pdf")})
+        sources[stem] = server_source
+
+    manifest = tmp_path / "astra-manifest.json"
+    manifest.write_text(json.dumps(jobs), encoding="utf-8")
+    subprocess.run(
+        [NODE, "scripts/typst-parity.mjs", str(manifest)],
+        cwd=FRONTEND,
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
+
+    for stem in DOCS:
+        cli_pdf = tmp_path / f"astra-{stem}.cli.pdf"
+        result = subprocess.run(
+            ["typst", "compile", str(tmp_path / f"astra-{stem}.typ"), str(cli_pdf)],
+            cwd=tmp_path,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        assert result.returncode == 0, result.stderr
+        preview_pdf = tmp_path / f"astra-{stem}.ts.pdf"
+        assert _pages(cli_pdf) == _pages(preview_pdf), stem
+        assert _page_fonts(cli_pdf) == _page_fonts(preview_pdf), stem
+        assert any("PTAstraSerif" in font for font in _page_fonts(cli_pdf)), stem
+        assert sources[stem]

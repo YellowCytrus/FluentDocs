@@ -17,6 +17,7 @@ from app.utils.typst_source import build_typst_preamble
 from golden_helpers import build_source, default_profile
 
 LINE_PT = 5.08 * 72 / 25.4  # document.line_spacing по умолчанию, 5.08 мм
+ZERO_GAP_PT = -2.08  # геометрия строки таблицы: зазор при v(0)
 
 
 def _source(around: dict) -> str:
@@ -167,6 +168,15 @@ def test_around_validation_rejects_unknown_and_required() -> None:
         normalize_values({"around": {"table": {"after": [{"type": "line", "length": 101}]}}})
     with pytest.raises(RegistryError):
         normalize_values({"around": {"table": {"collapse": "bogus"}}})
+    # Режим none удалён; старые значения мигрируют в пустые вставки и max.
+    migrated = normalize_values(
+        {"around": {"table": {"before": [_text_item()], "collapse": "none"}}}
+    )
+    assert migrated["around"]["table"] == {
+        "before": [],
+        "after": [],
+        "collapse": "max",
+    }
 
 
 def test_around_object_and_list_validation_are_recursive() -> None:
@@ -206,7 +216,7 @@ async def test_options_around_roundtrip_and_legacy_write(client) -> None:
             "after": [_blank(count=2, value=4.0, mode="mm")],
             "collapse": "sum",
         },
-        "heading_1": {"before": [_blank(count=0)], "collapse": "none"},
+        "heading_1": {"before": [_blank(count=0)], "collapse": "max"},
     }
     put = await client.put(
         f"/profiles/{profile_id}/options",
@@ -218,7 +228,7 @@ async def test_options_around_roundtrip_and_legacy_write(client) -> None:
     assert got.status_code == 200
     assert got.json()["values"]["around"]["table"]["collapse"] == "sum"
     assert got.json()["values"]["around"]["table"]["after"][0]["count"] == 2
-    assert got.json()["values"]["around"]["heading_1"]["collapse"] == "none"
+    assert got.json()["values"]["around"]["heading_1"]["collapse"] == "max"
 
     # Запись в старую таблицу не должна затирать around, которого там нет.
     patched = await client.patch(f"/profiles/{profile_id}/page", json={"margin_left": 21.0})
@@ -275,7 +285,7 @@ TABLE_DOC = "# Заголовок\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\n# Сле
     shutil.which("pandoc") is None or shutil.which("typst") is None,
     reason="pandoc and typst must be in PATH",
 )
-def test_around_render_spacing_max_sum_none(tmp_path) -> None:
+def test_around_render_spacing_max_sum_count_zero(tmp_path) -> None:
     blank = _blank(count=1)
     base = _table_heading_gap(pdfplumber.open(_render({}, TABLE_DOC, tmp_path / "base")).pages[0])
     max_pdf = pdfplumber.open(
@@ -298,29 +308,37 @@ def test_around_render_spacing_max_sum_none(tmp_path) -> None:
             tmp_path / "sum",
         )
     )
-    none_pdf = pdfplumber.open(
+    zero_pdf = pdfplumber.open(
         _render(
-            {
-                "table": {"after": [blank], "collapse": "none"},
-                "heading_1": {"before": [blank], "collapse": "none"},
-            },
+            {"table": {"after": [_blank(count=0)]}},
             TABLE_DOC,
-            tmp_path / "none",
+            tmp_path / "zero",
+        )
+    )
+    zero_sum_pdf = pdfplumber.open(
+        _render(
+            {"table": {"after": [_blank(count=0)], "collapse": "sum"}},
+            TABLE_DOC,
+            tmp_path / "zero-sum",
         )
     )
     with max_pdf as pdf:
         max_gap = _table_heading_gap(pdf.pages[0])
     with sum_pdf as pdf:
         sum_gap = _table_heading_gap(pdf.pages[0])
-    with none_pdf as pdf:
-        none_gap = _table_heading_gap(pdf.pages[0])
+    with zero_pdf as pdf:
+        zero_gap = _table_heading_gap(pdf.pages[0])
+    with zero_sum_pdf as pdf:
+        zero_sum_gap = _table_heading_gap(pdf.pages[0])
 
-    # max: одна слабая пустая строка, Typst схлопывает её с отступом заголовка.
-    assert abs(max_gap - LINE_PT) < 3.0
-    # sum: обе пустые строки жёсткие и складываются с отступом заголовка.
-    assert abs((sum_gap - base) - 2 * LINE_PT) < 1.0
-    # none: пустые строки не вставляются, отступ остаётся штатным.
-    assert abs(none_gap - base) < 0.5
+    # Калибровка: при v(0) остаётся только геометрическое смещение строки.
+    assert abs(zero_gap - ZERO_GAP_PT) < 0.5
+    # max: явная пустая строка заменяет штатный интервал ровно одной строкой.
+    assert abs((max_gap - zero_gap) - LINE_PT) < 0.5
+    # sum: две жёсткие строки добавляются к штатному интервалу.
+    assert abs((sum_gap - base) - 2 * LINE_PT) < 0.5
+    # sum с count=0 ничего не добавляет.
+    assert abs(zero_sum_gap - base) < 0.5
 
 
 @pytest.mark.integration
@@ -329,8 +347,6 @@ def test_around_render_spacing_max_sum_none(tmp_path) -> None:
     reason="pandoc and typst must be in PATH",
 )
 def test_around_render_count_zero_and_top_of_page(tmp_path) -> None:
-    base_page = pdfplumber.open(_render({}, TABLE_DOC, tmp_path / "base")).pages[0]
-    base_gap = _table_heading_gap(base_page)
     zero_pdf = pdfplumber.open(
         _render(
             {"table": {"after": [_blank(count=0)]}},
@@ -339,7 +355,8 @@ def test_around_render_count_zero_and_top_of_page(tmp_path) -> None:
         )
     )
     with zero_pdf as pdf:
-        assert abs(_table_heading_gap(pdf.pages[0]) - base_gap) < 0.5
+        zero_gap = _table_heading_gap(pdf.pages[0])
+    assert abs(zero_gap - ZERO_GAP_PT) < 0.5
 
     top_doc = "# Верх\n\nТекст.\n"
     base_top = min(
