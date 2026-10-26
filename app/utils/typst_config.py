@@ -11,7 +11,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import cast
 
-from app.registry.options import JsonValue
+from app.registry.options import AROUND_TARGETS, JsonValue
 from app.utils.typst_literals import typst_str
 
 
@@ -64,6 +64,36 @@ def _element_tree(element: Mapping[str, JsonValue], keys: tuple[str, ...]) -> di
         tree[key] = _text_override(raw) if key == "text_override" else raw
     if "hyphenate" in tree:
         tree["hyphenate"] = _hyphenate(tree["hyphenate"])
+    return tree
+
+
+def _around_item(raw: JsonValue) -> JsonValue:
+    if not isinstance(raw, Mapping):
+        raise ValueError("Элемент around должен быть объектом")
+    item: dict[str, JsonValue] = {}
+    for key, value in raw.items():
+        item[key] = _text_override(value) if key == "text_override" else value
+    return item
+
+
+def _around(values: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
+    raw_around = values.get("around")
+    if not isinstance(raw_around, Mapping):
+        raise ValueError("В значениях реестра отсутствует around")
+    tree: dict[str, JsonValue] = {}
+    for target in AROUND_TARGETS:
+        raw = raw_around.get(target)
+        if not isinstance(raw, Mapping):
+            raise ValueError(f"В значениях реестра отсутствует around.{target}")
+        before = raw.get("before")
+        after = raw.get("after")
+        if not isinstance(before, list) or not isinstance(after, list):
+            raise ValueError(f"around.{target}.before/after должны быть списками")
+        tree[target] = {
+            "before": [_around_item(item) for item in before],
+            "after": [_around_item(item) for item in after],
+            "collapse": _value(raw, "collapse"),
+        }
     return tree
 
 
@@ -192,6 +222,7 @@ def config_tree(values: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
             _element(values, "outline"),
             ("depth", "indent_mode", "indent_mm", "text_override"),
         ),
+        "around": _around(values),
     }
 
 

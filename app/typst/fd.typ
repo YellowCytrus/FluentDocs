@@ -58,6 +58,67 @@
     if s == "tight" { 0.5em } else if s == "loose" { 1em } else { auto }
   }
 
+  // --- окружение элемента (around) ---
+
+  // Пустая строка: weak при collapse=max, жёсткая при sum, нет при none.
+  let around-blank(item, collapse, base-line) = {
+    if collapse != "none" {
+      let raw = item.line_spacing.value
+      let spacing = if item.line_spacing.mode == "multiplier" {
+        raw * base-line
+      } else {
+        raw * 1mm
+      }
+      v(item.count * spacing, weak: collapse == "max")
+    }
+  }
+
+  // Одна вставка окружения. Обслуживает опции around.<element>.before/after.
+  let around-item(config, item, collapse) = {
+    if item.type == "blank" {
+      around-blank(item, collapse, config.document.line_spacing * 1mm)
+    } else if item.type == "text" {
+      let body = [#item.content]
+      let styled = if item.text_override != none {
+        text-override-body(body, item.text_override)
+      } else {
+        body
+      }
+      align(alignment(item.align), styled)
+    } else if item.type == "line" {
+      block(line(length: item.length * 1%, stroke: item.stroke_mm * 1mm))
+    } else if item.type == "pagebreak" {
+      pagebreak(weak: item.weak)
+    }
+  }
+
+  // Есть ли в списке вставка, которая реально меняет вывод.
+  let around-effective(items) = {
+    let result = false
+    for item in items {
+      if item.type != "blank" or item.count > 0 {
+        result = true
+      }
+    }
+    result
+  }
+
+  // Оборачивает элемент вставками before/after; пустой around не меняет вывод.
+  let around-body(config, target, it) = {
+    let cfg = config.around.at(target)
+    if not around-effective(cfg.before) and not around-effective(cfg.after) {
+      it
+    } else {
+      for item in cfg.before {
+        around-item(config, item, cfg.collapse)
+      }
+      it
+      for item in cfg.after {
+        around-item(config, item, cfg.collapse)
+      }
+    }
+  }
+
   let bool-value(s) = {
     if s == "true" { true } else if s == "false" { false } else { auto }
   }
@@ -132,12 +193,13 @@
     }
   }
 
-  let show-heading(it, level) = {
-    if level.break_before {
+  let show-heading(it, level, config, target) = {
+    let content = if level.break_before {
       [#pagebreak(weak: true); #block[#heading-body(it, level)]]
     } else {
       block[#heading-body(it, level)]
     }
+    around-body(config, target, content)
   }
 
   // --- подпись рисунка по шаблону ---
@@ -276,17 +338,44 @@
   }
 
   let with-text-overrides(config, body) = {
-    show par: it => text-override-body(it, config.par.text_override)
-    show list: it => text-override-body(it, config.bullet_list.text_override)
-    show enum: it => text-override-body(it, config.numbered_list.text_override)
+    show par: it => text-override-body(
+      around-body(config, "par", it), config.par.text_override,
+    )
+    show list: it => text-override-body(
+      around-body(config, "bullet_list", it), config.bullet_list.text_override,
+    )
+    show enum: it => text-override-body(
+      around-body(config, "numbered_list", it), config.numbered_list.text_override,
+    )
     show table.cell: it => text-override-body(it, config.table.text_override)
-    show quote: it => text-override-body(it, config.quote.text_override)
-    show raw: it => text-override-body(it, config.raw.text_override)
-    show figure: it => text-override-body(it, config.figure.text_override)
+    show quote: it => text-override-body(
+      around-body(config, "quote", it), config.quote.text_override,
+    )
+    show raw.where(block: true): it => text-override-body(
+      around-body(config, "raw", it), config.raw.text_override,
+    )
+    show raw.where(block: false): it => text-override-body(
+      it, config.raw.text_override,
+    )
+    show figure: it => text-override-body(
+      around-body(
+        config,
+        if it.kind == table { "table" } else { "figure" },
+        it,
+      ),
+      config.figure.text_override,
+    )
     show footnote.entry: it => text-override-body(it, config.footnote.text_override)
-    show terms: it => text-override-body(it, config.terms.text_override)
+    show terms: it => text-override-body(
+      around-body(config, "terms", it), config.terms.text_override,
+    )
     show outline: it => text-override-body(it, config.outline.text_override)
-    show math.equation: it => text-override-body(it, config.equation.text_override)
+    show math.equation.where(block: true): it => text-override-body(
+      around-body(config, "equation", it), config.equation.text_override,
+    )
+    show math.equation.where(block: false): it => text-override-body(
+      it, config.equation.text_override,
+    )
     body
   }
 
@@ -478,22 +567,22 @@
 
     // Стили уровней заголовков. Идут после правил счётчиков подписей.
     show heading.where(level: 1): it => show-heading(
-      it, config.heading_levels.at(0),
+      it, config.heading_levels.at(0), config, "heading_1",
     )
     show heading.where(level: 2): it => show-heading(
-      it, config.heading_levels.at(1),
+      it, config.heading_levels.at(1), config, "heading_2",
     )
     show heading.where(level: 3): it => show-heading(
-      it, config.heading_levels.at(2),
+      it, config.heading_levels.at(2), config, "heading_3",
     )
     show heading.where(level: 4): it => show-heading(
-      it, config.heading_levels.at(3),
+      it, config.heading_levels.at(3), config, "heading_4",
     )
     show heading.where(level: 5): it => show-heading(
-      it, config.heading_levels.at(4),
+      it, config.heading_levels.at(4), config, "heading_5",
     )
     show heading.where(level: 6): it => show-heading(
-      it, config.heading_levels.at(5),
+      it, config.heading_levels.at(5), config, "heading_6",
     )
 
     let content = with-text-overrides(config, with-caption(config, body))

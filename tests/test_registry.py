@@ -53,6 +53,9 @@ def test_registry_option_contract() -> None:
         if not option.legacy:
             assert option.test_ids != tuple(TEST_IDS)
             assert all(name.startswith("test_") for name in option.test_ids)
+            assert "значение хранится в профиле" not in option.rationale
+            assert "без переопределения действует" not in option.rationale
+            assert "СТУ" in option.source or "reference:" in option.source
         assert option.ui.get("control")
         assert option.ui.get("label")
         assert option.ui.get("tab")

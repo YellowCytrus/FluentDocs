@@ -41,6 +41,7 @@ from app.models.sqlalchemy.styles import (
     TextOverrideStyle,
 )
 from app.registry.options import (
+    AROUND_TARGETS,
     ELEMENT_PATHS,
     HEADING_LEVELS,
     OPTIONS,
@@ -113,6 +114,7 @@ def default_values() -> dict[str, JsonValue]:
     """Полный набор значений по умолчанию для всех опций реестра."""
     values: dict[str, JsonValue] = {element: {} for element in ELEMENT_PATHS}
     values["heading_levels"] = {str(level): {} for level in HEADING_LEVELS}
+    values["around"] = {}
     for option in OPTIONS:
         if "text_override" in option.path:
             continue
@@ -120,6 +122,11 @@ def default_values() -> dict[str, JsonValue]:
     for prefix in TO_ELEMENT_PREFIXES:
         _set_path(values, (*prefix, "text_override"), None)
     return values
+
+
+def _schema_key(field: Option) -> str:
+    """Ключ вложенного поля: последний сегмент его path."""
+    return field.path[-1]
 
 
 def validate_value(option: Option, value: JsonValue) -> JsonValue:
@@ -161,6 +168,71 @@ def validate_value(option: Option, value: JsonValue) -> JsonValue:
         ):
             raise RegistryError(f"Опция {option.id}: ожидается список из 1–3 строк")
         return list(value)
+
+    if option.type == "object":
+        if not isinstance(value, Mapping):
+            raise RegistryError(f"Опция {option.id}: ожидается объект")
+        if not option.fields:
+            raise RegistryError(f"Опция {option.id}: пустая схема объекта")
+        known = {_schema_key(field) for field in option.fields}
+        unknown = set(value) - known
+        if unknown:
+            raise RegistryError(f"Опция {option.id}: неизвестные поля {sorted(unknown)}")
+        normalized: dict[str, JsonValue] = {}
+        for field in option.fields:
+            if _schema_key(field) in value:
+                normalized[_schema_key(field)] = validate_value(
+                    field, cast(JsonValue, value[_schema_key(field)])
+                )
+            elif field.required:
+                raise RegistryError(f"Опция {option.id}: обязательно поле {_schema_key(field)}")
+            else:
+                normalized[_schema_key(field)] = copy.deepcopy(field.default)
+        return normalized
+
+    if option.type == "list":
+        if not isinstance(value, list):
+            raise RegistryError(f"Опция {option.id}: ожидается список")
+        if not option.item_fields:
+            raise RegistryError(f"Опция {option.id}: пустая схема элемента списка")
+        normalized_items: list[JsonValue] = []
+        variants = dict(option.item_variants)
+        for index, item in enumerate(value):
+            if not isinstance(item, Mapping):
+                raise RegistryError(f"Опция {option.id}[{index}]: ожидается объект")
+            if variants:
+                variant = item.get("type")
+                if not isinstance(variant, str) or variant not in variants:
+                    raise RegistryError(
+                        f"Опция {option.id}[{index}]: недопустимый type {variant!r}"
+                    )
+                allowed = {"type", *variants[variant]}
+                unknown = set(item) - allowed
+                if unknown:
+                    raise RegistryError(
+                        f"Опция {option.id}[{index}]: неизвестные поля {sorted(unknown)}"
+                    )
+            else:
+                variant = None
+                allowed = {_schema_key(field) for field in option.item_fields}
+            normalized_item: dict[str, JsonValue] = {}
+            if variant is not None:
+                normalized_item["type"] = variant
+            for field in option.item_fields:
+                if variant is not None and _schema_key(field) not in allowed:
+                    continue
+                if _schema_key(field) in item:
+                    normalized_item[_schema_key(field)] = validate_value(
+                        field, cast(JsonValue, item[_schema_key(field)])
+                    )
+                elif field.required:
+                    raise RegistryError(
+                        f"Опция {option.id}[{index}]: обязательно поле {_schema_key(field)}"
+                    )
+                else:
+                    normalized_item[_schema_key(field)] = copy.deepcopy(field.default)
+            normalized_items.append(normalized_item)
+        return normalized_items
 
     if option.type == "select":
         # Переносы в старых таблицах хранятся как bool | null.
@@ -237,6 +309,21 @@ def normalize_values(raw: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
                     option = OPTIONS_BY_PATH.get(("heading_levels", level_key, key))
                     if option is None:
                         raise RegistryError(f"Неизвестная опция: heading_levels.{level_key}.{key}")
+                    _set_path(values, option.path, validate_value(option, value))
+            continue
+
+        if element == "around":
+            if not isinstance(element_values, Mapping):
+                raise RegistryError("around должен быть объектом")
+            for target, target_values in element_values.items():
+                if target not in AROUND_TARGETS:
+                    raise RegistryError(f"Неизвестный элемент окружения: {target}")
+                if not isinstance(target_values, Mapping):
+                    raise RegistryError(f"around.{target} должен быть объектом")
+                for key, value in target_values.items():
+                    option = OPTIONS_BY_PATH.get(("around", target, key))
+                    if option is None:
+                        raise RegistryError(f"Неизвестная опция: around.{target}.{key}")
                     _set_path(values, option.path, validate_value(option, value))
             continue
 
@@ -318,6 +405,13 @@ def serialize_profile(profile: Profile) -> dict[str, JsonValue]:
                 _to_registry_value(option, getattr(row, option.path[-1], None)),
             )
         values["heading_levels"][str(level)]["text_override"] = _serialize_text_override(row)
+
+    # around не имеет старых колонок: сохраняем его из JSONB при пересборке.
+    raw_options = profile.options
+    if isinstance(raw_options, Mapping):
+        around = raw_options.get("around")
+        if isinstance(around, Mapping):
+            values["around"] = copy.deepcopy(around)
 
     return values
 

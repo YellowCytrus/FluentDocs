@@ -13,7 +13,9 @@ from typing import Literal
 
 SCHEMA_VERSION = 1
 
-OptionType = Literal["number", "integer", "boolean", "string", "select", "markers"]
+OptionType = Literal[
+    "number", "integer", "boolean", "string", "select", "markers", "list", "object"
+]
 type JsonValue = str | int | float | bool | None | list[JsonValue] | dict[str, JsonValue]
 
 TEST_IDS = (
@@ -47,6 +49,11 @@ class Option:
     depends_on: tuple[str, ...] = ()
     nullable: bool = False
     legacy: bool = True
+    required: bool = False
+    enum_labels: tuple[tuple[str, str], ...] = ()
+    fields: tuple[Option, ...] = ()
+    item_fields: tuple[Option, ...] = ()
+    item_variants: tuple[tuple[str, tuple[str, ...]], ...] = ()
 
 
 GROUP_LABELS: dict[str, str] = {
@@ -64,6 +71,7 @@ GROUP_LABELS: dict[str, str] = {
     "footnote": "Сноска",
     "raw": "Код",
     "outline": "Оглавление",
+    "around": "Окружение",
 }
 
 SOURCE = {
@@ -81,6 +89,7 @@ SOURCE = {
     "footnote": "СТУ 7.9; plan_v2 reference.footnote",
     "raw": "plan_v2 §5; элемент raw",
     "outline": "СТУ 6.4; plan_v2 toc.*",
+    "around": "СТУ 7.4–7.8; plan_v2 around.*",
 }
 
 LENGTH_UNITS = ("mm", "cm", "in", "pt", "em")
@@ -203,6 +212,55 @@ ELEMENT_LABELS: dict[str, str] = {
 }
 
 HEADING_LEVELS = tuple(range(1, 7))
+
+AROUND_TARGETS: tuple[str, ...] = (
+    "heading_1",
+    "heading_2",
+    "heading_3",
+    "heading_4",
+    "heading_5",
+    "heading_6",
+    "par",
+    "bullet_list",
+    "numbered_list",
+    "table",
+    "figure",
+    "equation",
+    "quote",
+    "raw",
+    "terms",
+)
+
+AROUND_TARGET_META: dict[str, tuple[str, str, str]] = {
+    "heading_1": ("заголовка 1", "СТУ 7.4.1", "heading.h1"),
+    "heading_2": ("заголовка 2", "СТУ 7.4.2", "heading.h2"),
+    "heading_3": ("заголовка 3", "СТУ 7.4.3", "heading.h3"),
+    "heading_4": ("заголовка 4", "СТУ 7.4.4", "heading.h4"),
+    "heading_5": ("заголовка 5", "СТУ 7.4.5", "heading.h5"),
+    "heading_6": ("заголовка 6", "СТУ 7.4.6", "heading.h6"),
+    "par": ("абзаца", "СТУ 7.3", "text.par"),
+    "bullet_list": ("маркированного списка", "СТУ 7.4", "list.bullet"),
+    "numbered_list": ("нумерованного списка", "СТУ 7.4", "list.enum"),
+    "table": ("таблицы", "СТУ 7.7", "table"),
+    "figure": ("рисунка", "СТУ 7.8", "figure"),
+    "equation": ("формулы", "СТУ 7.6", "formula"),
+    "quote": ("цитаты", "plan_v2 §5", "quote"),
+    "raw": ("блока кода", "plan_v2 §5", "raw"),
+    "terms": ("списка определений", "plan_v2 §5", "terms"),
+}
+
+AROUND_COLLAPSE_LABELS: tuple[tuple[str, str], ...] = (
+    ("max", "Максимум"),
+    ("sum", "Сумма"),
+    ("none", "Без пустых строк"),
+)
+
+AROUND_ITEM_LABELS: tuple[tuple[str, str], ...] = (
+    ("blank", "Пустая строка"),
+    ("text", "Текст"),
+    ("line", "Линия"),
+    ("pagebreak", "Разрыв страницы"),
+)
 TEXT_OVERRIDE_ELEMENTS: tuple[tuple[str, str, tuple[str, ...], tuple[str, ...]], ...] = (
     ("par", "par", ("par",), ("par",)),
     *(
@@ -238,19 +296,30 @@ TEXT_OVERRIDE_FIELDS: tuple[tuple[str, OptionType, JsonValue, str, str, tuple[st
 )
 
 
-def _ui(label: str, group: str, control: str, order: int, enum: tuple[str, ...] = ()) -> dict:
+def _ui(
+    label: str,
+    group: str,
+    control: str,
+    order: int,
+    enum: tuple[str, ...] = (),
+    enum_labels: tuple[tuple[str, str], ...] = (),
+    section: str | None = None,
+) -> dict:
     ui: dict[str, JsonValue] = {
         "control": control,
         "label": label,
         "tab": GROUP_LABELS.get(group, group),
         "order": order,
     }
+    if section:
+        ui["section"] = section
     if enum:
-        labels: dict[str, str] = {}
-        for values in SELECT_LABELS.values():
-            if tuple(value for value, _ in values) == enum:
-                labels = dict(values)
-                break
+        labels = dict(enum_labels)
+        if not labels:
+            for values in SELECT_LABELS.values():
+                if tuple(value for value, _ in values) == enum:
+                    labels = dict(values)
+                    break
         ui["options"] = [{"value": value, "label": labels.get(value, value)} for value in enum]
     return ui
 
@@ -289,6 +358,12 @@ def _option(
     source: str | None = None,
     test_ids: tuple[str, ...] | None = None,
     legacy: bool = True,
+    required: bool = False,
+    enum_labels: tuple[tuple[str, str], ...] = (),
+    fields: tuple[Option, ...] = (),
+    item_fields: tuple[Option, ...] = (),
+    item_variants: tuple[tuple[str, tuple[str, ...]], ...] = (),
+    ui_section: str | None = None,
 ) -> Option:
     control = {
         "number": "number",
@@ -297,6 +372,8 @@ def _option(
         "string": "text",
         "select": "select",
         "markers": "markers",
+        "list": "list",
+        "object": "object",
     }[type]
     return Option(
         id=id,
@@ -305,7 +382,7 @@ def _option(
         type=type,
         default=default,
         path=path,
-        ui=_ui(label, group, control, order, enum),
+        ui=_ui(label, group, control, order, enum, enum_labels, ui_section),
         rationale=rationale or _rationale(label, applies_to[0]),
         source=source or SOURCE[group],
         unit=unit,
@@ -318,7 +395,278 @@ def _option(
         nullable=nullable,
         test_ids=test_ids or TEST_IDS,
         legacy=legacy,
+        required=required,
+        enum_labels=enum_labels,
+        fields=fields,
+        item_fields=item_fields,
+        item_variants=item_variants,
     )
+
+
+def _nested_option(
+    key: str,
+    type_: OptionType,
+    default: JsonValue,
+    label: str,
+    *,
+    order: int,
+    unit: str | None = None,
+    allowed_units: tuple[str, ...] = (),
+    min: float | None = None,
+    max: float | None = None,
+    step: float | None = None,
+    enum: tuple[str, ...] = (),
+    enum_labels: tuple[tuple[str, str], ...] = (),
+    nullable: bool = False,
+    required: bool = False,
+    fields: tuple[Option, ...] = (),
+) -> Option:
+    """Поле вложенной схемы (list/object); не входит в плоский OPTIONS."""
+    return _option(
+        f"around.item.{key}",
+        "around",
+        ("around",),
+        type_,
+        default,
+        (key,),
+        label,
+        order=order,
+        unit=unit,
+        allowed_units=allowed_units,
+        min=min,
+        max=max,
+        step=step,
+        enum=enum,
+        enum_labels=enum_labels,
+        nullable=nullable,
+        required=required,
+        fields=fields,
+        rationale=f"Поле «{label}» вставки окружения элемента; задаёт значение без правки кода.",
+        source="plan_v2 around.item; AGENTS 5.1",
+        test_ids=("test_around_item_schema_contract",),
+        legacy=False,
+    )
+
+
+def _around_item_fields() -> tuple[Option, ...]:
+    text_override_fields: list[Option] = []
+    for order, (field_key, type_, default, label, unit, allowed_units) in enumerate(
+        TEXT_OVERRIDE_FIELDS
+    ):
+        enum: tuple[str, ...] = ()
+        if field_key == "weight":
+            enum = tuple(v for v, _ in SELECT_LABELS["weight"])
+        elif field_key == "style":
+            enum = tuple(v for v, _ in SELECT_LABELS["text_style"])
+        elif field_key == "lang":
+            enum = tuple(v for v, _ in SELECT_LABELS["lang"])
+        elif field_key == "hyphenate":
+            enum = tuple(v for v, _ in SELECT_LABELS["hyphenate"])
+        elif field_key == "number_type":
+            enum = tuple(v for v, _ in SELECT_LABELS["number_type"])
+        elif field_key == "number_width":
+            enum = tuple(v for v, _ in SELECT_LABELS["number_width"])
+        text_override_fields.append(
+            _nested_option(
+                field_key,
+                type_,
+                copy.deepcopy(default),
+                label,
+                order=order,
+                unit=unit or None,
+                allowed_units=allowed_units,
+                min=6
+                if field_key == "font_size"
+                else (-5 if field_key == "tracking" else 0)
+                if type_ == "number"
+                else None,
+                max=72
+                if field_key == "font_size"
+                else (
+                    20
+                    if field_key == "tracking"
+                    else (500 if field_key == "word_spacing" else None)
+                ),
+                step=0.5 if field_key == "font_size" else (0.1 if field_key == "tracking" else 5),
+                enum=enum,
+                nullable=default is None,
+            )
+        )
+
+    line_spacing = _nested_option(
+        "line_spacing",
+        "object",
+        {"mode": "multiplier", "value": 1.0},
+        "Высота пустой строки",
+        order=2,
+        fields=(
+            _nested_option(
+                "mode",
+                "select",
+                "multiplier",
+                "Режим",
+                order=0,
+                enum=("multiplier", "mm"),
+                enum_labels=(("multiplier", "Множитель"), ("mm", "Миллиметры")),
+            ),
+            _nested_option(
+                "value",
+                "number",
+                1.0,
+                "Значение",
+                order=1,
+                min=0,
+                max=1000,
+                step=0.1,
+            ),
+        ),
+    )
+    return (
+        _nested_option(
+            "type",
+            "select",
+            "blank",
+            "Тип вставки",
+            order=0,
+            enum=tuple(value for value, _ in AROUND_ITEM_LABELS),
+            enum_labels=AROUND_ITEM_LABELS,
+            required=True,
+        ),
+        _nested_option(
+            "count",
+            "integer",
+            1,
+            "Количество строк",
+            order=1,
+            min=0,
+            max=1000,
+            step=1,
+        ),
+        line_spacing,
+        _nested_option(
+            "content",
+            "string",
+            "",
+            "Текст",
+            order=3,
+            required=True,
+        ),
+        _nested_option(
+            "text_override",
+            "object",
+            None,
+            "Свой стиль текста",
+            order=4,
+            nullable=True,
+            fields=tuple(text_override_fields),
+        ),
+        _nested_option(
+            "align",
+            "select",
+            "left",
+            "Выравнивание",
+            order=5,
+            enum=("left", "center", "right"),
+            enum_labels=(("left", "Слева"), ("center", "По центру"), ("right", "Справа")),
+        ),
+        _nested_option(
+            "length",
+            "number",
+            100.0,
+            "Длина линии",
+            order=6,
+            unit="%",
+            allowed_units=PERCENT_UNITS,
+            min=0,
+            max=100,
+            step=1,
+        ),
+        _nested_option(
+            "stroke_mm",
+            "number",
+            0.5,
+            "Толщина линии",
+            order=7,
+            unit="mm",
+            allowed_units=MM_UNITS,
+            min=0,
+            max=20,
+            step=0.05,
+        ),
+        _nested_option(
+            "weak",
+            "boolean",
+            True,
+            "Слабый разрыв",
+            order=8,
+        ),
+    )
+
+
+def _around_options() -> list[Option]:
+    opts: list[Option] = []
+    fields = _around_item_fields()
+    variants = (
+        ("blank", ("count", "line_spacing")),
+        ("text", ("content", "text_override", "align")),
+        ("line", ("length", "stroke_mm")),
+        ("pagebreak", ("weak",)),
+    )
+    for target in AROUND_TARGETS:
+        target_label, stu, rule = AROUND_TARGET_META[target]
+        section = (
+            f"Заголовок {target.split('_')[-1]}"
+            if target.startswith("heading_")
+            else GROUP_LABELS[target]
+        )
+        for side, side_label in (("before", "до"), ("after", "после")):
+            opts.append(
+                _option(
+                    f"around.{target}.{side}",
+                    "around",
+                    (target,),
+                    "list",
+                    [],
+                    ("around", target, side),
+                    f"Вставки {side_label} {target_label}",
+                    order=len(opts),
+                    item_fields=fields,
+                    item_variants=variants,
+                    rationale=(
+                        f"Задаёт вставки {side_label} {target_label}: пустые строки, текст, "
+                        "линию или разрыв страницы. Позволяет воспроизвести практику СТУ "
+                        "без правки генератора; пустой список ничего не меняет."
+                    ),
+                    source=f"{stu}; plan_v2 {rule}; reference: around.{target}.{side}",
+                    test_ids=(f"test_around_{target}_options",),
+                    legacy=False,
+                    ui_section=section,
+                )
+            )
+        opts.append(
+            _option(
+                f"around.{target}.collapse",
+                "around",
+                (target,),
+                "select",
+                "max",
+                ("around", target, "collapse"),
+                f"Схлопывание отступов {target_label}",
+                order=len(opts),
+                enum=tuple(value for value, _ in AROUND_COLLAPSE_LABELS),
+                enum_labels=AROUND_COLLAPSE_LABELS,
+                rationale=(
+                    f"Определяет, как складываются пустые строки вокруг {target_label}: "
+                    "max — слабые отступы Typst схлопываются до максимума, sum — "
+                    "жёсткая сумма, none — пустые строки не вставляются."
+                ),
+                source=f"{stu}; plan_v2 {rule}; reference: around.{target}.collapse",
+                test_ids=(f"test_around_{target}_options",),
+                legacy=False,
+                ui_section=section,
+            )
+        )
+    return opts
 
 
 def _base_options() -> list[Option]:
@@ -1323,7 +1671,7 @@ def _text_override_options() -> list[Option]:
     return opts
 
 
-OPTIONS: tuple[Option, ...] = tuple(_base_options() + _text_override_options())
+OPTIONS: tuple[Option, ...] = tuple(_base_options() + _text_override_options() + _around_options())
 OPTIONS_BY_ID: dict[str, Option] = {option.id: option for option in OPTIONS}
 OPTIONS_BY_PATH: dict[tuple[str, ...], Option] = {option.path: option for option in OPTIONS}
 ELEMENT_PATHS: tuple[str, ...] = (
