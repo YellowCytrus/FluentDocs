@@ -3,6 +3,15 @@ import { computed, ref } from 'vue';
 import type { JsonValue, RegistryOption } from '../../types/registry';
 import type { Context, Unit } from '../../utils/unitConversion';
 import { fromMm, toMm } from '../../utils/unitConversion';
+import {
+  addListItem,
+  defaultListItem,
+  listItemDefaults,
+  listItemFields,
+  moveListItem,
+  objectDefaults,
+  removeListItem,
+} from '../../utils/registryRules';
 import UnitInput from '../styles/UnitInput.vue';
 
 const props = defineProps<{
@@ -92,6 +101,83 @@ function updateMarker(index: number, value: string) {
   next[index] = value;
   emit('update:modelValue', next);
 }
+
+function fieldKey(field: RegistryOption): string {
+  return field.path[field.path.length - 1] ?? field.id;
+}
+
+const objectFields = computed(() => props.option.fields ?? []);
+const objectValue = computed<Record<string, JsonValue> | null>(() => {
+  const value = props.modelValue;
+  if (value != null && typeof value === 'object' && !Array.isArray(value)) {
+    return value as Record<string, JsonValue>;
+  }
+  return null;
+});
+const objectEnabled = computed(
+  () => !props.option.nullable || objectValue.value != null,
+);
+
+function enableObject() {
+  emit('update:modelValue', objectDefaults(objectFields.value));
+}
+
+function disableObject() {
+  emit('update:modelValue', null);
+}
+
+function updateObjectField(key: string, value: JsonValue) {
+  emit('update:modelValue', { ...(objectValue.value ?? {}), [key]: value });
+}
+
+function nestedValue(field: RegistryOption): JsonValue {
+  const value = objectValue.value?.[fieldKey(field)];
+  return value === undefined ? field.default : value;
+}
+
+const listValue = computed<JsonValue[]>(() =>
+  Array.isArray(props.modelValue) ? props.modelValue : [],
+);
+
+function visibleFields(item: JsonValue): RegistryOption[] {
+  return listItemFields(props.option, item);
+}
+
+function itemObject(item: JsonValue): Record<string, JsonValue> {
+  if (item != null && typeof item === 'object' && !Array.isArray(item)) {
+    return item as Record<string, JsonValue>;
+  }
+  return {};
+}
+
+function itemValue(item: JsonValue, field: RegistryOption): JsonValue {
+  const value = itemObject(item)[fieldKey(field)];
+  return value === undefined ? field.default : value;
+}
+
+function addItem() {
+  emit('update:modelValue', addListItem(listValue.value, defaultListItem(props.option)));
+}
+
+function removeItem(index: number) {
+  emit('update:modelValue', removeListItem(listValue.value, index));
+}
+
+function shiftItem(index: number, delta: -1 | 1) {
+  emit('update:modelValue', moveListItem(listValue.value, index, delta));
+}
+
+function updateItemField(index: number, field: RegistryOption, value: JsonValue) {
+  if (fieldKey(field) === 'type' && typeof value === 'string') {
+    const next = [...listValue.value];
+    next[index] = listItemDefaults(props.option, value);
+    emit('update:modelValue', next);
+    return;
+  }
+  const next = [...listValue.value];
+  next[index] = { ...itemObject(next[index]!), [fieldKey(field)]: value };
+  emit('update:modelValue', next);
+}
 </script>
 
 <template>
@@ -177,6 +263,77 @@ function updateMarker(index: number, value: string) {
         :placeholder="`Уровень ${index + 1}`"
         @input="updateMarker(index, ($event.target as HTMLInputElement).value)"
       />
+    </div>
+
+    <div v-else-if="option.type === 'list'" class="rule-list">
+      <div
+        v-for="(item, index) in listValue"
+        :key="index"
+        class="rule-list-item"
+      >
+        <div class="rule-list-head">
+          <span>Элемент {{ index + 1 }}</span>
+          <div class="rule-list-actions">
+            <button
+              type="button"
+              class="rule-action"
+              :disabled="index === 0"
+              @click="shiftItem(index, -1)"
+            >
+              ↑
+            </button>
+            <button
+              type="button"
+              class="rule-action"
+              :disabled="index === listValue.length - 1"
+              @click="shiftItem(index, 1)"
+            >
+              ↓
+            </button>
+            <button type="button" class="rule-action" @click="removeItem(index)">
+              Удалить
+            </button>
+          </div>
+        </div>
+        <RuleField
+          v-for="field in visibleFields(item)"
+          :key="field.id"
+          :option="field"
+          :model-value="itemValue(item, field)"
+          :context="context"
+          @update:model-value="updateItemField(index, field, $event)"
+        />
+      </div>
+      <button type="button" class="rule-add" @click="addItem">Добавить элемент</button>
+    </div>
+
+    <div v-else-if="option.type === 'object'" class="rule-object">
+      <button
+        v-if="option.nullable && !objectEnabled"
+        type="button"
+        class="rule-add"
+        @click="enableObject"
+      >
+        Задать значения
+      </button>
+      <template v-else>
+        <button
+          v-if="option.nullable"
+          type="button"
+          class="rule-action"
+          @click="disableObject"
+        >
+          Убрать
+        </button>
+        <RuleField
+          v-for="field in objectFields"
+          :key="field.id"
+          :option="field"
+          :model-value="nestedValue(field)"
+          :context="context"
+          @update:model-value="updateObjectField(fieldKey(field), $event)"
+        />
+      </template>
     </div>
   </div>
 </template>
@@ -275,5 +432,55 @@ function updateMarker(index: number, value: string) {
   flex-direction: column;
   align-items: stretch;
   max-width: 420px;
+}
+
+.rule-list,
+.rule-object {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.rule-list-item {
+  border: 1px solid #3f3f46;
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.65rem;
+  background: #27272a;
+}
+
+.rule-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  color: #a1a1aa;
+  font-size: 0.78rem;
+  margin-bottom: 0.25rem;
+}
+
+.rule-list-actions {
+  display: flex;
+  gap: 0.3rem;
+}
+
+.rule-action,
+.rule-add {
+  background: #3f3f46;
+  border: 1px solid #52525b;
+  border-radius: 0.375rem;
+  color: #fafafa;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.rule-action:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.rule-add {
+  align-self: flex-start;
 }
 </style>

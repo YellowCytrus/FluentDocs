@@ -11,7 +11,15 @@ export interface RegistryOption {
   group: string;
   group_label: string;
   applies_to: string[];
-  type: 'number' | 'integer' | 'boolean' | 'string' | 'select' | 'markers';
+  type:
+    | 'number'
+    | 'integer'
+    | 'boolean'
+    | 'string'
+    | 'select'
+    | 'markers'
+    | 'list'
+    | 'object';
   default: JsonValue;
   path: string[];
   ui: {
@@ -19,6 +27,7 @@ export interface RegistryOption {
     label: string;
     tab: string;
     order: number;
+    section?: string;
     options?: { value: string; label: string }[];
   };
   rationale: string;
@@ -31,6 +40,11 @@ export interface RegistryOption {
   enum: string[];
   depends_on: string[];
   nullable: boolean;
+  required?: boolean;
+  enum_labels?: [string, string][];
+  fields?: RegistryOption[];
+  item_fields?: RegistryOption[];
+  item_variants?: [string, string[]][];
 }
 
 export interface RegistrySchema {

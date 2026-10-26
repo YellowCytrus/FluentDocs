@@ -48,6 +48,7 @@ export function setPath(
 
 function baseKey(option: RegistryOption): string {
   if (option.path[0] === 'heading_levels') return `heading_levels.${option.path[1]!}`;
+  if (option.path[0] === 'around') return `around.${option.path[1]!}`;
   return option.path[0]!;
 }
 
@@ -55,6 +56,10 @@ function sectionLabel(option: RegistryOption, textOverride: boolean): string {
   if (option.path[0] === 'heading_levels') {
     const level = option.path[1]!;
     return textOverride ? `Уровень ${level}: свой стиль текста` : `Заголовок ${level}`;
+  }
+  if (option.path[0] === 'around') {
+    const target = option.ui.section ?? option.path[1]!;
+    return `Окружение: ${target}`;
   }
   return textOverride ? `${option.group_label}: свой стиль текста` : option.group_label;
 }
@@ -106,4 +111,70 @@ export function textOverrideDefaults(section: RuleSection): Record<string, JsonV
     if (key) result[key] = option.default;
   }
   return result;
+}
+
+/** Дефолтный объект по вложенной схеме (object). */
+export function objectDefaults(fields: RegistryOption[]): Record<string, JsonValue> {
+  const result: Record<string, JsonValue> = {};
+  for (const field of fields) {
+    result[field.path[field.path.length - 1] ?? field.id] = clone(field.default);
+  }
+  return result;
+}
+
+/** Вложенные поля, видимые для выбранного варианта list-элемента. */
+export function listItemFields(option: RegistryOption, item: JsonValue): RegistryOption[] {
+  const fields = option.item_fields ?? [];
+  const variants = option.item_variants ?? [];
+  if (!variants.length) return fields;
+  const type =
+    item != null && typeof item === 'object' && !Array.isArray(item)
+      ? (item as Record<string, JsonValue>).type
+      : null;
+  const variant = variants.find(([value]) => value === type);
+  if (!variant) return fields;
+  const allowed = new Set(variant[1]);
+  return fields.filter(
+    (field) =>
+      field.path[field.path.length - 1] === 'type' ||
+      allowed.has(field.path[field.path.length - 1]!),
+  );
+}
+
+/** Дефолтный элемент списка для варианта (type). */
+export function listItemDefaults(option: RegistryOption, variant: string): Record<string, JsonValue> {
+  const fields = option.item_fields ?? [];
+  const variants = option.item_variants ?? [];
+  const result: Record<string, JsonValue> = { type: variant };
+  const match = variants.find(([value]) => value === variant);
+  const allowed = new Set(match ? match[1] : fields.map((field) => field.path[field.path.length - 1]!));
+  for (const field of fields) {
+    const key = field.path[field.path.length - 1] ?? field.id;
+    if (key !== 'type' && allowed.has(key)) result[key] = clone(field.default);
+  }
+  return result;
+}
+
+/** Дефолтный первый элемент списка: variant + поля его варианта. */
+export function defaultListItem(option: RegistryOption): Record<string, JsonValue> {
+  const variants = option.item_variants ?? [];
+  if (!variants.length) return objectDefaults(option.item_fields ?? []);
+  return listItemDefaults(option, variants[0]![0]);
+}
+
+export function addListItem(items: JsonValue[], item: JsonValue): JsonValue[] {
+  return [...items, item];
+}
+
+export function removeListItem(items: JsonValue[], index: number): JsonValue[] {
+  return items.filter((_, current) => current !== index);
+}
+
+export function moveListItem(items: JsonValue[], index: number, delta: -1 | 1): JsonValue[] {
+  const target = index + delta;
+  if (target < 0 || target >= items.length) return items;
+  const next = [...items];
+  const [item] = next.splice(index, 1);
+  next.splice(target, 0, item!);
+  return next;
 }

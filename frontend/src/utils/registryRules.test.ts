@@ -1,6 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import type { JsonValue, RegistryOption } from '../types/registry';
-import { buildRuleTabs, getPath, setPath, textOverrideDefaults } from './registryRules';
+import {
+  addListItem,
+  buildRuleTabs,
+  defaultListItem,
+  getPath,
+  listItemDefaults,
+  listItemFields,
+  moveListItem,
+  objectDefaults,
+  removeListItem,
+  setPath,
+  textOverrideDefaults,
+} from './registryRules';
 
 function option(
   id: string,
@@ -87,5 +99,90 @@ describe('registry rules', () => {
       font_size: 12,
       font: 'Merriweather',
     });
+  });
+
+  it('groups around options into target sections', () => {
+    const tabs = buildRuleTabs([
+      option('around.table.before', ['around', 'table', 'before'], 'Окружение', 0, {
+        type: 'list',
+        default: [],
+        ui: { control: 'list', label: 'До таблицы', tab: 'Окружение', order: 0, section: 'Таблица' },
+      }),
+      option('around.par.before', ['around', 'par', 'before'], 'Окружение', 1, {
+        type: 'list',
+        default: [],
+        ui: { control: 'list', label: 'До абзаца', tab: 'Окружение', order: 0, section: 'Абзац' },
+      }),
+    ]);
+    expect(tabs).toHaveLength(1);
+    expect(tabs[0]!.sections.map((section) => section.label)).toEqual([
+      'Окружение: Таблица',
+      'Окружение: Абзац',
+    ]);
+    expect(tabs[0]!.sections[0]!.textOverridePath).toBeNull();
+  });
+
+  it('creates list items for each variant and keeps only variant fields', () => {
+    const typeField = option('around.item.type', ['type'], 'Окружение', 0, {
+      type: 'select',
+      default: 'blank',
+    });
+    const countField = option('around.item.count', ['count'], 'Окружение', 1, {
+      type: 'integer',
+      default: 1,
+    });
+    const contentField = option('around.item.content', ['content'], 'Окружение', 2, {
+      type: 'string',
+      default: '',
+      required: true,
+      unit: null,
+    });
+    const list = option('around.table.after', ['around', 'table', 'after'], 'Окружение', 0, {
+      type: 'list',
+      default: [],
+      item_fields: [typeField, countField, contentField],
+      item_variants: [
+        ['blank', ['count']],
+        ['text', ['content']],
+      ],
+    });
+
+    expect(defaultListItem(list)).toEqual({ type: 'blank', count: 1 });
+    expect(listItemDefaults(list, 'text')).toEqual({ type: 'text', content: '' });
+    expect(
+      listItemFields(list, { type: 'text', content: 'Привет' }).map((field) => field.path[0]),
+    ).toEqual(['type', 'content']);
+    expect(listItemFields(list, { type: 'blank', count: 2 }).map((field) => field.path[0]))
+      .toEqual(['type', 'count']);
+  });
+
+  it('adds, removes and reorders list items immutably', () => {
+    const first = { type: 'blank', count: 1 };
+    const second = { type: 'text', content: 'A' };
+    const list: JsonValue[] = [first, second];
+    const added = addListItem(list, { type: 'blank', count: 2 });
+    expect(added).toHaveLength(3);
+    expect(list).toHaveLength(2);
+
+    const removed = removeListItem(added, 0);
+    expect(removed).toEqual([second, { type: 'blank', count: 2 }]);
+
+    const moved = moveListItem(list, 1, -1);
+    expect(moved).toEqual([second, first]);
+    expect(moveListItem(list, 0, -1)).toBe(list);
+  });
+
+  it('builds object defaults from nested fields', () => {
+    const fields = [
+      option('around.item.line_spacing.mode', ['mode'], 'Окружение', 0, {
+        type: 'select',
+        default: 'multiplier',
+      }),
+      option('around.item.line_spacing.value', ['value'], 'Окружение', 1, {
+        default: 1,
+        unit: null,
+      }),
+    ];
+    expect(objectDefaults(fields)).toEqual({ mode: 'multiplier', value: 1 });
   });
 });
