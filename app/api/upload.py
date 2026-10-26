@@ -87,7 +87,7 @@ async def upload_image(
     if len(content) > _MAX_FILE_SIZE:
         raise HTTPException(
             status_code=413,
-            detail=f"File too large (max {_MAX_FILE_SIZE // (1024*1024)} MB)",
+            detail=f"File too large (max {_MAX_FILE_SIZE // (1024 * 1024)} MB)",
         )
 
     safe_name = _safe_filename(ext)

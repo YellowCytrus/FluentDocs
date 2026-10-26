@@ -62,7 +62,9 @@ class FootnoteStyle(TextOverrideMixin, Base):
         nullable=False,
     )
     marker_format: Mapped[str] = mapped_column(String(32), nullable=False, default="1")
-    clearance: Mapped[float] = mapped_column(Float, nullable=False, default=FOOTNOTE_CLEARANCE_MM_DEFAULT)
+    clearance: Mapped[float] = mapped_column(
+        Float, nullable=False, default=FOOTNOTE_CLEARANCE_MM_DEFAULT
+    )
     gap: Mapped[float] = mapped_column(Float, nullable=False, default=FOOTNOTE_GAP_MM_DEFAULT)
     indent: Mapped[float] = mapped_column(Float, nullable=False, default=FOOTNOTE_INDENT_MM_DEFAULT)
     text_override_style_id: Mapped[Optional[int]] = mapped_column(

@@ -99,8 +99,7 @@ def _render_element(e: Element, variables: dict[str, str]) -> str:
         text_args = _element_text_args(e.text_style, TEXT_SIZE_PT, FONT_FAMILY, TEXT_FILL)
         text_call = f"#text({', '.join(text_args)})[{content}]"
         return (
-            f"place(top + left, dx: {_mm(e.x_mm)}, dy: {_mm(e.y_mm + DY_OFFSET_MM)}, "
-            f"[{text_call}])"
+            f"place(top + left, dx: {_mm(e.x_mm)}, dy: {_mm(e.y_mm + DY_OFFSET_MM)}, [{text_call}])"
         )
     if isinstance(e, VariableElement):
         text_args = _element_text_args(e.text_style, VARIABLE_FONT_SIZE_PT, FONT_FAMILY, TEXT_FILL)

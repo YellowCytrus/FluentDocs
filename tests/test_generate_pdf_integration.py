@@ -16,9 +16,7 @@ typst_available = shutil.which("typst") is not None
 )
 async def test_generate_pdf_full_cycle_with_real_binaries(client):
     """POST generate-pdf with real pandoc+typst; verify PDF output."""
-    create = await client.post(
-        "/profiles", json={"name": f"Integration {uuid.uuid4().hex[:8]}"}
-    )
+    create = await client.post("/profiles", json={"name": f"Integration {uuid.uuid4().hex[:8]}"})
     pid = create.json()["id"]
     markdown = b"# Hello\n\nWorld"
     files = {"file": ("test.md", markdown, "text/markdown")}

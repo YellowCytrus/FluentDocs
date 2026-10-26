@@ -15,7 +15,9 @@ class FigureStyles(BaseModel):
         "none",
         description="Размещение фигуры на странице",
     )
-    gap: float = Field(FIGURE_GAP_MM_DEFAULT, ge=0.0, description="Зазор между телом и подписью в mm")
+    gap: float = Field(
+        FIGURE_GAP_MM_DEFAULT, ge=0.0, description="Зазор между телом и подписью в mm"
+    )
     outlined: bool = Field(True, description="Включать в список фигур")
     fit: Literal["cover", "contain", "stretch"] = Field(
         "cover",

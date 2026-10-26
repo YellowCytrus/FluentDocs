@@ -28,7 +28,9 @@ class DocumentStyle(Base):
         nullable=False,
     )
     font_size: Mapped[float] = mapped_column(Float, nullable=False, default=12.0)
-    line_spacing: Mapped[float] = mapped_column(Float, nullable=False, default=DOCUMENT_LINE_SPACING_MM_DEFAULT)
+    line_spacing: Mapped[float] = mapped_column(
+        Float, nullable=False, default=DOCUMENT_LINE_SPACING_MM_DEFAULT
+    )
     font: Mapped[str] = mapped_column(String(255), nullable=False, default=DEFAULT_FONT)
     weight: Mapped[str] = mapped_column(String(32), nullable=False, default="regular")
     style: Mapped[str] = mapped_column(String(32), nullable=False, default="normal")

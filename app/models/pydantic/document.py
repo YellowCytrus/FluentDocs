@@ -39,6 +39,7 @@ class DocumentStyles(BaseModel):
     number_width: Literal["auto", "proportional", "tabular"] = "auto"
     justify: bool = Field(False, description="Выравнивание по ширине (глобально для абзацев)")
 
+
 class DocumentStylesUpdate(BaseModel):
     font_size: Optional[float] = Field(None, ge=6.0, le=72.0)
     line_spacing: Optional[float] = Field(None, ge=2.1166666667, le=12.7)

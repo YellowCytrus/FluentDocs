@@ -53,4 +53,3 @@ TABLE_INSET_MM_DEFAULT = 1.7638888889
 # Misc collection defaults
 BULLET_MARKERS_DEFAULT = ["- ", "‣", "–"]
 """Default bullet markers for list nesting levels 1..3."""
-
