@@ -151,6 +151,83 @@
     indent_mm: 0.0,
     text_override: none,
   ),
+  around: (
+    heading_1: (
+      before: (),
+      after: (),
+      collapse: "max",
+    ),
+    heading_2: (
+      before: (),
+      after: (),
+      collapse: "max",
+    ),
+    heading_3: (
+      before: (),
+      after: (),
+      collapse: "max",
+    ),
+    heading_4: (
+      before: (),
+      after: (),
+      collapse: "max",
+    ),
+    heading_5: (
+      before: (),
+      after: (),
+      collapse: "max",
+    ),
+    heading_6: (
+      before: (),
+      after: (),
+      collapse: "max",
+    ),
+    par: (
+      before: (),
+      after: (),
+      collapse: "max",
+    ),
+    bullet_list: (
+      before: (),
+      after: (),
+      collapse: "max",
+    ),
+    numbered_list: (
+      before: (),
+      after: (),
+      collapse: "max",
+    ),
+    table: (
+      before: (),
+      after: (),
+      collapse: "max",
+    ),
+    figure: (
+      before: (),
+      after: (),
+      collapse: "max",
+    ),
+    equation: (
+      before: (),
+      after: (),
+      collapse: "max",
+    ),
+    quote: (
+      before: (),
+      after: (),
+      collapse: "max",
+    ),
+    raw: (
+      before: (),
+      after: (),
+      collapse: "max",
+    ),
+    terms: (
+      before: (),
+      after: (),
+      collapse: "max",
+    ),
+  ),
 )
 
 // --- document body ---
