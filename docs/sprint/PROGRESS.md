@@ -13,8 +13,9 @@
 | G1c — UI и паритет | выполнен, принят владельцем | отчёт отправлен |
 | G2a — типы реестра и окружения «до/после» | выполнен, принят владельцем | этот файл |
 | G2b — интервал, шрифты, зашитые значения | выполнен, принят владельцем | этот файл |
-| G2c — остальные «дешёвые» правила | выполнен, ждёт приёмки владельца | этот файл |
-| G3 — нумерация, подписи, сущности | не начат | — |
+| G2c — остальные «дешёвые» правила | выполнен, принят условно; G2c-fix выполнен | этот файл |
+| G3a — структурные сущности и приложения | выполнен, ждёт приёмки владельца | этот файл |
+| G3b — подписи и нумерация рисунков/таблиц | не начат | — |
 | G4 — таблицы и оглавление | не начат | — |
 | G5 — расширения Markdown, формулы, ссылки | не начат | — |
 | G6 — профиль СТУ СФУ и самопроверка | не начат | — |
@@ -481,7 +482,7 @@ B-01…B-06 и B-08 отмечены решёнными в `BLOCKERS.md`. B-07 �
 | Пункт | Статус | Где |
 |---|---|---|
 | Единица `blank` = полный шаг строки | ✔ `fd.line-step`; multiplier и mm | `app/typst/fd.typ` |
-| Реальная пустая строка = `blank(count=1)` при `max` | ✔ ±0,5 pt; NBSP-абзац трактуется как weak-шаг | `tests/test_around.py`, `tests/test_g2b_line_spacing.py` |
+| Единица `blank`: эталон — шаг строк обычного абзаца в том же PDF | ✔ ±0,5 pt; NBSP-обход удалён | `tests/test_around.py`, `tests/test_g2b_line_spacing.py` |
 | Множитель 1,0 ≈ `line_height_em × кегль` | ✔ оба шрифта, допуск 0,3 pt | `test_line_spacing_multiplier_render` |
 | Ключ таблицы коэффициентов после алиасов | ✔ `Times New Roman → Libertinus Serif` | `test_line_height_coefficient_table` |
 | Штатные интервалы 28 опций | ✔ заголовки 1–6, рисунок, таблица, формула, цитата, код, terms, списки | `tests/test_g2c_spacing.py` |
@@ -501,14 +502,16 @@ B-01…B-06 и B-08 отмечены решёнными в `BLOCKERS.md`. B-07 �
 | Сценарий | Ожидание | Измерено |
 |---|---|---|
 | без `around` | штатный зазор | 19.52 pt |
-| реальная пустая строка (NBSP) | геометрия + 1 шаг | 20.21 pt |
-| `blank(count=1)`, `max`, с двух сторон | геометрия + 1 шаг | 20.21 pt |
+| шаг строк абзаца (эталон) | `5,08 мм + (1,308 − 0,65) × 12` | 22.30 pt |
+| `blank(count=1)`, `max`, с двух сторон | `count=0` + 1 шаг | 20.21 pt (−2.08 + 22.30) |
 | `blank(count=1)`, `sum`, с двух сторон | штатный + 2 шага | 64.11 pt |
 | `count: 0`, `max` | геометрия + 0 | −2.08 pt |
 | `count: 0`, `sum` | штатный зазор | 19.52 pt |
 
-Множители 1,0 и 1,5 на Libertinus Serif и PT Astra Serif: реальная строка и
-`blank` при `max` совпадают с допуском 0,5 pt (`test_blank_unit_matches_real_blank_line`).
+Множители 1,0 и 1,5 и режим мм на Libertinus Serif и PT Astra Serif:
+`blank(count=1)` при `max` даёт ровно измеренный шаг строк абзаца в том же PDF
+с допуском 0,5 pt (`test_blank_unit_matches_line_step`); смещение калибруется
+зазором при `count=0`.
 Шаг при 1,0: Libertinus 15.70 pt, PT Astra 15.74 pt (ожидание
 `1.308/1.312 × 12`), допуск 0,3 pt.
 
@@ -537,20 +540,21 @@ B-01…B-06 и B-08 отмечены решёнными в `BLOCKERS.md`. B-07 �
 | `text.font.name/size/color/alignment` | `document.*` | существующие | было |
 | `text.indent.first_line` | `par.first_line_indent` | существующие | было |
 | `text.line_spacing` | `document.line_spacing` | `test_line_spacing_*` | было/G2b |
-| `referat.keywords_uppercase` | — | — | отложено G3 (сущность) |
+| `referat.keywords_uppercase` | — | — | отложено владельцем (реферат) |
 | `toc.indent_levels` | — | — | отложено G4 |
 | `heading.h1..h6` | `heading.h*` | существующие | было |
 | `heading.spacing_before/after` | `heading.h*.spacing_*` | `test_element_spacing_*` | реализовано |
 | `heading.no_hyphenation` | `text_override.hyphenate` | существующие | покрыто |
-| `list.item` | `indent`, `body_indent` | существующие | покрыто (Typst hanging) |
+| `list.item` | `indent`, `body_indent` | `test_list_item_wrapped_line_indent` | реализовано/измерено |
 | `list.nested_numeric` | — | — | отложено G3 |
 | `figure.caption` | — | — | отложено G3 |
 | `figure.spacing_before/after` | `figure.spacing_*` | `test_element_spacing_*` | реализовано |
 | `figure.image` | `figure.width/height/fit` | существующие | было |
 | `figure.placement_after_reference` | `figure.placement` | существующие | покрыто (авторский порядок) |
 | `formula.spacing_before/after` | `equation.spacing_*` | `test_element_spacing_*` | реализовано |
+| `formula.explanation` («где…») | — | — | отложено владельцем (формулы) |
 | `formula.body_indent` | `equation.body_indent` | `test_equation_body_indent_*` | реализовано |
-| `bibliography.entry` | — | — | вне плана |
+| `bibliography.entry` | `structural.entities` (заголовок списка) | `test_bibliography_heading_entity` | G3a, через сопоставитель |
 | `table.caption` | — | — | отложено G3 |
 | `table.spacing_before/after` | `table.spacing_*` | `test_element_spacing_*` | реализовано |
 | `table.cell_padding` | `table.inset` | существующие | было |
@@ -585,4 +589,56 @@ B-01…B-06 и B-08 отмечены решёнными в `BLOCKERS.md`. B-07 �
 В G2c не реализовывались правила, требующие нового синтаксиса Markdown:
 `figure.placement_after_reference` в части «после первой ссылки» (авторский
 порядок), `formula.explanation` («где…») и любые fenced-div/атрибуты.
-Они остаются в G3/G5 или вне спринта.
+Формулы, реферат и «где…» отложены владельцем (AGENTS 2.11); fenced-div
+остаются вне спринта.
+
+## G2c-fix — чек-лист
+
+Коммиты: см. отчёт на воротах G2c-fix.
+
+| Пункт | Статус | Где |
+|---|---|---|
+| Убрать NBSP-обход из `fd` | ✔ show-правило удалено | `app/typst/fd.typ` |
+| Эталон `blank` — шаг строк обычного абзаца в том же PDF | ✔ `max − count=0` = шаг ±0,5 pt | `tests/test_around.py`, `tests/test_g2b_line_spacing.py` |
+| Режимы `mm`, множители 1,0 и 1,5 на Libertinus Serif и PT Astra Serif | ✔ 6 комбинаций | `test_blank_unit_matches_line_step` |
+| PDF «до/после» 16 golden-документов (`4e6a8c0` → текущий) | ✔ расхождения ниже | `pdfplumber` |
+| 28 spacing-интервалов: сдвиг = ожидаемому ±0,5 pt | ✔ 28/28 | `test_element_spacing_render` |
+| `list.item`: фактический перенос строки пункта | ✔ измерен `body_indent` | `test_list_item_wrapped_line_indent` |
+| `formula.explanation`, `referat.*`, `bibliography.entry` в `PROGRESS.md` | ✔ по решениям владельца | таблица G2c |
+| UI-названия `collapse` | ✔ «Слить в одну» / «Сложить», id не менялись | `AROUND_COLLAPSE_LABELS` |
+| `terms.spacing_before` применяется один раз | ✔ обёртка `block` вместо `set block` | `app/typst/fd.typ` |
+| `git diff fd.typ` | ✔ приложен к отчёту | — |
+
+### G2c-fix: единица `blank`
+
+NBSP-абзац больше не трактуется как weak-пустая строка: скрытой семантики
+Markdown нет. Эталон — измеренный шаг строк обычного абзаца в том же PDF.
+Зазор `blank(count=1)` при `max` равен `зазор(count=0) + шаг` с допуском 0,5 pt.
+
+| Режим интервала | Шрифт | Шаг строк, pt | `blank.max − count=0`, pt |
+|---|---|---:|---:|
+| мм 5,08 | Libertinus Serif | 22,30 | 22,30 |
+| мм 5,08 | PT Astra Serif | 22,30 | 22,34 |
+| множитель 1,0 | Libertinus Serif | 15,70 | 15,70 |
+| множитель 1,0 | PT Astra Serif | 15,70 | 15,74 |
+| множитель 1,5 | Libertinus Serif | 23,54 | 23,54 |
+| множитель 1,5 | PT Astra Serif | 23,57 | 23,62 |
+
+### G2c-fix: сравнение PDF 16 golden-документов
+
+Собраны `4e6a8c0` (worktree) и текущий `sprint`. Сравнивались число страниц,
+текст, координаты (`x0`, `top`), кегль и имена шрифтов всех символов.
+
+| Документ | Страницы | Текст | Кегль | Шрифты | Сдвиг по вертикали |
+|---|---|---|---|---|---|
+| simple, appendix, footnote, headings | совпали | совпал | совпал | совпали | нет |
+| figure (оба профиля) | совпали | совпал | совпал | совпали | +4,8 pt после рисунка |
+| formula (оба профиля) | совпали | совпал | совпал | совпали | +4,8 pt после формулы |
+| table (оба профиля) | совпали | совпал | совпал | совпали | +2,4 pt у таблицы и текста |
+| lists (оба профиля) | совпали | совпал | совпал | совпали | до +10,8 pt |
+
+Причина — явные значения G2c: `figure`/`equation` 1,2 em вместо штатных
+Typst 1,0 em, `table` 1,2 em, списки 1,2 em. Это не ошибка кода G2c-fix:
+значения заданы в реестре; расхождение зафиксировано, решение о смене
+дефолтов остаётся за владельцем. Текст, шрифты, кегль и число страниц не
+изменились.

@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import uuid
 from pathlib import Path
+from statistics import median
 
 import pdfplumber
 import pytest
@@ -280,8 +281,18 @@ def _table_heading_gap(page) -> float:
     return heading_top - table_bottom
 
 
-TABLE_DOC = "# Заголовок\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\n# Следующий\n"
-REAL_BLANK_DOC = TABLE_DOC.replace("\n\n# Следующий", "\n\n\u00a0\n\n# Следующий")
+LONG_TEXT = "Это достаточно длинный абзац для измерения шага строк. " * 60
+TABLE_DOC = "# Заголовок\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\n# Следующий\n\n" + LONG_TEXT
+SHORT_TABLE_DOC = "# Заголовок\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\n# Следующий\n"
+
+
+def _paragraph_pitch(page) -> float:
+    """Шаг строк абзаца: расстояние между базовыми линиями соседних строк."""
+    lines = [line for line in page.extract_text_lines() if len(line["text"].strip()) > 40]
+    tops = [line["top"] for line in lines]
+    diffs = [top - previous for previous, top in zip(tops, tops[1:])]
+    assert diffs, "в документе нет многострочного абзаца"
+    return median(diffs)
 
 
 @pytest.mark.integration
@@ -334,22 +345,22 @@ def test_around_render_spacing_max_sum_count_zero(tmp_path) -> None:
         zero_gap = _table_heading_gap(pdf.pages[0])
     with zero_sum_pdf as pdf:
         zero_sum_gap = _table_heading_gap(pdf.pages[0])
-    real_blank_pdf = pdfplumber.open(
-        _render({}, REAL_BLANK_DOC, tmp_path / "real-blank")
-    )
-    with real_blank_pdf as pdf:
-        real_blank_gap = _table_heading_gap(pdf.pages[0])
+
+    base_pdf = pdfplumber.open(_render({}, TABLE_DOC, tmp_path / "pitch"))
+    with base_pdf as pdf:
+        pitch = _paragraph_pitch(pdf.pages[0])
 
     # Калибровка: при v(0) остаётся только геометрическое смещение строки.
     assert abs(zero_gap - ZERO_GAP_PT) < 0.5
     # max: явная пустая строка заменяет штатный интервал ровно одной строкой.
-    assert abs((max_gap - zero_gap) - LINE_PT) < 0.5
+    # Эталон — измеренный шаг строк обычного абзаца в том же PDF.
+    assert abs((max_gap - zero_gap) - pitch) < 0.5
     # sum: две жёсткие строки добавляются к штатному интервалу.
-    assert abs((sum_gap - base) - 2 * LINE_PT) < 0.5
+    assert abs((sum_gap - base) - 2 * pitch) < 0.5
     # sum с count=0 ничего не добавляет.
     assert abs(zero_sum_gap - base) < 0.5
-    # Единица blank: одна пустая строка = реальная пустая строка документа.
-    assert abs(real_blank_gap - max_gap) < 0.5
+    # Единица blank: шаг строки документа (5,08 мм + высота строки).
+    assert abs(pitch - LINE_PT) < 0.5
 
 
 @pytest.mark.integration
@@ -426,7 +437,7 @@ def test_around_render_text_line_and_pagebreak(tmp_path) -> None:
                     ]
                 }
             },
-            TABLE_DOC,
+            SHORT_TABLE_DOC,
             tmp_path / "text",
         )
     )
@@ -435,11 +446,13 @@ def test_around_render_text_line_and_pagebreak(tmp_path) -> None:
         assert "ВСТАВКА" in page_text
         assert page_text.index("ВСТАВКА") < page_text.index("Следующий")
 
-    base_lines = len(pdfplumber.open(_render({}, TABLE_DOC, tmp_path / "line-base")).pages[0].lines)
+    base_lines = len(
+        pdfplumber.open(_render({}, SHORT_TABLE_DOC, tmp_path / "line-base")).pages[0].lines
+    )
     line_pdf = pdfplumber.open(
         _render(
             {"table": {"after": [{"type": "line", "length": 100, "stroke_mm": 0.5}]}},
-            TABLE_DOC,
+            SHORT_TABLE_DOC,
             tmp_path / "line",
         )
     )
@@ -449,7 +462,7 @@ def test_around_render_text_line_and_pagebreak(tmp_path) -> None:
     break_pdf = pdfplumber.open(
         _render(
             {"table": {"after": [{"type": "pagebreak", "weak": False}]}},
-            TABLE_DOC,
+            SHORT_TABLE_DOC,
             tmp_path / "break",
         )
     )

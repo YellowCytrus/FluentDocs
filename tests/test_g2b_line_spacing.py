@@ -26,8 +26,7 @@ from app.utils.typst_literals import typst_font
 from golden_helpers import build_source, default_profile
 
 LONG_TEXT = "Это достаточно длинный абзац для измерения расстояния между строками. " * 60
-TABLE_DOC = "# Заголовок\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\n# Следующий\n"
-REAL_BLANK_DOC = TABLE_DOC.replace("\n\n# Следующий", "\n\n\u00a0\n\n# Следующий")
+TABLE_DOC = "# Заголовок\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\n# Следующий\n\n" + LONG_TEXT
 
 
 def test_document_line_spacing_options() -> None:
@@ -217,32 +216,67 @@ def _table_heading_gap(pdf_path: Path) -> float:
         return heading_top - table_bottom
 
 
+def _paragraph_pitch(pdf_path: Path) -> float:
+    """Шаг строк абзаца в том же PDF: расстояние между базовыми линиями."""
+    with pdfplumber.open(pdf_path) as pdf:
+        lines = [
+            line for line in pdf.pages[0].extract_text_lines() if len(line["text"].strip()) > 40
+        ]
+    tops = [line["top"] for line in lines]
+    diffs = [top - previous for previous, top in zip(tops, tops[1:])]
+    assert diffs, "в документе нет многострочного абзаца"
+    return median(diffs)
+
+
 @pytest.mark.integration
 @pytest.mark.skipif(
     shutil.which("pandoc") is None or shutil.which("typst") is None,
     reason="pandoc and typst must be in PATH",
 )
 @pytest.mark.parametrize("font", ["Libertinus Serif", "PT Astra Serif"])
-@pytest.mark.parametrize("multiplier", [1.0, 1.5])
-def test_blank_unit_matches_real_blank_line(font: str, multiplier: float, tmp_path: Path) -> None:
-    real = _profile(font, {"mode": "multiplier", "value": multiplier})
-    real_gap = _table_heading_gap(_render(REAL_BLANK_DOC, real, tmp_path, "real"))
+@pytest.mark.parametrize(
+    "spacing",
+    [
+        {"mode": "mm", "value": 5.08},
+        {"mode": "multiplier", "value": 1.0},
+        {"mode": "multiplier", "value": 1.5},
+    ],
+    ids=["mm", "multiplier-1.0", "multiplier-1.5"],
+)
+def test_blank_unit_matches_line_step(font: str, spacing: dict, tmp_path: Path) -> None:
+    # Эталон — шаг строк обычного абзаца в том же PDF.
+    base_profile = _profile(font, spacing)
+    base_pdf = _render(TABLE_DOC, base_profile, tmp_path, "base")
+    pitch = _paragraph_pitch(base_pdf)
 
     values = default_values()
     values["document"]["font"] = font
-    values["document"]["line_spacing"] = {"mode": "multiplier", "value": multiplier}
+    values["document"]["line_spacing"] = spacing
     blank = {
         "type": "blank",
         "count": 1,
         "line_spacing": {"mode": "multiplier", "value": 1.0},
     }
+    zero = {
+        "type": "blank",
+        "count": 0,
+        "line_spacing": {"mode": "multiplier", "value": 1.0},
+    }
+    values["around"]["table"]["after"] = [zero]
+    zero_profile = default_profile()
+    zero_profile.options = normalize_values(values)
+    zero_profile.options_schema_version = SCHEMA_VERSION
+    zero_gap = _table_heading_gap(_render(TABLE_DOC, zero_profile, tmp_path, "zero"))
+
     values["around"]["table"]["after"] = [blank]
     values["around"]["heading_1"]["before"] = [blank]
     around = default_profile()
     around.options = normalize_values(values)
     around.options_schema_version = SCHEMA_VERSION
     around_gap = _table_heading_gap(_render(TABLE_DOC, around, tmp_path, "around"))
-    assert real_gap == pytest.approx(around_gap, abs=0.5)
+
+    # Калиброванное смещение — зазор при count=0; blank добавляет ровно один шаг.
+    assert around_gap - zero_gap == pytest.approx(pitch, abs=0.5)
 
 
 @pytest.mark.integration

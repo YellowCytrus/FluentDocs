@@ -154,14 +154,49 @@ def test_element_spacing_render(option_id: str, tmp_path: Path) -> None:
     level = int(option.path[1]) if group == "heading_levels" else 1
     markdown = _markdown("heading" if group == "heading_levels" else group, level)
     base = _span(_render(markdown, _profile_with(option_id, option.default), tmp_path, "base"))
+    wide_value = min(float(option.default) + 5.0, 20.0)
     wide = _span(
         _render(
             markdown,
-            _profile_with(option_id, min(float(option.default) + 5.0, 20.0)),
+            _profile_with(option_id, wide_value),
             tmp_path,
             "wide",
         )
     )
-    # Интервал должен быть измеримо виден в PDF, даже если соседний интервал
-    # частично схлопывается с ним.
-    assert wide > base + 10.0
+    # Интервал указан в em от кегля документа: сдвиг равен изменению в pt.
+    expected = (wide_value - float(option.default)) * 12.0
+    assert wide - base == pytest.approx(expected, abs=0.5)
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    shutil.which("pandoc") is None or shutil.which("typst") is None,
+    reason="pandoc and typst must be in PATH",
+)
+@pytest.mark.parametrize(
+    ("group", "marker"),
+    [("bullet_list", "- "), ("numbered_list", "1. ")],
+)
+def test_list_item_wrapped_line_indent(group: str, marker: str, tmp_path: Path) -> None:
+    """list.item: перенесённая строка пункта управляется body_indent."""
+    markdown = marker + ("Длинный пункт списка для проверки переноса строки. " * 20) + "\n"
+    option_id = f"{group}.body_indent"
+    base_indent = float(OPTIONS_BY_ID[option_id].default)
+    delta_mm = 6.0
+    base = _render(markdown, _profile_with(option_id, base_indent), tmp_path, "wrap-base")
+    wide = _render(
+        markdown, _profile_with(option_id, base_indent + delta_mm), tmp_path, "wrap-wide"
+    )
+
+    def wrapped_x(path: Path) -> tuple[float, float]:
+        with pdfplumber.open(path) as pdf:
+            lines = pdf.pages[0].extract_text_lines()
+        assert len(lines) >= 2, "пункт списка не переносится"
+        return lines[0]["x0"], lines[1]["x0"]
+
+    base_first, base_wrapped = wrapped_x(base)
+    wide_first, wide_wrapped = wrapped_x(wide)
+    # Первая строка начинается с маркера, перенесённая — правее (висячий отступ).
+    assert base_wrapped > base_first
+    assert wide_first == pytest.approx(base_first, abs=0.5)
+    assert wide_wrapped - base_wrapped == pytest.approx(delta_mm * 72 / 25.4, abs=0.5)

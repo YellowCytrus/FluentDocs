@@ -369,16 +369,6 @@
   }
 
   let with-text-overrides(config, body) = {
-    // Абзац из одного неразрывного пробела — пустая строка Markdown.
-    // Выводим её weak-шагом, чтобы она совпадала с around.blank при max.
-    show par: it => {
-      let par-body = it.body
-      if par-body.func() == text and par-body.text == "\u{00a0}" {
-        v(line-step(config, config.document.line_spacing), weak: true)
-      } else {
-        it
-      }
-    }
     show par: it => text-override-body(
       around-body(config, "par", it), config.par.text_override,
     )
@@ -522,9 +512,12 @@
       above: spacing-length(config, config.numbered_list.spacing_before),
       below: spacing-length(config, config.numbered_list.spacing_after),
     )
-    show terms: set block(
+    // Обёртка, а не set block: spacing списка определений применяется один раз
+    // ко всему блоку, а не к каждому внутреннему блоку термина.
+    show terms: it => block(
       above: spacing-length(config, config.terms.spacing_before),
       below: spacing-length(config, config.terms.spacing_after),
+      it,
     )
 
     // Маркированный список.

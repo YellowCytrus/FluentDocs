@@ -271,8 +271,8 @@ AROUND_TARGET_META: dict[str, tuple[str, str, str]] = {
 }
 
 AROUND_COLLAPSE_LABELS: tuple[tuple[str, str], ...] = (
-    ("max", "Max — слить"),
-    ("sum", "Sum — сложить"),
+    ("max", "Слить в одну"),
+    ("sum", "Сложить"),
 )
 
 AROUND_ITEM_LABELS: tuple[tuple[str, str], ...] = (
@@ -689,8 +689,8 @@ def _around_options() -> list[Option]:
                 legacy=False,
                 ui_section=section,
                 ui_help=(
-                    "max — слить, заменяет штатный интервал элемента; "
-                    "sum — сложить, добавляется к штатному."
+                    "«Слить в одну» — вставка заменяет штатный интервал элемента; "
+                    "«Сложить» — вставка добавляется к штатному."
                 ),
             )
         )
