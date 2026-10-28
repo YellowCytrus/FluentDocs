@@ -11,9 +11,9 @@
 | G1a — реестр и хранение | выполнен, принят владельцем | отчёт отправлен |
 | G1b — рантайм `fd` и единая сборка | выполнен, принят владельцем | отчёт отправлен |
 | G1c — UI и паритет | выполнен, принят владельцем | отчёт отправлен |
-| G2a — типы реестра и окружения «до/после» | выполнен, B-08 исправлен, ждёт приёмки | этот файл |
-| G2b — интервал, шрифты, зашитые значения | выполнен, ждёт приёмки владельца | этот файл |
-| G2c — остальные «дешёвые» правила | не начат | — |
+| G2a — типы реестра и окружения «до/после» | выполнен, принят владельцем | этот файл |
+| G2b — интервал, шрифты, зашитые значения | выполнен, принят владельцем | этот файл |
+| G2c — остальные «дешёвые» правила | выполнен, ждёт приёмки владельца | этот файл |
 | G3 — нумерация, подписи, сущности | не начат | — |
 | G4 — таблицы и оглавление | не начат | — |
 | G5 — расширения Markdown, формулы, ссылки | не начат | — |
@@ -472,3 +472,117 @@ B-01…B-06 и B-08 отмечены решёнными в `BLOCKERS.md`. B-07 �
 всех страниц оптимизируется после G2c. B-09 — открытый вопрос автозамера
 коэффициента высоты строки для нового шрифта. GitHub Actions на ветке `sprint`
 прогонялся зелёным (run `40273965590`, до G2a).
+
+## G2c — чек-лист
+
+Коммиты: `6988bff` (единица `blank`), `ac706f4` (штатные интервалы),
+`d1e4e82` (оставшиеся правила класса A).
+
+| Пункт | Статус | Где |
+|---|---|---|
+| Единица `blank` = полный шаг строки | ✔ `fd.line-step`; multiplier и mm | `app/typst/fd.typ` |
+| Реальная пустая строка = `blank(count=1)` при `max` | ✔ ±0,5 pt; NBSP-абзац трактуется как weak-шаг | `tests/test_around.py`, `tests/test_g2b_line_spacing.py` |
+| Множитель 1,0 ≈ `line_height_em × кегль` | ✔ оба шрифта, допуск 0,3 pt | `test_line_spacing_multiplier_render` |
+| Ключ таблицы коэффициентов после алиасов | ✔ `Times New Roman → Libertinus Serif` | `test_line_height_coefficient_table` |
+| Штатные интервалы 28 опций | ✔ заголовки 1–6, рисунок, таблица, формула, цитата, код, terms, списки | `tests/test_g2c_spacing.py` |
+| `page.margins.landscape` | ✔ 4 поля, только весь документ | `tests/test_g2c_rules.py` |
+| `page.numbering` | ✔ пропуск первой, начальный номер | `tests/test_g2c_rules.py` |
+| `formula.body_indent` | ✔ `equation.body_indent` | `tests/test_g2c_rules.py` |
+| `reference.footnote` | ✔ длина и толщина разделительной линии | `tests/test_g2c_rules.py` |
+| Golden | ✔ изменился только блок конфига | `tests/fixtures/golden/` |
+| Реестровый контракт | ✔ 28 + 7 новых опций с конкретными source/test_ids | `tests/test_registry.py` |
+| Ruff | ✔ All checks passed | `uvx ruff check` |
+
+### G2c: измерения `blank`
+
+Документ: таблица → заголовок, `document.line_spacing = 5.08 мм`, кегль 12 pt.
+Полный шаг: `5.08 мм + (1.308 − 0.65) × 12 pt = 22.30 pt`.
+
+| Сценарий | Ожидание | Измерено |
+|---|---|---|
+| без `around` | штатный зазор | 19.52 pt |
+| реальная пустая строка (NBSP) | геометрия + 1 шаг | 20.21 pt |
+| `blank(count=1)`, `max`, с двух сторон | геометрия + 1 шаг | 20.21 pt |
+| `blank(count=1)`, `sum`, с двух сторон | штатный + 2 шага | 64.11 pt |
+| `count: 0`, `max` | геометрия + 0 | −2.08 pt |
+| `count: 0`, `sum` | штатный зазор | 19.52 pt |
+
+Множители 1,0 и 1,5 на Libertinus Serif и PT Astra Serif: реальная строка и
+`blank` при `max` совпадают с допуском 0,5 pt (`test_blank_unit_matches_real_blank_line`).
+Шаг при 1,0: Libertinus 15.70 pt, PT Astra 15.74 pt (ожидание
+`1.308/1.312 × 12`), допуск 0,3 pt.
+
+### G2c: вынесенные штатные интервалы
+
+| Элемент | before | after |
+|---|---:|---:|
+| `heading.h1` | 1.8 em | 0.75 em |
+| `heading.h2..h6` | 1.44 em | 0.75 em |
+| `figure` | 1.2 em | 1.2 em |
+| `table` | 1.2 em | 1.2 em |
+| `equation` | 1.2 em | 1.2 em |
+| `quote` | 2.4 em | 1.8 em |
+| `raw` | 1.2 em | 1.2 em |
+| `terms` | 1.2 em | 1.2 em |
+| `bullet_list` | 1.2 em | 1.2 em |
+| `numbered_list` | 1.2 em | 1.2 em |
+
+### G2c: правила класса A/1–2
+
+| Правило | Опция | Тест | Статус |
+|---|---|---|---|
+| `page.margins.portrait` | `page.margin_*` | существующие | было |
+| `page.margins.landscape` | `page.margin_landscape_*` | `test_page_landscape_*` | реализовано |
+| `page.numbering` | `page.numbering`, `number_align`, `numbering_skip_first`, `numbering_start` | `test_page_numbering_*` | реализовано |
+| `text.font.name/size/color/alignment` | `document.*` | существующие | было |
+| `text.indent.first_line` | `par.first_line_indent` | существующие | было |
+| `text.line_spacing` | `document.line_spacing` | `test_line_spacing_*` | было/G2b |
+| `referat.keywords_uppercase` | — | — | отложено G3 (сущность) |
+| `toc.indent_levels` | — | — | отложено G4 |
+| `heading.h1..h6` | `heading.h*` | существующие | было |
+| `heading.spacing_before/after` | `heading.h*.spacing_*` | `test_element_spacing_*` | реализовано |
+| `heading.no_hyphenation` | `text_override.hyphenate` | существующие | покрыто |
+| `list.item` | `indent`, `body_indent` | существующие | покрыто (Typst hanging) |
+| `list.nested_numeric` | — | — | отложено G3 |
+| `figure.caption` | — | — | отложено G3 |
+| `figure.spacing_before/after` | `figure.spacing_*` | `test_element_spacing_*` | реализовано |
+| `figure.image` | `figure.width/height/fit` | существующие | было |
+| `figure.placement_after_reference` | `figure.placement` | существующие | покрыто (авторский порядок) |
+| `formula.spacing_before/after` | `equation.spacing_*` | `test_element_spacing_*` | реализовано |
+| `formula.body_indent` | `equation.body_indent` | `test_equation_body_indent_*` | реализовано |
+| `bibliography.entry` | — | — | вне плана |
+| `table.caption` | — | — | отложено G3 |
+| `table.spacing_before/after` | `table.spacing_*` | `test_element_spacing_*` | реализовано |
+| `table.cell_padding` | `table.inset` | существующие | было |
+| `table.font.size` | `table.text_override.font_size` | существующие | было |
+| `table.body` | — | — | отложено G4 |
+| `reference.footnote` | `footnote.*`, `separator_*` | `test_footnote_separator_*` | реализовано |
+| `coursework.*_numbering`, `graduation_qualification_work.*_numbering` | — | — | seed G6 после G3 |
+| `coursework.toc.form_t` | — | — | отложено G4 |
+
+### Проверки G2c
+
+| Команда | Результат |
+|---|---|
+| `POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5432 POSTGRES_DB=pizdo_test uv run pytest tests/ -m "not integration"` | 128 passed, 86 deselected |
+| `POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5432 POSTGRES_DB=pizdo_test uv run pytest tests/ -m integration` | 86 passed, 128 deselected |
+| `cd frontend && npm test -- --run` | 15 passed (4 files) |
+| `cd frontend && npm run build` | OK |
+| `npx vue-tsc --noEmit` | OK |
+| `uvx ruff check app tests alembic` | All checks passed |
+| `uvx ruff format --check` для файлов G2c | OK |
+
+### Golden-изменения G2c
+
+16 снимков получили только новые ключи конфига: `heading_levels[*].spacing_before/after`,
+`spacing_before/after` у figure/table/equation/quote/raw/terms/списков,
+`page.margin_landscape_*`, `page.numbering_skip_first/start`,
+`equation.body_indent`, `footnote.separator_length/stroke`. Тела документов
+не изменились. PDF по умолчанию не меняется: значения совпадают с Typst.
+
+### Отложено из-за синтаксиса
+
+В G2c не реализовывались правила, требующие нового синтаксиса Markdown:
+`figure.placement_after_reference` в части «после первой ссылки» (авторский
+порядок), `formula.explanation` («где…») и любые fenced-div/атрибуты.
+Они остаются в G3/G5 или вне спринта.

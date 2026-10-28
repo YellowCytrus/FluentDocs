@@ -77,7 +77,11 @@ def test_element_spacing_options() -> None:
         assert "СТУ" in option.source
         assert option.test_ids
         # Дефолт совпадает с текущим штатным интервалом Typst.
-        target = values["heading_levels"][option.path[1]] if option.path[0] == "heading_levels" else values[option.path[0]]
+        target = (
+            values["heading_levels"][option.path[1]]
+            if option.path[0] == "heading_levels"
+            else values[option.path[0]]
+        )
         assert target[option.path[-1]] == pytest.approx(DEFAULTS[option_id])
         # Значение меняется и снова читается из JSONB-формы.
         _set_path(values, option.path, 4.0)
