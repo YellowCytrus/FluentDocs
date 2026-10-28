@@ -697,6 +697,102 @@ def _around_options() -> list[Option]:
     return opts
 
 
+
+def _spacing_options() -> list[Option]:
+    """Штатные интервалы элементов: значения Typst, вынесенные в реестр."""
+    opts: list[Option] = []
+    o = len
+
+    def add(
+        option_id: str,
+        group: str,
+        target: str,
+        path: tuple[str, ...],
+        default: float,
+        label: str,
+        source: str,
+        rationale: str,
+    ) -> None:
+        opts.append(
+            _option(
+                option_id,
+                group,
+                (target,),
+                "number",
+                default,
+                path,
+                label,
+                order=o(opts),
+                unit="em",
+                allowed_units=EM_UNITS,
+                min=0.0,
+                max=20.0,
+                step=0.01,
+                rationale=rationale,
+                source=source,
+                test_ids=("test_element_spacing_options", "test_element_spacing_render"),
+                legacy=False,
+            )
+        )
+
+    for level in HEADING_LEVELS:
+        before = 1.8 if level == 1 else 1.44
+        for key, label in (("before", "Отступ до"), ("after", "Отступ после")):
+            default = before if key == "before" else 0.75
+            add(
+                f"heading.h{level}.spacing_{key}",
+                "heading",
+                f"heading_{level}",
+                ("heading_levels", str(level), f"spacing_{key}"),
+                default,
+                f"{label} заголовка {level}",
+                "СТУ 7.4.1; plan_v2 heading.spacing_before",
+                (
+                    f"Задаёт {label.lower()} заголовка уровня {level}; "
+                    "без опции действовал бы скрытый интервал блока Typst."
+                ),
+            )
+
+    simple = (
+        ("figure", "figure", "figure.spacing_before", 1.2, 1.2, "СТУ 7.8"),
+        ("table", "table", "table.spacing_before", 1.2, 1.2, "СТУ 7.7"),
+        ("equation", "equation", "formula.spacing_before", 1.2, 1.2, "СТУ 7.6"),
+        ("quote", "quote", "plan_v2 §5", 2.4, 1.8, "СТУ 7.3"),
+        ("raw", "raw", "plan_v2 §5", 1.2, 1.2, "СТУ 7.3"),
+        ("terms", "terms", "plan_v2 §5", 1.2, 1.2, "СТУ 7.4"),
+        ("bullet_list", "bullet_list", "list", 1.2, 1.2, "СТУ 7.4"),
+        ("numbered_list", "numbered_list", "list", 1.2, 1.2, "СТУ 7.4"),
+    )
+    labels = {
+        "figure": "рисунка",
+        "table": "таблицы",
+        "equation": "формулы",
+        "quote": "цитаты",
+        "raw": "блока кода",
+        "terms": "списка определений",
+        "bullet_list": "маркированного списка",
+        "numbered_list": "нумерованного списка",
+    }
+    for group, target, rule, before, after, stu in simple:
+        for key, label, default in (
+            ("before", "Отступ до", before),
+            ("after", "Отступ после", after),
+        ):
+            add(
+                f"{group}.spacing_{key}",
+                group,
+                target,
+                (group, f"spacing_{key}"),
+                default,
+                f"{label} {labels[group]}",
+                f"{stu}; plan_v2 {rule}",
+                (
+                    f"Задаёт {label.lower()} {labels[group]}; "
+                    "без опции действовал бы скрытый интервал блока Typst."
+                ),
+            )
+    return opts
+
 def _base_options() -> list[Option]:
     opts: list[Option] = []
     o = len
@@ -1864,6 +1960,7 @@ def _base_options() -> list[Option]:
             legacy=False,
         ),
     ]
+    opts += _spacing_options()
     return opts
 
 

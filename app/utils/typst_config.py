@@ -115,6 +115,8 @@ def _heading_levels(values: Mapping[str, JsonValue]) -> list[JsonValue]:
             "level": level,
             "break_before": _value(raw, "break_before"),
             "numbering_enabled": _value(raw, "numbering_enabled"),
+            "spacing_before": _number(raw, "spacing_before"),
+            "spacing_after": _number(raw, "spacing_after"),
             "text_override": _text_override(_value(raw, "text_override")),
         }
         levels.append(record)
@@ -201,6 +203,8 @@ def config_tree(values: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
                 "spacing",
                 "tight_spacing",
                 "loose_spacing",
+                "spacing_before",
+                "spacing_after",
                 "text_override",
             ),
         ),
@@ -218,6 +222,8 @@ def config_tree(values: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
                 "number_align",
                 "tight_spacing",
                 "loose_spacing",
+                "spacing_before",
+                "spacing_after",
                 "text_override",
             ),
         ),
@@ -230,12 +236,14 @@ def config_tree(values: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
                 "spacing",
                 "tight_spacing",
                 "loose_spacing",
+                "spacing_before",
+                "spacing_after",
                 "text_override",
             ),
         ),
         "table": _element_tree(
             _element(values, "table"),
-            ("stroke", "align", "inset", "fill", "text_override"),
+            ("stroke", "align", "inset", "fill", "spacing_before", "spacing_after", "text_override"),
         ),
         "figure": _element_tree(
             _element(values, "figure"),
@@ -247,13 +255,17 @@ def config_tree(values: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
                 "outlined",
                 "fit",
                 "caption_template",
+                "spacing_before",
+                "spacing_after",
                 "text_override",
             ),
         ),
-        "equation": _element_tree(_element(values, "equation"), ("text_override",)),
+        "equation": _element_tree(
+            _element(values, "equation"), ("spacing_before", "spacing_after", "text_override")
+        ),
         "quote": _element_tree(
             _element(values, "quote"),
-            ("indent", "block", "quotes", "text_override"),
+            ("indent", "block", "quotes", "spacing_before", "spacing_after", "text_override"),
         ),
         "footnote": _element_tree(
             _element(values, "footnote"),
@@ -261,7 +273,7 @@ def config_tree(values: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
         ),
         "raw": _element_tree(
             _element(values, "raw"),
-            ("tab_size", "align", "theme", "text_override"),
+            ("tab_size", "align", "theme", "spacing_before", "spacing_after", "text_override"),
         ),
         "outline": _element_tree(
             _element(values, "outline"),

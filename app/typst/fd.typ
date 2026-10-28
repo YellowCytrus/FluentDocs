@@ -77,6 +77,9 @@
     }
   }
 
+  // Длина интервала в em от кегля документа (для опций spacing_before/after).
+  let spacing-length(config, value) = value * config.document.font_size * 1pt
+
   // Интервал списка: tight/loose — значения реестра, auto — штатный Typst.
   let list-spacing(s, tight, loose) = {
     if s == "tight" { tight * 1em } else if s == "loose" { loose * 1em } else { auto }
@@ -206,10 +209,16 @@
   }
 
   let show-heading(it, level, config, target) = {
+    let heading = block(
+      above: spacing-length(config, level.spacing_before),
+      below: spacing-length(config, level.spacing_after),
+      sticky: true,
+      [#heading-body(it, level, config)],
+    )
     let content = if level.break_before {
-      [#pagebreak(weak: true); #block[#heading-body(it, level, config)]]
+      [#pagebreak(weak: true); #heading]
     } else {
-      block[#heading-body(it, level, config)]
+      heading
     }
     around-body(config, target, content)
   }
@@ -448,6 +457,40 @@
 
     // Заголовки.
     set heading(numbering: heading-numbering(config))
+
+    // Штатные интервалы блоков: значения реестра вместо скрытых констант Typst.
+    show figure: set block(
+      above: spacing-length(config, config.figure.spacing_before),
+      below: spacing-length(config, config.figure.spacing_after),
+    )
+    show figure.where(kind: table): set block(
+      above: spacing-length(config, config.table.spacing_before),
+      below: spacing-length(config, config.table.spacing_after),
+    )
+    show math.equation.where(block: true): set block(
+      above: spacing-length(config, config.equation.spacing_before),
+      below: spacing-length(config, config.equation.spacing_after),
+    )
+    show raw.where(block: true): set block(
+      above: spacing-length(config, config.raw.spacing_before),
+      below: spacing-length(config, config.raw.spacing_after),
+    )
+    show quote: set block(
+      above: spacing-length(config, config.quote.spacing_before),
+      below: spacing-length(config, config.quote.spacing_after),
+    )
+    show list: set block(
+      above: spacing-length(config, config.bullet_list.spacing_before),
+      below: spacing-length(config, config.bullet_list.spacing_after),
+    )
+    show enum: set block(
+      above: spacing-length(config, config.numbered_list.spacing_before),
+      below: spacing-length(config, config.numbered_list.spacing_after),
+    )
+    show terms: set block(
+      above: spacing-length(config, config.terms.spacing_before),
+      below: spacing-length(config, config.terms.spacing_after),
+    )
 
     // Маркированный список.
     set list(

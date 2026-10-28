@@ -395,3 +395,30 @@ PDF через Typst CLI и Node + `typst.ts`, затем сравнивает �
   JSONB хранит абстрактный множитель, старая колонка `document_styles.line_spacing`
   получает эквивалент в мм; при пересборке JSONB множитель сохраняется, пока
   колонка не изменена вручную.
+
+## G2c: штатные интервалы элементов
+
+Скрытые интервалы блоков Typst вынесены в 28 опций реестра (по две на элемент):
+`heading.h1..h6.spacing_before/after`, `figure`, `table`, `equation`, `quote`,
+`raw`, `terms`, `bullet_list`, `numbered_list`. Тип — `number`, единица `em`
+от кегля документа; диапазон 0–20, шаг 0.01. Значения по умолчанию равны
+действующим интервалам Typst, поэтому PDF по умолчанию не меняется; golden
+изменяется только блоком конфига.
+
+| Элемент | before | after | Источник |
+|---|---:|---:|---|
+| `heading.h1` | 1.8 | 0.75 | СТУ 7.4.1; Typst heading |
+| `heading.h2..h6` | 1.44 | 0.75 | СТУ 7.4.1; Typst heading |
+| `figure` | 1.2 | 1.2 | СТУ 7.8; BlockElem |
+| `table` | 1.2 | 1.2 | СТУ 7.7; BlockElem |
+| `equation` | 1.2 | 1.2 | СТУ 7.6; BlockElem |
+| `quote` | 2.4 | 1.8 | СТУ 7.3; Typst quote |
+| `raw` | 1.2 | 1.2 | СТУ 7.3; BlockElem |
+| `terms` | 1.2 | 1.2 | СТУ 7.4; BlockElem |
+| `bullet_list` | 1.2 | 1.2 | СТУ 7.4; BlockElem |
+| `numbered_list` | 1.2 | 1.2 | СТУ 7.4; BlockElem |
+
+В `fd` интервал считается как `value * document.font_size` (pt), а не как
+`value * 1em` внутри заголовка: иначе `em` зависел бы от кегля заголовка.
+Тесты: `test_element_spacing_options` (дефолты, конфиг, JSONB) и
+`test_element_spacing_render` (28 параметров, PDF-сдвиг START→END > 10 pt).
