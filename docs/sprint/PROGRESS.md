@@ -594,7 +594,7 @@ B-01…B-06 и B-08 отмечены решёнными в `BLOCKERS.md`. B-07 �
 
 ## G2c-fix — чек-лист
 
-Коммиты: см. отчёт на воротах G2c-fix.
+Коммит: `f963cc4`; CI run [40646588836](https://github.com/YellowCytrus/FluentDocs/actions/runs/40646588836) — test + lint success.
 
 | Пункт | Статус | Где |
 |---|---|---|
@@ -645,7 +645,7 @@ Typst 1,0 em, `table` 1,2 em, списки 1,2 em. Это не ошибка ко
 
 ## G3a — чек-лист
 
-Коммиты: см. отчёт на воротах G3a.
+Коммит: `71566a4`; CI run [40646588836](https://github.com/YellowCytrus/FluentDocs/actions/runs/40646588836) — test + lint success.
 
 | Пункт | Статус | Где |
 |---|---|---|
