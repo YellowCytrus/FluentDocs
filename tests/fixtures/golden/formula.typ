@@ -48,6 +48,7 @@
   heading: (
     numbering: "1.1.1",
     unnumbered_indent: -0.3,
+    keep_with_next: true,
   ),
   heading_levels: (
     (
@@ -199,6 +200,17 @@
     indent_mode: "auto",
     indent_mm: 0.0,
     text_override: none,
+  ),
+  structural: (
+    entities: (),
+  ),
+  appendix: (
+    template: "{service} {letter}. {title}",
+    service_case: "upper",
+    title_case: "none",
+    bold: false,
+    alphabet: "ru_sfu",
+    overflow: "double",
   ),
   around: (
     heading_1: (

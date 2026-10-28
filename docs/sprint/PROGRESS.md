@@ -642,3 +642,65 @@ Typst 1,0 em, `table` 1,2 em, списки 1,2 em. Это не ошибка ко
 значения заданы в реестре; расхождение зафиксировано, решение о смене
 дефолтов остаётся за владельцем. Текст, шрифты, кегль и число страниц не
 изменились.
+
+## G3a — чек-лист
+
+Коммиты: см. отчёт на воротах G3a.
+
+| Пункт | Статус | Где |
+|---|---|---|
+| `structural.entities` (AGENTS 5.2) | ✔ список объектов, порядок = приоритет | `app/registry/options.py` |
+| Опции сущностей помечены `beta` | ✔ `ui.beta`, бейдж в UI | `RuleField.vue` |
+| Снятие номера по S10 | ✔ номер снят, счётчик следующих не сбит | `test_structural_unnumbered_keeps_counter` |
+| `apply.outlined=false` | ✔ заголовок скрыт, счётчик сохранён | `test_structural_outlined_false_keeps_counter` |
+| Разрыв страницы, регистр, жирность, выравнивание, `text_override` | ✔ | тесты G3a |
+| `around` сущности (before/after/collapse) | ✔ та же схема, что у `around.*` | `fd.typ`, `REGISTRY_SPEC.md` |
+| Приложение: `# Приложение Название` | ✔ одна строка по шаблону | `test_appendix_heading_one_line` |
+| Шаблон `{service} {letter}. {title}` | ✔ `appendix.template` | `app/registry/options.py` |
+| Регистр служебного слова и названия, жирность | ✔ отдельные опции | `test_appendix_case_render`, `test_appendix_bold_render` |
+| Перенос только по ширине | ✔ одна строка на дефолтной ширине | `test_appendix_heading_one_line` |
+| Алфавит `ru_sfu` 25 букв, затем `double` (АА, АБ…) | ✔ А…Я → АА, АБ | `test_appendix_letter_sequence` |
+| `stop`/`latin` в реестре | ✔ помечены «не реализовано» | `appendix.overflow` |
+| Подзаголовки `А.1`, `А.1.1` | ✔ буква вместо номера раздела | `test_appendix_numbering_subheadings` |
+| Источники через сопоставитель | ✔ заголовок списка как сущность | `test_bibliography_heading_entity` |
+| `keep_with_next` по умолчанию включён | ✔ `sticky: true` | `test_heading_keep_with_next_render` |
+| Не делать «где…», ключевые слова, реферат, формулы | ✔ | — |
+| Конкретные `rationale/source/test_ids` | ✔ реестровый тест | `tests/test_registry.py` |
+
+### G3a: измерения
+
+| Правило | Опция | Тест | Измерение |
+|---|---|---|---|
+| Ненумерованный заголовок | `structural.entities[].apply.numbering` | `test_structural_unnumbered_keeps_counter` | «Введение» без номера, следующий раздел «1» |
+| Скрытие из оглавления | `apply.outlined` | `test_structural_outlined_false_keeps_counter` | следующий заголовок «2» |
+| Разрыв страницы | `apply.break_before` | `test_structural_break_before` | заголовок первым на стр. 2 |
+| Регистр и жирность | `apply.case`, `apply.bold` | `test_structural_case_render` | «ВВЕДЕНИЕ», шрифт Bold |
+| Свой стиль | `apply.text_override` | `test_structural_text_override_render` | кегль 21 pt |
+| Приложение одной строкой | `appendix.template` | `test_appendix_heading_one_line` | строка «ПРИЛОЖЕНИЕ А. Название приложения» |
+| Регистр приложения | `appendix.service_case/title_case` | `test_appendix_case_render` | «ПРИЛОЖЕНИЕ А. НАЗВАНИЕ ПРИЛОЖЕНИЯ» |
+| Жирное приложение | `appendix.bold` | `test_appendix_bold_render` | шрифт Bold |
+| Буквы А…Я → АА | `appendix.alphabet/overflow` | `test_appendix_letter_sequence` | 25-я «Я», 26-я «АА» |
+| Подзаголовки приложения | `apply.appendix` | `test_appendix_numbering_subheadings` | «А.1 Состав», «А.1.1 Детали» |
+| Список источников | `structural.entities` | `test_bibliography_heading_entity` | без номера, новая страница |
+| Заголовок с текстом | `heading.keep_with_next` | `test_heading_keep_with_next_render` | при `false` заголовок внизу, при `true` — нет |
+
+Отложено: `match.target = "paragraph"` (вместе с «где…», AGENTS 2.11);
+`appendix.overflow = stop|latin` — только подписи в реестре.
+
+### G3a: golden
+
+16 снимков получили только ключи конфига: `heading.keep_with_next`,
+`structural.entities: ()`, блок `appendix` (6 значений). Тела документов не
+изменились: +192 строки, 0 удалений.
+
+### Проверки G2c-fix + G3a
+
+| Команда | Результат |
+|---|---|
+| `POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5432 POSTGRES_DB=pizdo_test uv run pytest tests/ -m "not integration"` | 132 passed, 102 deselected |
+| `POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5432 POSTGRES_DB=pizdo_test uv run pytest tests/ -m integration` | 102 passed, 132 deselected |
+| `cd frontend && npm test -- --run` | 16 passed (4 files) |
+| `cd frontend && npm run build` | OK |
+| `npx vue-tsc --noEmit` | OK |
+| `uvx ruff check app tests alembic` | All checks passed |
+| `uvx ruff format --check` для изменённых файлов | OK |

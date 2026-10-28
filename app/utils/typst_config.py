@@ -123,6 +123,60 @@ def _heading_levels(values: Mapping[str, JsonValue]) -> list[JsonValue]:
     return levels
 
 
+def _structural_entity(raw: JsonValue) -> JsonValue:
+    """Одна структурная сущность: match + apply с вложенным окружением."""
+    if not isinstance(raw, Mapping):
+        raise ValueError("structural.entities: элемент должен быть объектом")
+    match = raw.get("match")
+    apply = raw.get("apply")
+    if not isinstance(match, Mapping) or not isinstance(apply, Mapping):
+        raise ValueError("structural.entities: нужны match и apply")
+    around = apply.get("around")
+    if not isinstance(around, Mapping):
+        raise ValueError("structural.entities: нужен apply.around")
+    before = around.get("before")
+    after = around.get("after")
+    if not isinstance(before, list) or not isinstance(after, list):
+        raise ValueError("structural.entities: around.before/after должны быть списками")
+    return {
+        "id": raw.get("id", ""),
+        "label": raw.get("label", ""),
+        "match": {
+            key: match.get(key)
+            for key in (
+                "target",
+                "level",
+                "mode",
+                "value",
+                "case_insensitive",
+            )
+        },
+        "apply": {
+            "numbering": apply.get("numbering"),
+            "break_before": apply.get("break_before"),
+            "align": apply.get("align"),
+            "case": apply.get("case"),
+            "bold": apply.get("bold"),
+            "outlined": apply.get("outlined"),
+            "appendix": apply.get("appendix"),
+            "around": {
+                "before": [_around_item(item) for item in before],
+                "after": [_around_item(item) for item in after],
+                "collapse": around.get("collapse"),
+            },
+            "text_override": _text_override(apply.get("text_override")),
+        },
+    }
+
+
+def _structural(values: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
+    raw = _element(values, "structural")
+    entities = raw.get("entities")
+    if not isinstance(entities, list):
+        raise ValueError("structural.entities должен быть списком")
+    return {"entities": [_structural_entity(item) for item in entities]}
+
+
 def _number(element: Mapping[str, JsonValue], key: str) -> float:
     raw = _value(element, key)
     if not isinstance(raw, (int, float)) or isinstance(raw, bool):
@@ -197,7 +251,10 @@ def config_tree(values: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
                 "text_override",
             ),
         ),
-        "heading": _element_tree(_element(values, "heading"), ("numbering", "unnumbered_indent")),
+        "heading": _element_tree(
+            _element(values, "heading"),
+            ("numbering", "unnumbered_indent", "keep_with_next"),
+        ),
         "heading_levels": _heading_levels(values),
         "bullet_list": _element_tree(
             _element(values, "bullet_list"),
@@ -301,6 +358,18 @@ def config_tree(values: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
         "outline": _element_tree(
             _element(values, "outline"),
             ("depth", "indent_mode", "indent_mm", "text_override"),
+        ),
+        "structural": _structural(values),
+        "appendix": _element_tree(
+            _element(values, "appendix"),
+            (
+                "template",
+                "service_case",
+                "title_case",
+                "bold",
+                "alphabet",
+                "overflow",
+            ),
         ),
         "around": _around(values),
     }

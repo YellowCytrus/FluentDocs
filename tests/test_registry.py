@@ -49,7 +49,7 @@ def test_registry_option_contract() -> None:
         assert option.rationale.strip()
         assert option.source.strip()
         assert option.test_ids
-        assert set(option.test_ids) <= known_tests, option.test_ids - known_tests
+        assert set(option.test_ids) <= known_tests, set(option.test_ids) - known_tests
         if not option.legacy:
             assert option.test_ids != tuple(TEST_IDS)
             assert all(name.startswith("test_") for name in option.test_ids)
@@ -92,6 +92,10 @@ def test_registry_defaults_match_models() -> None:
 @pytest.mark.parametrize("element", ELEMENT_PATHS)
 def test_registry_covers_orm_fields(element: str) -> None:
     """Каждая колонка стилей (кроме мёртвых) представлена опцией реестра."""
+    if element not in ELEMENT_MODELS:
+        # structural/appendix живут только в JSONB, старых таблиц у них нет.
+        assert any(option.path[0] == element for option in OPTIONS)
+        return
     model, _ = ELEMENT_MODELS[element]
     ignored = {"id", "profile_id", "text_override_style_id", "level"}
     # Старая строковая колонка отступа оглавления заменена структурными опциями.

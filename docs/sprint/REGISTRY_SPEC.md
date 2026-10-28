@@ -8,7 +8,7 @@
 `app/registry/storage.py`.
 
 Версия схемы: `SCHEMA_VERSION = 1` (`app/registry/options.py`).
-Число опций: **357** — 136 обычных и 221 поле `text_override`.
+Число опций: **402** — 181 обычная и 221 поле `text_override`.
 
 ## Запись реестра
 
@@ -52,22 +52,24 @@ path — адрес значения в JSONB. Например, `heading.h1.bre
 
 | Группа (`group`) | Обычные | `text_override` | Всего |
 |---|---:|---:|---:|
-| `page` — страница | 9 | 0 | 9 |
+| `page` — страница | 15 | 0 | 15 |
 | `document` — глобальный текст | 16 | 0 | 16 |
 | `par` — абзац | 4 | 13 | 17 |
-| `heading` — заголовки и уровни 1–6 | 14 | 78 | 92 |
-| `bullet_list` — маркированный список | 7 | 13 | 20 |
-| `numbered_list` — нумерованный список | 11 | 13 | 24 |
-| `terms` — список определений | 6 | 13 | 19 |
-| `table` — таблица | 4 | 13 | 17 |
-| `figure` — рисунок | 7 | 13 | 20 |
-| `equation` — формула | 0 | 13 | 13 |
-| `quote` — цитата | 3 | 13 | 16 |
-| `footnote` — сноска | 4 | 13 | 17 |
-| `raw` — код | 3 | 13 | 16 |
+| `heading` — заголовки и уровни 1–6 | 27 | 78 | 105 |
+| `bullet_list` — маркированный список | 9 | 13 | 22 |
+| `numbered_list` — нумерованный список | 13 | 13 | 26 |
+| `terms` — список определений | 8 | 13 | 21 |
+| `table` — таблица | 6 | 13 | 19 |
+| `figure` — рисунок | 9 | 13 | 22 |
+| `equation` — формула | 3 | 13 | 16 |
+| `quote` — цитата | 5 | 13 | 18 |
+| `footnote` — сноска | 6 | 13 | 19 |
+| `raw` — код | 5 | 13 | 18 |
 | `outline` — оглавление | 3 | 13 | 16 |
 | `around` — окружение элемента | 45 | 0 | 45 |
-| **Итого** | **136** | **221** | **357** |
+| `structural` — структурные элементы | 1 | 0 | 1 |
+| `appendix` — приложения | 6 | 0 | 6 |
+| **Итого** | **181** | **221** | **402** |
 
 `text_override` — не отдельная опция-переключатель. Наличие объекта
 `"text_override": {...}` включает переопределение текста для элемента; `null`
@@ -421,7 +423,7 @@ PDF через Typst CLI и Node + `typst.ts`, затем сравнивает �
 В `fd` интервал считается как `value * document.font_size` (pt), а не как
 `value * 1em` внутри заголовка: иначе `em` зависел бы от кегля заголовка.
 Тесты: `test_element_spacing_options` (дефолты, конфиг, JSONB) и
-`test_element_spacing_render` (28 параметров, PDF-сдвиг START→END > 10 pt).
+`test_element_spacing_render` (28 параметров, измеренный сдвиг START→END равен изменению в em × кегль ± 0,5 pt).
 
 ## G2c: оставшиеся правила класса A сложности 1–2
 
@@ -450,4 +452,50 @@ PDF через Typst CLI и Node + `typst.ts`, затем сравнивает �
 - `figure.caption`, `table.caption` — подписи (G3);
 - `table.body` — шапка таблицы в генераторе (G4);
 - `coursework.*`, `graduation_qualification_work.*` — значения seed-профиля (G6);
-- `bibliography.entry` — библиография вне плана спринта.
+- `bibliography.entry` — сопоставитель структурных сущностей (G3a).
+
+
+## G3a: структурные сущности и приложения
+
+Добавлены опции без старых колонок (только JSONB), у групп `structural` и
+`appendix` в `ui` стоит `beta: true`.
+
+`structural.entities` — список объектов, порядок задаёт приоритет. Схема:
+
+```
+{
+  id, label,
+  match: { target: "heading", level: "any"|"1".."6",
+           mode: "equals"|"contains"|"regex", value, case_insensitive },
+  apply: { numbering, break_before, align, case, bold, outlined, appendix,
+           around: { before: [Item], after: [Item], collapse: "max"|"sum" },
+           text_override: null | {...} }
+}
+```
+
+`Item` — та же схема, что у `around.*` (AGENTS 5.1). Сопоставление выполняется
+в Typst по тексту заголовка; первая подходящая сущность выигрывает.
+`apply.numbering = false` снимает номер и компенсирует `counter(heading)`, не
+сбивая счётчик следующих заголовков (S10). `apply.outlined = false` убирает
+заголовок из оглавления. `apply.appendix = true` включает режим приложения:
+шаг буквы, сброс счётчиков рисунков/формул, подзаголовки `А.1`, `А.1.1`.
+
+Опции приложений:
+
+| Опция | Дефолт | Смысл |
+|---|---|---|
+| `appendix.template` | `{service} {letter}. {title}` | одна строка заголовка |
+| `appendix.service_case` | `upper` | регистр слова «Приложение» |
+| `appendix.title_case` | `none` | регистр названия |
+| `appendix.bold` | `false` | полужирный заголовок |
+| `appendix.alphabet` | `ru_sfu` | 25 букв без Ё, З, Й, О, Ч, Ь, Ы, Ъ |
+| `appendix.overflow` | `double` | после Я — АА, АБ… |
+
+`stop` и `latin` остаются в enum с подписью «не реализовано»; обязателен
+только `double` (OWNER_DECISIONS 4).
+
+`heading.keep_with_next` (дефолт `true`) — `sticky: true` у блока заголовка:
+заголовок не остаётся один внизу страницы.
+
+`match.target = "paragraph"` в G3a не реализован: вместе с «где…» отложен
+владельцем (AGENTS 2.11); в enum остался только `heading`.

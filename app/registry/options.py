@@ -92,6 +92,8 @@ GROUP_LABELS: dict[str, str] = {
     "raw": "Код",
     "outline": "Оглавление",
     "around": "Окружение",
+    "structural": "Структурные элементы",
+    "appendix": "Приложения",
 }
 
 SOURCE = {
@@ -110,6 +112,8 @@ SOURCE = {
     "raw": "plan_v2 §5; элемент raw",
     "outline": "СТУ 6.4; plan_v2 toc.*",
     "around": "СТУ 7.4–7.8; plan_v2 around.*",
+    "structural": "СТУ 7.4, 7.5; plan_v2 structural entities; AGENTS 5.2",
+    "appendix": "СТУ 7.5.5; plan_v2 appendix; AGENTS 5.2",
 }
 
 LENGTH_UNITS = ("mm", "cm", "in", "pt", "em")
@@ -325,6 +329,7 @@ def _ui(
     enum_labels: tuple[tuple[str, str], ...] = (),
     section: str | None = None,
     help_text: str | None = None,
+    beta: bool = False,
 ) -> dict:
     ui: dict[str, JsonValue] = {
         "control": control,
@@ -332,6 +337,8 @@ def _ui(
         "tab": GROUP_LABELS.get(group, group),
         "order": order,
     }
+    if beta:
+        ui["beta"] = True
     if section:
         ui["section"] = section
     if help_text:
@@ -388,6 +395,7 @@ def _option(
     item_variants: tuple[tuple[str, tuple[str, ...]], ...] = (),
     ui_section: str | None = None,
     ui_help: str | None = None,
+    beta: bool = False,
 ) -> Option:
     control = {
         "number": "number",
@@ -406,7 +414,7 @@ def _option(
         type=type,
         default=default,
         path=path,
-        ui=_ui(label, group, control, order, enum, enum_labels, ui_section, ui_help),
+        ui=_ui(label, group, control, order, enum, enum_labels, ui_section, ui_help, beta),
         rationale=rationale or _rationale(label, applies_to[0]),
         source=source or SOURCE[group],
         unit=unit,
@@ -444,12 +452,20 @@ def _nested_option(
     nullable: bool = False,
     required: bool = False,
     fields: tuple[Option, ...] = (),
+    item_fields: tuple[Option, ...] = (),
+    item_variants: tuple[tuple[str, tuple[str, ...]], ...] = (),
+    id_prefix: str = "around.item",
+    group: str = "around",
+    applies_to: tuple[str, ...] = ("around",),
+    rationale: str | None = None,
+    source: str = "plan_v2 around.item; AGENTS 5.1",
+    test_ids: tuple[str, ...] = ("test_around_item_schema_contract",),
 ) -> Option:
     """Поле вложенной схемы (list/object); не входит в плоский OPTIONS."""
     return _option(
-        f"around.item.{key}",
-        "around",
-        ("around",),
+        f"{id_prefix}.{key}",
+        group,
+        applies_to,
         type_,
         default,
         (key,),
@@ -465,9 +481,11 @@ def _nested_option(
         nullable=nullable,
         required=required,
         fields=fields,
-        rationale=f"Поле «{label}» вставки окружения элемента; задаёт значение без правки кода.",
-        source="plan_v2 around.item; AGENTS 5.1",
-        test_ids=("test_around_item_schema_contract",),
+        item_fields=item_fields,
+        item_variants=item_variants,
+        rationale=rationale or f"Поле «{label}» вложенной схемы; задаёт значение без правки кода.",
+        source=source,
+        test_ids=test_ids,
         legacy=False,
     )
 
@@ -695,6 +713,353 @@ def _around_options() -> list[Option]:
             )
         )
     return opts
+
+
+def _structural_options() -> list[Option]:
+    """Структурные сущности (AGENTS 5.2) и оформление приложений."""
+    around_fields = _around_item_fields()
+    around_variants = (
+        ("blank", ("count", "line_spacing")),
+        ("text", ("content", "text_override", "align")),
+        ("line", ("length", "stroke_mm")),
+        ("pagebreak", ("weak",)),
+    )
+    text_override_field = next(
+        field for field in around_fields if field.path[-1] == "text_override"
+    )
+
+    def schema_field(
+        key: str,
+        type_: OptionType,
+        default: JsonValue,
+        label: str,
+        order: int,
+        **kwargs: object,
+    ) -> Option:
+        return _nested_option(
+            key,
+            type_,
+            default,
+            label,
+            order=order,
+            id_prefix="structural.entity",
+            group="structural",
+            applies_to=("structural",),
+            source="AGENTS 5.2; plan_v2 structural entities",
+            test_ids=("test_structural_entities_schema",),
+            **kwargs,  # type: ignore[arg-type]
+        )
+
+    match_fields = (
+        schema_field(
+            "target",
+            "select",
+            "heading",
+            "Что сопоставлять",
+            0,
+            enum=("heading",),
+            enum_labels=(("heading", "Заголовок"),),
+        ),
+        schema_field(
+            "level",
+            "select",
+            "any",
+            "Уровень заголовка",
+            1,
+            enum=("any", "1", "2", "3", "4", "5", "6"),
+            enum_labels=(
+                ("any", "Любой"),
+                ("1", "1"),
+                ("2", "2"),
+                ("3", "3"),
+                ("4", "4"),
+                ("5", "5"),
+                ("6", "6"),
+            ),
+        ),
+        schema_field(
+            "mode",
+            "select",
+            "equals",
+            "Способ сравнения",
+            2,
+            enum=("equals", "contains", "regex"),
+            enum_labels=(
+                ("equals", "Совпадает"),
+                ("contains", "Содержит"),
+                ("regex", "Регулярное выражение"),
+            ),
+        ),
+        schema_field("value", "string", "", "Текст для сопоставления", 3, required=True),
+        schema_field("case_insensitive", "boolean", True, "Без учёта регистра", 4),
+    )
+    around_fields_nested = (
+        schema_field(
+            "before",
+            "list",
+            [],
+            "Вставки до",
+            0,
+            item_fields=around_fields,
+            item_variants=around_variants,
+        ),
+        schema_field(
+            "after",
+            "list",
+            [],
+            "Вставки после",
+            1,
+            item_fields=around_fields,
+            item_variants=around_variants,
+        ),
+        schema_field(
+            "collapse",
+            "select",
+            "max",
+            "Схлопывание отступов",
+            2,
+            enum=tuple(value for value, _ in AROUND_COLLAPSE_LABELS),
+            enum_labels=AROUND_COLLAPSE_LABELS,
+        ),
+    )
+    apply_fields = (
+        schema_field("numbering", "boolean", True, "Нумеровать", 0),
+        schema_field("break_before", "boolean", False, "С новой страницы", 1),
+        schema_field(
+            "align",
+            "select",
+            "auto",
+            "Выравнивание",
+            2,
+            enum=("auto", "left", "center", "right"),
+            enum_labels=(
+                ("auto", "Как у заголовка"),
+                ("left", "Слева"),
+                ("center", "По центру"),
+                ("right", "Справа"),
+            ),
+        ),
+        schema_field(
+            "case",
+            "select",
+            "none",
+            "Регистр текста",
+            3,
+            enum=("none", "upper", "lower", "first_upper"),
+            enum_labels=(
+                ("none", "Не менять"),
+                ("upper", "ПРОПИСНЫЕ"),
+                ("lower", "строчные"),
+                ("first_upper", "С заглавной"),
+            ),
+        ),
+        schema_field("bold", "boolean", False, "Полужирный", 4),
+        schema_field("outlined", "boolean", True, "В оглавлении", 5),
+        schema_field(
+            "appendix",
+            "boolean",
+            False,
+            "Начать приложение",
+            6,
+        ),
+        schema_field(
+            "around",
+            "object",
+            {"before": [], "after": [], "collapse": "max"},
+            "Окружение сущности",
+            7,
+            fields=around_fields_nested,
+        ),
+        schema_field(
+            "text_override",
+            "object",
+            None,
+            "Свой стиль текста",
+            8,
+            nullable=True,
+            fields=text_override_field.fields,
+        ),
+    )
+    entity_fields = (
+        schema_field("id", "string", "", "Идентификатор", 0, required=True),
+        schema_field("label", "string", "", "Название сущности", 1),
+        schema_field("match", "object", {}, "Сопоставление", 2, fields=match_fields),
+        schema_field("apply", "object", {}, "Оформление", 3, fields=apply_fields),
+    )
+    entities = _option(
+        "structural.entities",
+        "structural",
+        ("structural",),
+        "list",
+        [],
+        ("structural", "entities"),
+        "Структурные элементы",
+        order=0,
+        item_fields=entity_fields,
+        rationale=(
+            "Список правил «заголовок/абзац содержит текст X → оформить так». "
+            "Позволяет убрать номер у введения и заключения, начать приложение, "
+            "задать разрыв страницы и регистр без отдельного кода под каждый элемент."
+        ),
+        source="СТУ 7.4, 7.5; plan_v2 structural entities; AGENTS 5.2",
+        test_ids=(
+            "test_structural_entities_schema",
+            "test_structural_unnumbered_keeps_counter",
+            "test_structural_break_before",
+            "test_structural_case_render",
+        ),
+        legacy=False,
+        beta=True,
+    )
+
+    appendix_options = [
+        _option(
+            "appendix.template",
+            "appendix",
+            ("appendix",),
+            "string",
+            "{service} {letter}. {title}",
+            ("appendix", "template"),
+            "Шаблон заголовка приложения",
+            order=0,
+            beta=True,
+            rationale=(
+                "Задаёт вид строки приложения: служебное слово, буква и название "
+                "в одной строке; меняется без правки генератора."
+            ),
+            source="СТУ 7.5.5; plan_v2 appendix.template; AGENTS 5.3",
+            test_ids=("test_appendix_options", "test_appendix_heading_one_line"),
+            legacy=False,
+        ),
+        _option(
+            "appendix.service_case",
+            "appendix",
+            ("appendix",),
+            "select",
+            "upper",
+            ("appendix", "service_case"),
+            "Регистр служебного слова",
+            order=1,
+            beta=True,
+            enum=("none", "upper", "lower"),
+            enum_labels=(("none", "Не менять"), ("upper", "ПРОПИСНЫЕ"), ("lower", "строчные")),
+            rationale=(
+                "Управляет регистром слова «Приложение» в заголовке; "
+                "СТУ печатает служебное слово прописными."
+            ),
+            source="СТУ 7.5.5; plan_v2 appendix.service_case",
+            test_ids=("test_appendix_options", "test_appendix_case_render"),
+            legacy=False,
+        ),
+        _option(
+            "appendix.title_case",
+            "appendix",
+            ("appendix",),
+            "select",
+            "none",
+            ("appendix", "title_case"),
+            "Регистр названия",
+            order=2,
+            beta=True,
+            enum=("none", "upper", "lower", "first_upper"),
+            enum_labels=(
+                ("none", "Не менять"),
+                ("upper", "ПРОПИСНЫЕ"),
+                ("lower", "строчные"),
+                ("first_upper", "С заглавной"),
+            ),
+            rationale=(
+                "Управляет регистром названия приложения, не меняя авторский текст в Markdown."
+            ),
+            source="СТУ 7.5.5; plan_v2 appendix.title_case",
+            test_ids=("test_appendix_options", "test_appendix_case_render"),
+            legacy=False,
+        ),
+        _option(
+            "appendix.bold",
+            "appendix",
+            ("appendix",),
+            "boolean",
+            False,
+            ("appendix", "bold"),
+            "Полужирный заголовок",
+            order=3,
+            beta=True,
+            rationale=(
+                "Включает полужирное начертание всего заголовка приложения; "
+                "в СТУ заголовок приложения выделяется."
+            ),
+            source="СТУ 7.5.5; plan_v2 appendix.bold",
+            test_ids=("test_appendix_options", "test_appendix_bold_render"),
+            legacy=False,
+        ),
+        _option(
+            "appendix.alphabet",
+            "appendix",
+            ("appendix",),
+            "select",
+            "ru_sfu",
+            ("appendix", "alphabet"),
+            "Алфавит букв приложений",
+            order=4,
+            beta=True,
+            enum=("ru_sfu", "latin", "arabic"),
+            enum_labels=(
+                ("ru_sfu", "Русский по СТУ (25 букв)"),
+                ("latin", "Латинский"),
+                ("arabic", "Цифры"),
+            ),
+            rationale=(
+                "Задаёт набор букв для автоматической нумерации приложений; "
+                "ru_sfu исключает Ё, З, Й, О, Ч, Ь, Ы, Ъ."
+            ),
+            source="СТУ 7.5.5; plan_v2 alphabet ru_sfu",
+            test_ids=("test_appendix_options", "test_appendix_letter_sequence"),
+            legacy=False,
+        ),
+        _option(
+            "appendix.overflow",
+            "appendix",
+            ("appendix",),
+            "select",
+            "double",
+            ("appendix", "overflow"),
+            "Когда буквы кончились",
+            order=5,
+            beta=True,
+            enum=("double", "stop", "latin"),
+            enum_labels=(
+                ("double", "Удваивать (АА, АБ…)"),
+                ("stop", "Остановиться (не реализовано)"),
+                ("latin", "Латинские буквы (не реализовано)"),
+            ),
+            rationale=(
+                "Определяет поведение после 25-й буквы; обязательный режим — "
+                "удвоение (АА, АБ…), остальные оставлены в реестре без реализации."
+            ),
+            source="СТУ 7.5.5; OWNER_DECISIONS 4; plan_v2 alphabet_overflow",
+            test_ids=("test_appendix_options", "test_appendix_letter_sequence"),
+            legacy=False,
+        ),
+        _option(
+            "heading.keep_with_next",
+            "heading",
+            ("heading",),
+            "boolean",
+            True,
+            ("heading", "keep_with_next"),
+            "Не отрывать заголовок от текста",
+            order=90,
+            rationale=(
+                "Заголовок не остаётся один внизу страницы: следующий абзац "
+                "переносится вместе с ним. По умолчанию включено."
+            ),
+            source="СТУ 7.4.6; OWNER_DECISIONS 14",
+            test_ids=("test_heading_keep_with_next_render",),
+            legacy=False,
+        ),
+    ]
+    return [entities, *appendix_options]
 
 
 def _spacing_options() -> list[Option]:
@@ -2143,7 +2508,9 @@ def _text_override_options() -> list[Option]:
     return opts
 
 
-OPTIONS: tuple[Option, ...] = tuple(_base_options() + _text_override_options() + _around_options())
+OPTIONS: tuple[Option, ...] = tuple(
+    _base_options() + _text_override_options() + _around_options() + _structural_options()
+)
 OPTIONS_BY_ID: dict[str, Option] = {option.id: option for option in OPTIONS}
 OPTIONS_BY_PATH: dict[tuple[str, ...], Option] = {option.path: option for option in OPTIONS}
 ELEMENT_PATHS: tuple[str, ...] = (
@@ -2161,4 +2528,6 @@ ELEMENT_PATHS: tuple[str, ...] = (
     "footnote",
     "raw",
     "outline",
+    "structural",
+    "appendix",
 )

@@ -233,6 +233,11 @@ def validate_value(option: Option, value: JsonValue) -> JsonValue:
             else:
                 variant = None
                 allowed = {_schema_key(field) for field in option.item_fields}
+                unknown = set(item) - allowed
+                if unknown:
+                    raise RegistryError(
+                        f"Опция {option.id}[{index}]: неизвестные поля {sorted(unknown)}"
+                    )
             normalized_item: dict[str, JsonValue] = {}
             if variant is not None:
                 normalized_item["type"] = variant

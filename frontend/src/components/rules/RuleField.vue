@@ -184,6 +184,7 @@ function updateItemField(index: number, field: RegistryOption, value: JsonValue)
   <div class="rule-field">
     <label class="rule-label" :title="option.rationale">
       {{ option.ui.label }}
+      <span v-if="option.ui.beta" class="rule-beta">beta</span>
       <span v-if="option.unit && !sourceUnit" class="rule-unit-hint">{{ option.unit }}</span>
       <span v-if="option.ui.help" class="rule-help">{{ option.ui.help }}</span>
     </label>
@@ -358,6 +359,16 @@ function updateItemField(index: number, field: RegistryOption, value: JsonValue)
 .rule-unit-hint {
   color: #71717a;
   margin-left: 0.25rem;
+}
+
+.rule-beta {
+  margin-left: 0.35rem;
+  padding: 0.05rem 0.3rem;
+  border: 1px solid #a16207;
+  border-radius: 0.25rem;
+  color: #fbbf24;
+  font-size: 0.65rem;
+  text-transform: uppercase;
 }
 
 .rule-help {

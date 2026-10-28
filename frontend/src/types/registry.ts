@@ -29,6 +29,7 @@ export interface RegistryOption {
     order: number;
     section?: string;
     help?: string;
+    beta?: boolean;
     options?: { value: string; label: string }[];
   };
   rationale: string;

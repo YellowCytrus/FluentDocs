@@ -153,3 +153,21 @@ describe('RuleField list renderer', () => {
     });
   });
 });
+
+describe('RuleField beta marker', () => {
+  it('shows a beta badge from ui.beta', () => {
+    const option = field('structural.entities', 'entities', 'list', {
+      default: [],
+      ui: {
+        control: 'list',
+        label: 'Структурные элементы',
+        tab: 'Структурные элементы',
+        order: 0,
+        beta: true,
+      },
+    });
+    const wrapper = mount(RuleField, { props: { option, modelValue: [] } });
+    expect(wrapper.find('.rule-beta').exists()).toBe(true);
+    expect(wrapper.find('.rule-beta').text()).toBe('beta');
+  });
+});
