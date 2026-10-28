@@ -6,8 +6,14 @@
     margin_bottom: 25.0,
     margin_left: 25.0,
     margin_right: 25.0,
+    margin_landscape_top: 25.0,
+    margin_landscape_bottom: 25.0,
+    margin_landscape_left: 25.0,
+    margin_landscape_right: 25.0,
     columns: 1,
     numbering: "none",
+    numbering_skip_first: false,
+    numbering_start: 1,
     number_align: "center+bottom",
   ),
   document: (
@@ -228,6 +234,7 @@
     ),
   ),
   equation: (
+    body_indent: 0.0,
     spacing_before: 1.2,
     spacing_after: 1.2,
     text_override: none,
@@ -245,6 +252,8 @@
     clearance: 4.2333333333,
     gap: 2.1166666667,
     indent: 4.2333333333,
+    separator_length: 30.0,
+    separator_stroke: 0.1764,
     text_override: (
       font: "Merriweather",
       font_size: 9.0,

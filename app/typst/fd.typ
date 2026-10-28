@@ -80,6 +80,16 @@
   // Длина интервала в em от кегля документа (для опций spacing_before/after).
   let spacing-length(config, value) = value * config.document.font_size * 1pt
 
+  // Нумерация страниц: пропуск первой и сдвиг начального номера.
+  // Два аргумента нужны Typst для видимого номера (текущий и всего).
+  let page-number(pattern, skip, start, n, total) = {
+    if skip and n == 1 {
+      none
+    } else {
+      numbering(pattern, n + start - 1, total + start - 1)
+    }
+  }
+
   // Интервал списка: tight/loose — значения реестра, auto — штатный Typst.
   let list-spacing(s, tight, loose) = {
     if s == "tight" { tight * 1em } else if s == "loose" { loose * 1em } else { auto }
@@ -401,13 +411,37 @@
       around-body(config, "terms", it), config.terms.text_override,
     )
     show outline: it => text-override-body(it, config.outline.text_override)
-    show math.equation.where(block: true): it => text-override-body(
-      around-body(config, "equation", it), config.equation.text_override,
-    )
+    show math.equation.where(block: true): it => {
+      let equation = if config.equation.body_indent != 0 {
+        pad(left: config.equation.body_indent * 1mm, it)
+      } else {
+        it
+      }
+      text-override-body(
+        around-body(config, "equation", equation), config.equation.text_override,
+      )
+    }
     show math.equation.where(block: false): it => text-override-body(
       it, config.equation.text_override,
     )
     body
+  }
+
+  // Поля страницы: книжные или альбомные. Обслуживает page.margin_landscape_*.
+  let page-margins(page) = if page.flipped {
+    (
+      top: page.margin_landscape_top * 1mm,
+      bottom: page.margin_landscape_bottom * 1mm,
+      left: page.margin_landscape_left * 1mm,
+      right: page.margin_landscape_right * 1mm,
+    )
+  } else {
+    (
+      top: page.margin_top * 1mm,
+      bottom: page.margin_bottom * 1mm,
+      left: page.margin_left * 1mm,
+      right: page.margin_right * 1mm,
+    )
   }
 
   // --- применение конфига ---
@@ -417,15 +451,16 @@
     set page(
       paper: config.page.paper,
       flipped: config.page.flipped,
-      margin: (
-        top: config.page.margin_top * 1mm,
-        bottom: config.page.margin_bottom * 1mm,
-        left: config.page.margin_left * 1mm,
-        right: config.page.margin_right * 1mm,
-      ),
+      margin: page-margins(config.page),
       columns: config.page.columns,
       numbering: if config.page.numbering == "none" {
         none
+      } else if config.page.numbering_skip_first or config.page.numbering_start != 1 {
+        page-number.with(
+          config.page.numbering,
+          config.page.numbering_skip_first,
+          config.page.numbering_start,
+        )
       } else {
         config.page.numbering
       },
@@ -579,6 +614,10 @@
       clearance: config.footnote.clearance * 1mm,
       gap: config.footnote.gap * 1mm,
       indent: config.footnote.indent * 1mm,
+      separator: line(
+        length: config.footnote.separator_length * 1%,
+        stroke: config.footnote.separator_stroke * 1mm,
+      ),
     )
 
     // Цитата.

@@ -697,7 +697,6 @@ def _around_options() -> list[Option]:
     return opts
 
 
-
 def _spacing_options() -> list[Option]:
     """Штатные интервалы элементов: значения Typst, вынесенные в реестр."""
     opts: list[Option] = []
@@ -793,6 +792,7 @@ def _spacing_options() -> list[Option]:
             )
     return opts
 
+
 def _base_options() -> list[Option]:
     opts: list[Option] = []
     o = len
@@ -879,6 +879,36 @@ def _base_options() -> list[Option]:
             max=100,
             step=0.1,
         ),
+        *(
+            _option(
+                f"page.margin_landscape_{side}",
+                "page",
+                ("page",),
+                "number",
+                25.0,
+                ("page", f"margin_landscape_{side}"),
+                f"Поле {label} в альбомной ориентации",
+                order=o(opts),
+                unit="mm",
+                allowed_units=MM_UNITS,
+                min=0,
+                max=100,
+                step=0.1,
+                rationale=(
+                    f"Задаёт поле {label} для альбомной ориентации отдельно от "
+                    "книжной; смена ориентации в середине документа не делается."
+                ),
+                source="СТУ 7.1.2; plan_v2 page.margins.landscape",
+                test_ids=("test_page_landscape_options", "test_page_landscape_render"),
+                legacy=False,
+            )
+            for side, label in (
+                ("top", "сверху"),
+                ("bottom", "снизу"),
+                ("left", "слева"),
+                ("right", "справа"),
+            )
+        ),
         _option(
             "page.columns",
             "page",
@@ -913,6 +943,42 @@ def _base_options() -> list[Option]:
             "Позиция номера",
             order=o(opts),
             enum=tuple(v for v, _ in SELECT_LABELS["number_align_page"]),
+        ),
+        _option(
+            "page.numbering_skip_first",
+            "page",
+            ("page",),
+            "boolean",
+            False,
+            ("page", "numbering_skip_first"),
+            "Без номера на первой странице",
+            order=o(opts),
+            rationale=(
+                "Скрывает номер на первой странице, сохраняя её в счёте; "
+                "без опции номер печатается на всех страницах."
+            ),
+            source="СТУ 7.2; plan_v2 page.numbering",
+            test_ids=("test_page_numbering_options", "test_page_numbering_render"),
+            legacy=False,
+        ),
+        _option(
+            "page.numbering_start",
+            "page",
+            ("page",),
+            "integer",
+            1,
+            ("page", "numbering_start"),
+            "Начальный номер",
+            order=o(opts),
+            min=1,
+            max=999,
+            step=1,
+            rationale=(
+                "Сдвигает отображаемый номер первой страницы; счёт страниц при этом не меняется."
+            ),
+            source="СТУ 7.2; plan_v2 page.numbering",
+            test_ids=("test_page_numbering_options", "test_page_numbering_render"),
+            legacy=False,
         ),
     ]
     # Документ
@@ -1772,6 +1838,28 @@ def _base_options() -> list[Option]:
             nullable=True,
         ),
         _option(
+            "equation.body_indent",
+            "equation",
+            ("equation",),
+            "number",
+            0.0,
+            ("equation", "body_indent"),
+            "Отступ формулы",
+            order=o(opts),
+            unit="mm",
+            allowed_units=MM_UNITS,
+            min=0,
+            max=100,
+            step=0.1,
+            rationale=(
+                "Сдвигает блочную формулу вправо от левого поля; без опции "
+                "действует центрирование Typst."
+            ),
+            source="СТУ 7.6.1; plan_v2 formula.body_indent",
+            test_ids=("test_equation_body_indent_options", "test_equation_body_indent_render"),
+            legacy=False,
+        ),
+        _option(
             "quote.indent",
             "quote",
             ("quote",),
@@ -1862,6 +1950,46 @@ def _base_options() -> list[Option]:
             min=0,
             max=100,
             step=0.1,
+        ),
+        _option(
+            "footnote.separator_length",
+            "footnote",
+            ("footnote",),
+            "number",
+            30.0,
+            ("footnote", "separator_length"),
+            "Длина разделительной линии",
+            order=o(opts),
+            unit="%",
+            allowed_units=PERCENT_UNITS,
+            min=0,
+            max=100,
+            step=1,
+            rationale=("Задаёт длину линии над сносками; без опции Typst рисует линию 30% ширины."),
+            source="СТУ 7.9; plan_v2 reference.footnote",
+            test_ids=("test_footnote_separator_options", "test_footnote_separator_render"),
+            legacy=False,
+        ),
+        _option(
+            "footnote.separator_stroke",
+            "footnote",
+            ("footnote",),
+            "number",
+            0.1764,
+            ("footnote", "separator_stroke"),
+            "Толщина разделительной линии",
+            order=o(opts),
+            unit="mm",
+            allowed_units=MM_UNITS,
+            min=0,
+            max=5,
+            step=0.01,
+            rationale=(
+                "Задаёт толщину линии над сносками; значение по умолчанию равно 0,5 pt Typst."
+            ),
+            source="СТУ 7.9; plan_v2 reference.footnote",
+            test_ids=("test_footnote_separator_options", "test_footnote_separator_render"),
+            legacy=False,
         ),
         _option(
             "raw.tab_size",

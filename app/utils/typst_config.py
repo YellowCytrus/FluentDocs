@@ -175,8 +175,14 @@ def config_tree(values: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
                 "margin_bottom",
                 "margin_left",
                 "margin_right",
+                "margin_landscape_top",
+                "margin_landscape_bottom",
+                "margin_landscape_left",
+                "margin_landscape_right",
                 "columns",
                 "numbering",
+                "numbering_skip_first",
+                "numbering_start",
                 "number_align",
             ),
         ),
@@ -243,7 +249,15 @@ def config_tree(values: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
         ),
         "table": _element_tree(
             _element(values, "table"),
-            ("stroke", "align", "inset", "fill", "spacing_before", "spacing_after", "text_override"),
+            (
+                "stroke",
+                "align",
+                "inset",
+                "fill",
+                "spacing_before",
+                "spacing_after",
+                "text_override",
+            ),
         ),
         "figure": _element_tree(
             _element(values, "figure"),
@@ -261,7 +275,8 @@ def config_tree(values: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
             ),
         ),
         "equation": _element_tree(
-            _element(values, "equation"), ("spacing_before", "spacing_after", "text_override")
+            _element(values, "equation"),
+            ("body_indent", "spacing_before", "spacing_after", "text_override"),
         ),
         "quote": _element_tree(
             _element(values, "quote"),
@@ -269,7 +284,15 @@ def config_tree(values: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
         ),
         "footnote": _element_tree(
             _element(values, "footnote"),
-            ("marker_format", "clearance", "gap", "indent", "text_override"),
+            (
+                "marker_format",
+                "clearance",
+                "gap",
+                "indent",
+                "separator_length",
+                "separator_stroke",
+                "text_override",
+            ),
         ),
         "raw": _element_tree(
             _element(values, "raw"),

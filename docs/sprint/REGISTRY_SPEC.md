@@ -422,3 +422,32 @@ PDF через Typst CLI и Node + `typst.ts`, затем сравнивает �
 `value * 1em` внутри заголовка: иначе `em` зависел бы от кегля заголовка.
 Тесты: `test_element_spacing_options` (дефолты, конфиг, JSONB) и
 `test_element_spacing_render` (28 параметров, PDF-сдвиг START→END > 10 pt).
+
+## G2c: оставшиеся правила класса A сложности 1–2
+
+Добавлены опции без старых колонок (только JSONB):
+
+| Правило | Опции | Тесты | Статус |
+|---|---|---|---|
+| `page.margins.landscape` | `page.margin_landscape_top/bottom/left/right` | `test_page_landscape_*` | реализовано; ориентация — только весь документ |
+| `page.numbering` | `page.numbering_skip_first`, `page.numbering_start` | `test_page_numbering_*` | реализовано; шаблон и позиция были раньше |
+| `formula.body_indent` | `equation.body_indent` | `test_equation_body_indent_*` | реализовано |
+| `reference.footnote` | `footnote.separator_length`, `footnote.separator_stroke` | `test_footnote_separator_*` | реализовано; маркер и зазоры были раньше |
+| `heading.spacing_before/after` | 12 опций `heading.h1..h6.spacing_*` | `test_element_spacing_*` | реализовано |
+| `figure/table/formula.spacing_*` | 6 опций | `test_element_spacing_*` | реализовано |
+
+Остальные правила класса A/1–2 уже покрыты существующими опциями
+(`page.margins.portrait`, `text.*`, `heading.h1..h6`, `heading.no_hyphenation`
+через `text_override.hyphenate`, `list.item` через `indent`/`body_indent`,
+`figure.image`, `figure.placement_after_reference`, `table.cell_padding`,
+`table.font.size` через `text_override`).
+
+Отложено до G3/G4/G6 и не входит в G2c:
+
+- `referat.keywords_uppercase` — структурная сущность (G3);
+- `toc.indent_levels` — оглавление (G4);
+- `list.nested_numeric` — формат нумерации по уровням (G3);
+- `figure.caption`, `table.caption` — подписи (G3);
+- `table.body` — шапка таблицы в генераторе (G4);
+- `coursework.*`, `graduation_qualification_work.*` — значения seed-профиля (G6);
+- `bibliography.entry` — библиография вне плана спринта.
