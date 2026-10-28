@@ -22,9 +22,12 @@ from app.registry.storage import (
     validate_value,
 )
 from app.utils.typst_config import build_fd_config, config_tree
+from app.utils.typst_literals import typst_font
 from golden_helpers import build_source, default_profile
 
 LONG_TEXT = "Это достаточно длинный абзац для измерения расстояния между строками. " * 60
+TABLE_DOC = "# Заголовок\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\n# Следующий\n"
+REAL_BLANK_DOC = TABLE_DOC.replace("\n\n# Следующий", "\n\n\u00a0\n\n# Следующий")
 
 
 def test_document_line_spacing_options() -> None:
@@ -97,6 +100,15 @@ def test_line_height_coefficient_table() -> None:
     assert line_height_coefficient("Libertinus Serif", 9.0) == pytest.approx(1.308)
     assert line_height_coefficient("PT Astra Serif", 9.0) == pytest.approx(1.312)
     assert line_height_coefficient("Unknown Font", 1.42) == pytest.approx(1.42)
+
+    # Ключ таблицы — реально используемый шрифт после алиасов, а не имя профиля.
+    assert typst_font("Times New Roman") == "Libertinus Serif"
+    assert line_height_coefficient("Times New Roman", 9.0) == pytest.approx(1.308)
+
+    values = default_values()
+    values["document"]["font"] = "Times New Roman"
+    values["document"]["line_height_em"] = 9.0
+    assert config_tree(values)["document"]["line_height_em"] == pytest.approx(1.308)
 
 
 async def test_line_spacing_multiplier_roundtrip_and_legacy_mm(client) -> None:
@@ -186,6 +198,51 @@ def test_line_spacing_multiplier_render(font: str, tmp_path: Path) -> None:
     normal_pitch = _line_pitch(_render(LONG_TEXT, normal, tmp_path, "normal"))
     wide_pitch = _line_pitch(_render(LONG_TEXT, wide, tmp_path, "wide"))
     assert wide_pitch / normal_pitch == pytest.approx(1.5, abs=0.02)
+
+    # При множителе 1,0 шаг равен H * кегль для фактически используемого шрифта.
+    expected = line_height_coefficient(font, 1.308) * 12.0
+    assert normal_pitch == pytest.approx(expected, abs=0.3)
+    assert wide_pitch == pytest.approx(expected * 1.5, abs=0.45)
+
+
+def _table_heading_gap(pdf_path: Path) -> float:
+    with pdfplumber.open(pdf_path) as pdf:
+        page = pdf.pages[0]
+        table_bottom = max(line["bottom"] for line in page.lines if line["top"] > 80)
+        heading_top = min(
+            char["top"]
+            for char in page.chars
+            if char["text"] == "С" and char["x0"] < 100 and char["top"] > table_bottom - 5
+        )
+        return heading_top - table_bottom
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    shutil.which("pandoc") is None or shutil.which("typst") is None,
+    reason="pandoc and typst must be in PATH",
+)
+@pytest.mark.parametrize("font", ["Libertinus Serif", "PT Astra Serif"])
+@pytest.mark.parametrize("multiplier", [1.0, 1.5])
+def test_blank_unit_matches_real_blank_line(font: str, multiplier: float, tmp_path: Path) -> None:
+    real = _profile(font, {"mode": "multiplier", "value": multiplier})
+    real_gap = _table_heading_gap(_render(REAL_BLANK_DOC, real, tmp_path, "real"))
+
+    values = default_values()
+    values["document"]["font"] = font
+    values["document"]["line_spacing"] = {"mode": "multiplier", "value": multiplier}
+    blank = {
+        "type": "blank",
+        "count": 1,
+        "line_spacing": {"mode": "multiplier", "value": 1.0},
+    }
+    values["around"]["table"]["after"] = [blank]
+    values["around"]["heading_1"]["before"] = [blank]
+    around = default_profile()
+    around.options = normalize_values(values)
+    around.options_schema_version = SCHEMA_VERSION
+    around_gap = _table_heading_gap(_render(TABLE_DOC, around, tmp_path, "around"))
+    assert real_gap == pytest.approx(around_gap, abs=0.5)
 
 
 @pytest.mark.integration

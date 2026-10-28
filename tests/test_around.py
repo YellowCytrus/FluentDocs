@@ -16,7 +16,10 @@ from app.registry.storage import default_values, validate_value
 from app.utils.typst_source import build_typst_preamble
 from golden_helpers import build_source, default_profile
 
-LINE_PT = 5.08 * 72 / 25.4  # document.line_spacing по умолчанию, 5.08 мм
+FONT_SIZE_PT = 12.0
+LINE_HEIGHT_EM = 1.308
+# Полный шаг строки: 5,08 мм leading + высота строки шрифта (1,308 - 0.65)em.
+LINE_PT = 5.08 * 72 / 25.4 + (LINE_HEIGHT_EM - 0.65) * FONT_SIZE_PT
 ZERO_GAP_PT = -2.08  # геометрия строки таблицы: зазор при v(0)
 
 
@@ -278,6 +281,7 @@ def _table_heading_gap(page) -> float:
 
 
 TABLE_DOC = "# Заголовок\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\n# Следующий\n"
+REAL_BLANK_DOC = TABLE_DOC.replace("\n\n# Следующий", "\n\n\u00a0\n\n# Следующий")
 
 
 @pytest.mark.integration
@@ -330,6 +334,11 @@ def test_around_render_spacing_max_sum_count_zero(tmp_path) -> None:
         zero_gap = _table_heading_gap(pdf.pages[0])
     with zero_sum_pdf as pdf:
         zero_sum_gap = _table_heading_gap(pdf.pages[0])
+    real_blank_pdf = pdfplumber.open(
+        _render({}, REAL_BLANK_DOC, tmp_path / "real-blank")
+    )
+    with real_blank_pdf as pdf:
+        real_blank_gap = _table_heading_gap(pdf.pages[0])
 
     # Калибровка: при v(0) остаётся только геометрическое смещение строки.
     assert abs(zero_gap - ZERO_GAP_PT) < 0.5
@@ -339,6 +348,8 @@ def test_around_render_spacing_max_sum_count_zero(tmp_path) -> None:
     assert abs((sum_gap - base) - 2 * LINE_PT) < 0.5
     # sum с count=0 ничего не добавляет.
     assert abs(zero_sum_gap - base) < 0.5
+    # Единица blank: одна пустая строка = реальная пустая строка документа.
+    assert abs(real_blank_gap - max_gap) < 0.5
 
 
 @pytest.mark.integration

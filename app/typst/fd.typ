@@ -54,8 +54,8 @@
     }
   }
 
-  // Межстрочный интервал: мм или множитель естественной высоты строки.
-  // Обслуживает document.line_spacing и around-blank.
+  // Межстрочный интервал (leading): мм или множитель высоты строки.
+  // Обслуживает document.line_spacing в абзацах.
   let line-pitch(config) = {
     let spacing = config.document.line_spacing
     if spacing.mode == "mm" {
@@ -63,6 +63,17 @@
     } else {
       let natural = config.document.line_height_em
       (spacing.value * natural - (natural - config.document.default_leading_em)) * 1em
+    }
+  }
+
+  // Полный шаг строки: leading + высота строки шрифта.
+  // Обслуживает единицу around.blank: одна пустая строка = один шаг.
+  // Считается от кегля документа, а не от кегля текущего элемента.
+  let line-step(config, spacing) = {
+    if spacing.mode == "mm" {
+      spacing.value * 1mm + (config.document.line_height_em - config.document.default_leading_em) * config.document.font_size * 1pt
+    } else {
+      spacing.value * config.document.line_height_em * config.document.font_size * 1pt
     }
   }
 
@@ -75,20 +86,20 @@
 
   // Пустая строка: weak при collapse=max (заменяет штатный интервал),
   // жёсткая при sum (добавляется к штатному). count = 0 даёт v(0).
-  let around-blank(item, collapse, base-line) = {
-    let raw = item.line_spacing.value
-    let spacing = if item.line_spacing.mode == "multiplier" {
-      raw * base-line
-    } else {
-      raw * 1mm
-    }
-    v(item.count * spacing, weak: collapse == "max")
+  let around-blank(item, collapse, step) = {
+    v(item.count * step, weak: collapse == "max")
   }
 
   // Одна вставка окружения. Обслуживает опции around.<element>.before/after.
   let around-item(config, item, collapse) = {
     if item.type == "blank" {
-      around-blank(item, collapse, line-pitch(config))
+      let step = if item.line_spacing.mode == "multiplier" {
+        // Множитель пустой строки — доля полного шага строки документа.
+        item.line_spacing.value * line-step(config, config.document.line_spacing)
+      } else {
+        line-step(config, item.line_spacing)
+      }
+      around-blank(item, collapse, step)
     } else if item.type == "text" {
       let body = [#item.content]
       let styled = if item.text_override != none {
@@ -339,6 +350,16 @@
   }
 
   let with-text-overrides(config, body) = {
+    // Абзац из одного неразрывного пробела — пустая строка Markdown.
+    // Выводим её weak-шагом, чтобы она совпадала с around.blank при max.
+    show par: it => {
+      let par-body = it.body
+      if par-body.func() == text and par-body.text == "\u{00a0}" {
+        v(line-step(config, config.document.line_spacing), weak: true)
+      } else {
+        it
+      }
+    }
     show par: it => text-override-body(
       around-body(config, "par", it), config.par.text_override,
     )

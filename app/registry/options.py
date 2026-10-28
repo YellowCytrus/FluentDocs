@@ -11,6 +11,8 @@ import copy
 from dataclasses import dataclass
 from typing import Literal
 
+from app.utils.typst_literals import typst_font
+
 SCHEMA_VERSION = 1
 
 OptionType = Literal[
@@ -32,8 +34,6 @@ TEST_IDS = (
 # опции document.line_height_em.
 FONT_LINE_HEIGHT_COEFFICIENTS: dict[str, float] = {
     "libertinus serif": 1.308,
-    "times new roman": 1.308,
-    "times": 1.308,
     "pt astra serif": 1.312,
 }
 
@@ -42,8 +42,9 @@ DEFAULT_LEADING_EM = 0.65
 
 
 def line_height_coefficient(font: str, manual: float) -> float:
-    """Возвращает коэффициент строки: из таблицы S9 или ручной fallback."""
-    key = (font or "").strip().lower()
+    """Возвращает коэффициент строки: для реально используемого шрифта или ручной."""
+    # typst_font раскрывает алиасы (Times New Roman → Libertinus Serif).
+    key = typst_font(font).strip().lower()
     return FONT_LINE_HEIGHT_COEFFICIENTS.get(key, manual)
 
 
