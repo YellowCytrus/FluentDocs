@@ -22,6 +22,10 @@
     }
   }
 
+  // Буква текущего приложения для подписей рисунков/таблиц.
+  // Обслуживает caption.<kind> и сброс нумерации в приложении.
+  let appendix-state = state("fd-appendix-letter", none)
+
   // Цвет из строки профиля; none используется для отсутствия заливки.
   let paint(s) = {
     if s == "none" { none } else { rgb(s) }
@@ -93,6 +97,62 @@
   // Интервал списка: tight/loose — значения реестра, auto — штатный Typst.
   let list-spacing(s, tight, loose) = {
     if s == "tight" { tight * 1em } else if s == "loose" { loose * 1em } else { auto }
+  }
+
+  // Алфавиты нумерованных списков (без Ё, З, Й, О, Ч, Ь, Ы, Ъ для ru_sfu).
+  let list-alphabets = (
+    ru_sfu: "абвгдежиклмнпрстуфхцшщэюя",
+    latin: "abcdefghijklmnopqrstuvwxyz",
+  )
+
+  // Буква списка по номеру 1…; после алфавита — удвоение, без падения.
+  let list-letter-label(letters, index) = {
+    let value = calc.max(1, index)
+    let out = ()
+    while value > 0 {
+      value = value - 1
+      out.push(letters.at(calc.rem(value, letters.len())))
+      value = calc.floor(value / letters.len())
+    }
+    out.rev().join("")
+  }
+
+  // Формат нумерации по уровню: {n}, {letter} или шаблон Typst.
+  let numbered-list-numbering(config) = (..nums) => {
+    let values = nums.pos()
+    let level = values.len()
+    let formats = config.numbered_list.level_formats
+    let rendered = if formats.len() == 0 {
+      numbering(config.numbered_list.numbering, ..values)
+    } else {
+      let format = formats.at(calc.min(level, formats.len()) - 1).format
+      let current = values.last()
+      let has-letter = format.contains("{letter}")
+      let has-number = format.contains("{n}")
+      let base = if has-letter {
+        let letters = list-alphabets.at(config.numbered_list.alphabet).clusters()
+        format.replace("{letter}", list-letter-label(letters, current))
+      } else {
+        format
+      }
+      if has-letter or has-number {
+        base.replace("{n}", str(current))
+      } else {
+        numbering(base, current)
+      }
+    }
+    let prefix = ""
+    if config.numbered_list.full and level > 1 and formats.len() > 0 {
+      for value in values.slice(0, level - 1) {
+        prefix = prefix + str(value) + "."
+      }
+    }
+    let result = if prefix == "" { rendered } else { [#prefix #rendered] }
+    if config.numbered_list.wrap_mode == "left_margin" {
+      [#result\u{00A0}]
+    } else {
+      result
+    }
   }
 
   // --- окружение элемента (around) ---
@@ -581,6 +641,7 @@
         let custom-body = none
         let force-none = false
         let before = none
+        let appendix-letter-value = none
 
         if appendix {
           appendix-count = appendix-count + 1
@@ -589,6 +650,7 @@
             config,
             appendix-count + entity.numbering.start - 1,
           )
+          appendix-letter-value = letter
           custom-body = appendix-heading-text(config, entity, text, letter)
           force-none = true
           // Сброс счётчиков рисунков/таблиц/формул в начале приложения.
@@ -597,10 +659,19 @@
               before,
               [#counter("figure-h" + str(number)).update(0)],
             )
+            before = add-content(
+              before,
+              [#counter("table-h" + str(number)).update(0)],
+            )
           }
           before = add-content(
             before,
-            [#counter("figure-n").update(0); #counter(figure).update(0); #counter(math.equation).update(0)],
+            [
+              #counter("figure-n").update(0)
+              #counter("table-n").update(0)
+              #counter(figure).update(0)
+              #counter(math.equation).update(0)
+            ],
           )
         } else if appendix-active != none and level > 1 {
           appendix-subs = step-array(appendix-subs, level)
@@ -674,6 +745,12 @@
           force-none = true
         }
 
+        if level == 1 {
+          before = add-content(
+            before,
+            [#appendix-state.update(appendix-letter-value)],
+          )
+        }
         let rendered = heading-content(
           config,
           heading,
@@ -716,7 +793,7 @@
     if out == none { tail } else { out + tail }
   }
 
-  // --- подпись рисунка по шаблону ---
+  // --- подписи рисунков и таблиц ---
 
   let caption-regex = regex(
     "\\{([hH][1-6]|[Nn]|[Cc][Oo][Nn][Tt][Ee][Nn][Tt])\\}",
@@ -768,35 +845,53 @@
     )
   }
 
-  let caption-heading(it, level, data, counters, figure-n) = {
-    if data.levels.contains(level) {
+  // Счётчики подписи: отдельные для рисунков и таблиц.
+  let caption-heading(it, level, data, counters, number-counter) = {
+    if data != none and data.levels.contains(level) {
       counters.at(level - 1).step()
       for deeper in data.levels {
         if deeper > level {
           counters.at(deeper - 1).update(0)
         }
       }
-      if figure-n != none { figure-n.update(0) }
+      if number-counter != none { number-counter.update(0) }
     }
     it
   }
 
-  let caption-body(it, data, counters, figure-n) = context {
-    let number = if figure-n == none {
+  // Значение {hN}: в приложении уровень 1 заменяется буквой приложения.
+  let caption-chapter-value(level, counters) = {
+    if level == 1 {
+      let letter = appendix-state.get()
+      if letter != none { letter } else { counters.at(0).display("1") }
+    } else {
+      counters.at(level - 1).display("1")
+    }
+  }
+
+  let caption-body(
+    config,
+    caption-cfg,
+    it,
+    data,
+    counters,
+    number-counter,
+  ) = context {
+    let number = if number-counter == none {
       none
     } else {
-      let value = figure-n.get().first() + 1
-      figure-n.step()
+      let value = number-counter.get().first() + 1
+      number-counter.step()
       str(value)
     }
     let chapter-values = (:)
     for level in data.levels {
       chapter-values.insert(
         "h" + str(level),
-        counters.at(level - 1).display("1"),
+        caption-chapter-value(level, counters),
       )
     }
-    [
+    let content = [
       #for (kind, value) in data.segments {
         if kind == "literal" {
           value
@@ -808,47 +903,117 @@
           chapter-values.at(value)
         }
       }
-      #if not data.has-content { [ #it.body] }
+      #if not data.has-content { [#caption-cfg.caption_separator #it.body] }
     ]
+    let content = text-override-body(content, caption-cfg.caption_text_override)
+    let before = around-items(config, caption-cfg.caption_around.before)
+    let after = around-items(config, caption-cfg.caption_around.after)
+    if before == none and after == none {
+      content
+    } else if before == none {
+      content + after
+    } else if after == none {
+      before + content
+    } else {
+      before + content + after
+    }
+  }
+
+  // Подпись без шаблона: только текст, без английского «Table 1».
+  let caption-plain(config, caption-cfg, it) = {
+    let content = text-override-body(it.body, caption-cfg.caption_text_override)
+    let before = around-items(config, caption-cfg.caption_around.before)
+    let after = around-items(config, caption-cfg.caption_around.after)
+    if before == none and after == none {
+      content
+    } else if before == none {
+      content + after
+    } else if after == none {
+      before + content
+    } else {
+      before + content + after
+    }
+  }
+
+  let caption-for(config, caption-cfg, data, counters, number-counter, it) = {
+    let body = if data == none {
+      caption-plain(config, caption-cfg, it)
+    } else {
+      caption-body(config, caption-cfg, it, data, counters, number-counter)
+    }
+    align(alignment(caption-cfg.caption_align), body)
   }
 
   let with-caption(config, body) = {
-    let template = config.figure.caption_template
-    if template != none {
-      let data = caption-data(template)
-      if data.levels.len() > 0 or data.has-n {
-        let counters = range(1, 7).map(level => counter("figure-h" + str(level)))
-        let figure-n = if data.has-n { counter("figure-n") } else { none }
-
-        set figure(numbering: none)
-        // Show-правила объявляются по одному в этой же области видимости:
-        // правила внутри циклов не действуют на тело после цикла.
-        show heading.where(level: 1): it => caption-heading(
-          it, 1, data, counters, figure-n,
-        )
-        show heading.where(level: 2): it => caption-heading(
-          it, 2, data, counters, figure-n,
-        )
-        show heading.where(level: 3): it => caption-heading(
-          it, 3, data, counters, figure-n,
-        )
-        show heading.where(level: 4): it => caption-heading(
-          it, 4, data, counters, figure-n,
-        )
-        show heading.where(level: 5): it => caption-heading(
-          it, 5, data, counters, figure-n,
-        )
-        show heading.where(level: 6): it => caption-heading(
-          it, 6, data, counters, figure-n,
-        )
-        show figure.caption: it => caption-body(it, data, counters, figure-n)
-        body
-      } else {
-        body
-      }
+    let figure-data = if config.figure.caption_template == none {
+      none
     } else {
-      body
+      caption-data(config.figure.caption_template)
     }
+    let table-data = if config.table.caption_template == none {
+      none
+    } else {
+      caption-data(config.table.caption_template)
+    }
+    let figure-counters = range(1, 7).map(level => counter("figure-h" + str(level)))
+    let table-counters = range(1, 7).map(level => counter("table-h" + str(level)))
+    let figure-n = counter("figure-n")
+    let table-n = counter("table-n")
+
+    // Отдельные счётчики и шаблоны; сброс — на заголовках уровня 1 и в приложении.
+    // Таблица и её подпись стоят по левой границе (СТУ 7.7.3).
+    show figure.where(kind: table): set align(left)
+    show figure.where(kind: table): set figure.caption(
+      position: if config.table.caption_position == "above" { top } else { bottom },
+    )
+    show figure.where(kind: image): set figure.caption(
+      position: if config.figure.caption_position == "above" { top } else { bottom },
+    )
+    // Нумерация нужна для ссылок @tbl; сама подпись выводится своей строкой.
+    show figure.where(kind: table): set figure(
+      numbering: "1",
+    )
+    show figure.where(kind: image): set figure(
+      numbering: if figure-data == none { "1" } else { none },
+    )
+
+    show figure.caption.where(kind: table): it => caption-for(
+      config, config.table, table-data, table-counters, table-n, it,
+    )
+    show figure.caption.where(kind: image): it => if figure-data == none {
+      it
+    } else {
+      caption-for(
+        config, config.figure, figure-data, figure-counters, figure-n, it,
+      )
+    }
+
+    // Шесть уровней заголовков: каждый шаблон ведёт свои счётчики.
+    show heading.where(level: 1): it => caption-heading(
+      caption-heading(it, 1, figure-data, figure-counters, figure-n),
+      1, table-data, table-counters, table-n,
+    )
+    show heading.where(level: 2): it => caption-heading(
+      caption-heading(it, 2, figure-data, figure-counters, figure-n),
+      2, table-data, table-counters, table-n,
+    )
+    show heading.where(level: 3): it => caption-heading(
+      caption-heading(it, 3, figure-data, figure-counters, figure-n),
+      3, table-data, table-counters, table-n,
+    )
+    show heading.where(level: 4): it => caption-heading(
+      caption-heading(it, 4, figure-data, figure-counters, figure-n),
+      4, table-data, table-counters, table-n,
+    )
+    show heading.where(level: 5): it => caption-heading(
+      caption-heading(it, 5, figure-data, figure-counters, figure-n),
+      5, table-data, table-counters, table-n,
+    )
+    show heading.where(level: 6): it => caption-heading(
+      caption-heading(it, 6, figure-data, figure-counters, figure-n),
+      6, table-data, table-counters, table-n,
+    )
+    body
   }
 
   let with-text-overrides(config, body) = {
@@ -993,16 +1158,21 @@
     let enum-args = (
       tight: config.numbered_list.tight,
       indent: config.numbered_list.indent * 1mm,
-      body-indent: config.numbered_list.body_indent * 1mm,
+      body-indent: if config.numbered_list.wrap_mode == "left_margin" {
+        let shifted = config.numbered_list.body_indent - config.numbered_list.left_margin_offset
+        if shifted > 0 { shifted * 1mm } else { 0mm }
+      } else {
+        config.numbered_list.body_indent * 1mm
+      },
       spacing: list-spacing(config.numbered_list.spacing, config.numbered_list.tight_spacing, config.numbered_list.loose_spacing),
+      numbering: numbered-list-numbering(config),
     )
-    if config.numbered_list.numbering != "1." {
-      enum-args.insert("numbering", config.numbered_list.numbering)
-    }
     if config.numbered_list.start != none {
       enum-args.insert("start", config.numbered_list.start)
     }
-    if config.numbered_list.full { enum-args.insert("full", true) }
+    if config.numbered_list.full or config.numbered_list.level_formats.len() > 0 {
+      enum-args.insert("full", true)
+    }
     if config.numbered_list.reversed { enum-args.insert("reversed", true) }
     if config.numbered_list.number_align != "end+top" {
       enum-args.insert(

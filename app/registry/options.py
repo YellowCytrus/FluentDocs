@@ -1318,6 +1318,176 @@ def _spacing_options() -> list[Option]:
     return opts
 
 
+def _caption_options(
+    kind: str,
+    *,
+    default_position: str,
+    default_align: str,
+    source: str,
+    start_order: int,
+) -> list[Option]:
+    """Опции подписи рисунка или таблицы по одной схеме (AGENTS 5.3)."""
+    around_fields = _around_item_fields()
+    around_variants = (
+        ("blank", ("count", "line_spacing")),
+        ("text", ("content", "text_override", "align")),
+        ("line", ("length", "stroke_mm")),
+        ("pagebreak", ("weak",)),
+    )
+    text_override_field = next(
+        field for field in around_fields if field.path[-1] == "text_override"
+    )
+    around_object = _option(
+        f"{kind}.caption_around",
+        kind,
+        (kind,),
+        "object",
+        {"before": [], "after": []},
+        (kind, "caption_around"),
+        "Окружение подписи",
+        order=start_order + 4,
+        fields=(
+            _nested_option(
+                "before",
+                "list",
+                [],
+                "Вставки до подписи",
+                order=0,
+                id_prefix=f"{kind}.caption",
+                group=kind,
+                applies_to=(kind,),
+                item_fields=around_fields,
+                item_variants=around_variants,
+                source=source,
+                test_ids=(f"test_{kind}_caption_around_render",),
+            ),
+            _nested_option(
+                "after",
+                "list",
+                [],
+                "Вставки после подписи",
+                order=1,
+                id_prefix=f"{kind}.caption",
+                group=kind,
+                applies_to=(kind,),
+                item_fields=around_fields,
+                item_variants=around_variants,
+                source=source,
+                test_ids=(f"test_{kind}_caption_around_render",),
+            ),
+        ),
+        rationale=(
+            "Задаёт вставки до и после текста подписи: пустые строки, текст, "
+            "линию или разрыв страницы; пустой список ничего не меняет."
+        ),
+        source=source,
+        test_ids=(f"test_{kind}_caption_around_render",),
+        legacy=False,
+    )
+    text_override_object = _option(
+        f"{kind}.caption_text_override",
+        kind,
+        (kind,),
+        "object",
+        None,
+        (kind, "caption_text_override"),
+        "Стиль текста подписи",
+        order=start_order + 5,
+        nullable=True,
+        fields=text_override_field.fields,
+        rationale=(
+            "Переопределяет шрифт, кегль, начертание и другие свойства только "
+            "для текста подписи, не затрагивая сам рисунок или таблицу."
+        ),
+        source=source,
+        test_ids=(f"test_{kind}_caption_text_override_render",),
+        legacy=False,
+    )
+    return [
+        _option(
+            f"{kind}.caption_template",
+            kind,
+            (kind,),
+            "string",
+            None,
+            (kind, "caption_template"),
+            "Шаблон подписи",
+            order=start_order,
+            nullable=True,
+            rationale=(
+                f"Задаёт шаблон подписи {'рисунка' if kind == 'figure' else 'таблицы'}: "
+                "{h1}…{h6} — номер раздела или буква приложения, {n} — номер "
+                "внутри раздела, {content} — текст подписи. Пустой шаблон "
+                "оставляет подпись без автоматического номера."
+            ),
+            source=source,
+            test_ids=(
+                f"test_{kind}_caption_render",
+                "test_caption_options_schema",
+                "test_caption_generation_typst",
+            ),
+            legacy=False,
+        ),
+        _option(
+            f"{kind}.caption_position",
+            kind,
+            (kind,),
+            "select",
+            default_position,
+            (kind, "caption_position"),
+            "Положение подписи",
+            order=start_order + 1,
+            enum=("above", "below"),
+            enum_labels=(("above", "Над элементом"), ("below", "Под элементом")),
+            rationale=(
+                f"Определяет, где стоит подпись {'рисунка' if kind == 'figure' else 'таблицы'}: "
+                "СТУ требует подпись таблицы над таблицей, подпись рисунка — под рисунком."
+            ),
+            source=source,
+            test_ids=(f"test_{kind}_caption_render",),
+            legacy=False,
+        ),
+        _option(
+            f"{kind}.caption_align",
+            kind,
+            (kind,),
+            "select",
+            default_align,
+            (kind, "caption_align"),
+            "Выравнивание подписи",
+            order=start_order + 2,
+            enum=("left", "center", "right"),
+            enum_labels=(("left", "Слева"), ("center", "По центру"), ("right", "Справа")),
+            rationale=(
+                f"Задаёт выравнивание подписи {'рисунка' if kind == 'figure' else 'таблицы'} "
+                "без изменения выравнивания самого элемента."
+            ),
+            source=source,
+            test_ids=(f"test_{kind}_caption_render",),
+            legacy=False,
+        ),
+        _option(
+            f"{kind}.caption_separator",
+            kind,
+            (kind,),
+            "string",
+            " — ",
+            (kind, "caption_separator"),
+            "Разделитель подписи",
+            order=start_order + 3,
+            rationale=(
+                "Вставляется между номером и текстом подписи, если в шаблоне нет "
+                "{content}; СТУ использует тире с пробелами."
+            ),
+            source=source,
+            test_ids=(f"test_{kind}_caption_render",),
+            legacy=False,
+        ),
+        around_object,
+        text_override_object,
+    ]
+
+
 def _base_options() -> list[Option]:
     opts: list[Option] = []
     o = len
@@ -2082,6 +2252,110 @@ def _base_options() -> list[Option]:
             order=o(opts),
         ),
         _option(
+            "numbered_list.level_formats",
+            "numbered_list",
+            ("numbered_list",),
+            "list",
+            [],
+            ("numbered_list", "level_formats"),
+            "Форматы по уровням",
+            order=o(opts),
+            item_fields=(
+                _nested_option(
+                    "format",
+                    "string",
+                    "{n}.",
+                    "Формат уровня",
+                    order=0,
+                    id_prefix="numbered_list.level_format",
+                    group="numbered_list",
+                    applies_to=("numbered_list",),
+                    source="СТУ 7.4.3; plan_v2 list.nested_numeric, list.lettered",
+                    test_ids=("test_numbered_list_level_formats_render",),
+                    ui_help=(
+                        "{n} — номер, {letter} — буква выбранного алфавита; "
+                        "можно использовать обычный шаблон Typst, например 1)."
+                    ),
+                ),
+            ),
+            rationale=(
+                "Задаёт формат маркера отдельно для каждого уровня вложенности: "
+                "например, 1. на первом уровне и {letter}) на втором. Пустой "
+                "список сохраняет общий numbered_list.numbering."
+            ),
+            source="СТУ 7.4.3; plan_v2 list.nested_numeric, list.lettered; AGENTS 5.3",
+            test_ids=(
+                "test_numbered_list_options_schema",
+                "test_numbered_list_level_formats_render",
+            ),
+            legacy=False,
+            ui_help="Порядок элементов — уровни вложенности; для более глубоких уровней повторяется последний формат.",
+        ),
+        _option(
+            "numbered_list.alphabet",
+            "numbered_list",
+            ("numbered_list",),
+            "select",
+            "ru_sfu",
+            ("numbered_list", "alphabet"),
+            "Алфавит букв",
+            order=o(opts),
+            enum=("ru_sfu", "latin"),
+            enum_labels=(("ru_sfu", "Русский по СТУ (25 букв)"), ("latin", "Латинский")),
+            rationale=(
+                "Определяет буквы для плейсхолдера {letter} в форматах уровней: "
+                "ru_sfu исключает Ё, З, Й, О, Ч, Ь, Ы, Ъ."
+            ),
+            source="СТУ 7.4.3; plan_v2 list.lettered; SPIKE S7",
+            test_ids=("test_numbered_list_level_formats_render",),
+            legacy=False,
+        ),
+        _option(
+            "numbered_list.wrap_mode",
+            "numbered_list",
+            ("numbered_list",),
+            "select",
+            "left_margin",
+            ("numbered_list", "wrap_mode"),
+            "Перенос строки пункта",
+            order=o(opts),
+            enum=("left_margin", "body_text"),
+            enum_labels=(
+                ("left_margin", "К левому полю"),
+                ("body_text", "По тексту первой строки"),
+            ),
+            rationale=(
+                "Выбирает, как выравнивать продолжение пункта списка: к левому "
+                "краю списка или по тексту первой строки (висячий отступ)."
+            ),
+            source="СТУ 7.4.3; plan_v2 list.item; OWNER_DECISIONS 3",
+            test_ids=("test_numbered_list_wrap_mode_render",),
+            legacy=False,
+        ),
+        _option(
+            "numbered_list.left_margin_offset",
+            "numbered_list",
+            ("numbered_list",),
+            "number",
+            2.1166666667,
+            ("numbered_list", "left_margin_offset"),
+            "Сдвиг к левому полю",
+            order=o(opts),
+            unit="mm",
+            allowed_units=MM_UNITS,
+            min=0,
+            max=100,
+            step=0.1,
+            rationale=(
+                "Вычитается из отступа тела пункта в режиме «К левому полю», "
+                "чтобы продолжение строки начиналось у левого края списка, "
+                "а не по тексту первой строки."
+            ),
+            source="СТУ 7.4.3; plan_v2 list.item; OWNER_DECISIONS 3",
+            test_ids=("test_numbered_list_wrap_mode_render",),
+            legacy=False,
+        ),
+        _option(
             "numbered_list.start",
             "numbered_list",
             ("numbered_list",),
@@ -2274,6 +2548,13 @@ def _base_options() -> list[Option]:
             "Заливка",
             order=o(opts),
         ),
+        *_caption_options(
+            "table",
+            default_position="above",
+            default_align="left",
+            source="СТУ 7.7.3, 7.7.5; plan_v2 table.caption; AGENTS 5.3",
+            start_order=o(opts),
+        ),
         _option(
             "figure.width",
             "figure",
@@ -2351,16 +2632,12 @@ def _base_options() -> list[Option]:
             order=o(opts),
             enum=tuple(v for v, _ in SELECT_LABELS["fit"]),
         ),
-        _option(
-            "figure.caption_template",
+        *_caption_options(
             "figure",
-            ("figure",),
-            "string",
-            None,
-            ("figure", "caption_template"),
-            "Шаблон для подписи",
-            order=o(opts),
-            nullable=True,
+            default_position="below",
+            default_align="center",
+            source="СТУ 7.8.2, 7.8.3; plan_v2 figure.caption; AGENTS 5.3",
+            start_order=o(opts),
         ),
         _option(
             "equation.body_indent",

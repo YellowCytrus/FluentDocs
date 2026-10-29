@@ -563,3 +563,89 @@ Typst) или `per_level` (`indent_per_level[level]`). Пустой `indent_per_
 Тесты: `tests/test_g3a_structural.py` (схема, миграция, свои счётчики,
 приложения при `heading.numbering=none`, `outlined`/`numbering` в `#outline()`,
 `step`/`per_level`, сопоставление, `align`, `around`).
+
+## G3b: подписи и нумерация рисунков и таблиц, нумерованные списки
+
+### Подписи
+
+Рисунок и таблица используют одну схему из шести опций; отдельные шаблоны,
+счётчики и показ подписи фильтруются по виду фигуры
+(`figure.where(kind: image)` / `figure.where(kind: table)`).
+
+| Опция | Тип | Дефолт | Смысл |
+|---|---|---|---|
+| `figure.caption_template` | string/null | `null` | Шаблон подписи рисунка |
+| `figure.caption_position` | select | `below` | `above` / `below` |
+| `figure.caption_align` | select | `center` | `left` / `center` / `right` |
+| `figure.caption_separator` | string | `" — "` | Разделитель перед текстом, если в шаблоне нет `{content}` |
+| `figure.caption_text_override` | object/null | `null` | Шрифт, кегль, начертание только подписи |
+| `figure.caption_around` | object | `{before: [], after: []}` | Вставки до/после текста подписи |
+| `table.caption_template` | string/null | `null` | Шаблон подписи таблицы |
+| `table.caption_position` | select | `above` | `above` / `below` |
+| `table.caption_align` | select | `left` | `left` / `center` / `right` |
+| `table.caption_separator` | string | `" — "` | Разделитель перед текстом, если в шаблоне нет `{content}` |
+| `table.caption_text_override` | object/null | `null` | Шрифт, кегль, начертание только подписи |
+| `table.caption_around` | object | `{before: [], after: []}` | Вставки до/после текста подписи |
+
+Шаблон понимает `{h1}`…`{h6}`, `{n}` и `{content}`. `{n}` — номер внутри
+раздела; `{h1}` — номер раздела, а внутри приложения — буква приложения
+(`Рисунок А.1`). Счётчики раздельные: `figure-h1..h6`/`figure-n` и
+`table-h1..h6`/`table-n`; на заголовке уровня 1 сбрасываются `n` и более
+глубокие уровни, при начале приложения — все счётчики обоих видов. Поэтому
+рисунок и таблица в одной главе независимо получают `.1`, а после перехода
+к следующей главе или приложению нумерация начинается заново.
+
+Если `table.caption_template = null`, подпись таблицы выводится только своим
+текстом: английское `Table 1` в подписи не появляется. Нативная нумерация
+таблицы (`numbering: "1"`) при этом сохраняется, чтобы компилировались ссылки
+`@tbl`; она не попадает в подпись. Если `figure.caption_template = null`,
+рисунок сохраняет прежнее поведение Typst (`Figure 1: …`).
+
+`caption_around` применяется внутри подписи: вставки `before` идут перед
+текстом, `after` — после; столкновения для подписи не настраиваются (это не
+элемент верхнего уровня тела). Пустой `caption_around` не меняет вывод.
+`caption_text_override` задаёт те же поля, что обычный `text_override`.
+
+### Нумерованные списки
+
+| Опция | Тип | Дефолт | Смысл |
+|---|---|---|---|
+| `numbered_list.level_formats` | list объектов `{format}` | `[]` | Формат маркера по уровням; пусто — общий `numbered_list.numbering` |
+| `numbered_list.alphabet` | select | `ru_sfu` | Алфавит для `{letter}`: русский по СТУ (25 букв) или латинский |
+| `numbered_list.wrap_mode` | select | `left_margin` | `left_margin` / `body_text` |
+| `numbered_list.left_margin_offset` | number, мм | `2.1166666667` | Вычитается из `body_indent` в режиме `left_margin` |
+
+`level_formats` — порядок уровней. В строке формата поддерживаются `{n}`
+(номер текущего уровня), `{letter}` (буква из `alphabet`) и обычный шаблон
+Typst (`1)`, `1.`). Если элементов меньше глубины списка, повторяется
+последний формат. Пустой список сохраняет прежний `numbered_list.numbering`.
+При непустом списке `enum(full: true)` включается внутренне, чтобы Typst
+передавал номер уровня; `numbered_list.full` по-прежнему добавляет номера
+предков в начало. Алфавит `ru_sfu` — строчные буквы без Ё, З, Й, О, Ч, Ь, Ы,
+Ъ; после последней буквы используется удвоение, без падения компиляции.
+
+`wrap_mode`: `body_text` — висячий отступ (продолжение по тексту первой
+строки, отступ `body_indent`); `left_margin` — отступ тела уменьшается на
+`left_margin_offset`, чтобы продолжение шла левее, к левому краю списка.
+Точное выравнивание продолжения к левому полю страницы Typst `enum` не
+позволяет: маркер и тело находятся в одной сетке. Реализовано приближение
+через `body_indent`; ограничение записано в `BLOCKERS.md` B-10. Значение
+`body_indent` продолжает управлять отступом продолжения в обоих режимах.
+`left_margin_offset` — техническая опция этого приближения, не отдельное
+правило СТУ.
+
+### Значения для seed G6 (профили не создаются)
+
+Для будущих профилей курсовых и ВКР в seed G6 используются только значения:
+
+| Опция | Курсовая / ВКР |
+|---|---|
+| `figure.caption_template` | `Рисунок {h1}.{n} — {content}` |
+| `figure.caption_position` | `below` |
+| `figure.caption_align` | `center` |
+| `table.caption_template` | `Таблица {h1}.{n} — {content}` |
+| `table.caption_position` | `above` |
+| `table.caption_align` | `left` |
+| `numbered_list.level_formats` | `[{format: "1."}, {format: "а)"}]` |
+
+Профили «Курсовая» и «ВКР» в G3b не создаются и не копируются.

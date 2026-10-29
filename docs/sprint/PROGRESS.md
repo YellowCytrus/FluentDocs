@@ -15,8 +15,8 @@
 | G2b — интервал, шрифты, зашитые значения | выполнен, принят владельцем | этот файл |
 | G2c — остальные «дешёвые» правила | выполнен; G2c-fix ждёт приёмки | этот файл |
 | G2d — политика столкновения вставок | выполнен, принят владельцем | этот файл |
-| G3a — структурные сущности, приложения, оглавление | переделан, ждёт приёмки | этот файл |
-| G3b — подписи и нумерация рисунков/таблиц | не начат | — |
+| G3a — структурные сущности, приложения, оглавление | выполнен, принят владельцем | этот файл |
+| G3b — подписи и нумерация рисунков/таблиц | выполнен, ждёт приёмки | этот файл |
 | G4 — таблицы и оглавление | не начат | — |
 | G5 — единицы измерения и чистка интерфейса | не начат | — |
 | G6 — профиль СТУ СФУ и самопроверка | не начат | — |
@@ -758,3 +758,70 @@ Postgres не запущен, поэтому DB-тесты локально пр
 | `uvx ruff format --check app tests scripts` | 102 files already formatted |
 | `uv run python scripts/pdf_compare.py ...` | рабочий скрипт, отчёт JSON/MD |
 | `node frontend/scripts/typst-parity.mjs` на S12 | 292 мс, 36 страниц, текст совпал с CLI |
+
+## G3b — чек-лист
+
+Коммиты: см. отчёт на воротах G3b.
+
+| Пункт | Статус | Где |
+|---|---|---|
+| Шаблон `figure.caption_template` | ✔ было, контракт усилен | `app/registry/options.py` |
+| Шаблон `table.caption_template` | ✔ отдельный | `app/registry/options.py` |
+| Положение подписи | ✔ `caption_position`: рисунок `below`, таблица `above` | `app/typst/fd.typ` |
+| Выравнивание подписи | ✔ `caption_align`: рисунок `center`, таблица `left` | `app/typst/fd.typ` |
+| Разделитель | ✔ `caption_separator`, если в шаблоне нет `{content}` | `app/typst/fd.typ` |
+| `caption_text_override` | ✔ отдельный стиль только подписи | `app/typst/fd.typ` |
+| `caption_around` | ✔ before/after внутри подписи | `app/typst/fd.typ` |
+| Отдельные шаблоны и счётчики | ✔ `figure-h*`/`figure-n`, `table-h*`/`table-n` | `app/typst/fd.typ` |
+| Фильтр `figure.caption` по виду | ✔ `figure.caption.where(kind: table/image)` | `app/typst/fd.typ` |
+| Сброс по главам | ✔ `1.1`, `2.1` на заголовке уровня 1 | `test_figure_caption_render` |
+| Сброс по приложению | ✔ `А.1`, буква вместо главы | `test_caption_appendix_letter_render` |
+| Таблица без шаблона не даёт `Table 1` | ✔ подпись только своим текстом | `test_table_caption_without_template_has_no_english` |
+| Нативная нумерация таблицы для `@tbl` | ✔ `numbering: "1"`, в подпись не попадает | `app/typst/fd.typ` |
+| Рисунок без шаблона | ✔ прежнее `Figure 1: …` Typst | golden |
+| Форматы списков по уровням | ✔ `numbered_list.level_formats`, `{n}`/`{letter}` | `test_numbered_list_level_formats_render` |
+| Алфавит `ru_sfu` | ✔ строчные 25 букв без Ё, З, Й, О, Ч, Ь, Ы, Ъ | `test_numbered_list_level_formats_render` |
+| Перенос строки пункта | ⚠ приближение `left_margin`/`body_text` | `test_numbered_list_wrap_mode_render`, B-10 |
+| Значения для seed G6 | ✔ только значения, профили не создавались | `REGISTRY_SPEC.md` |
+| Golden: только блок конфига | ✔ 16 снимков | `tests/fixtures/golden/` |
+| Реестровый контракт | ✔ 16 новых опций с конкретными source/test_ids | `tests/test_registry.py` |
+| Формулы, реферат, объединение ячеек | ✔ не трогались | — |
+| G4 не начат | ✔ | — |
+
+### G3b: измерения
+
+| Правило | Тест | Измерение |
+|---|---|---|
+| Нумерация по главам | `test_figure_caption_render` | `Рисунок 1.1 — Первый`, `Рисунок 2.1 — Второй` |
+| Подпись таблицы над таблицей | `test_table_caption_render` | `top` подписи меньше `top` строки `A B` |
+| Раздельные счётчики | `test_caption_counters_separate_render` | `Рисунок 1.1` и `Таблица 1.1` в одной главе |
+| Приложение | `test_caption_appendix_letter_render` | `Рисунок А.1`, `Таблица А.1` |
+| Без английской подписи | `test_table_caption_without_template_has_no_english` | в тексте нет `Table` |
+| Стиль подписи | `test_*_caption_text_override_render` | кегль подписи 8 pt |
+| Окружение подписи | `test_*_caption_around_render` | строки `ДО`/`ПОСЛЕ` |
+| Форматы списка | `test_numbered_list_level_formats_render` | `1.`, `а)`, `1)` |
+| Перенос списка | `test_numbered_list_wrap_mode_render` | `left_margin` левее `body_text` более чем на 1 pt |
+
+### G3b: golden
+
+Все 16 снимков получили только новые ключи конфига: `caption_template`,
+`caption_position`, `caption_align`, `caption_separator`, `caption_around`,
+`caption_text_override` у рисунка и таблицы; `level_formats`, `alphabet`,
+`wrap_mode`, `left_margin_offset` у нумерованного списка. Тела документов не
+изменились. Таблица без шаблона по-прежнему компилируется; `@tbl` не падает,
+потому что нативная нумерация фигуры сохранена.
+
+### Проверки G3b
+
+| Команда | Результат |
+|---|---|
+| Локально `uv run pytest tests/ -m "not integration" -q -rs` (без Postgres) | 71 passed, 66 skipped, 162 deselected |
+| Локально `uv run pytest tests/ -m integration -q -rs` (без Postgres) | 161 passed, 1 skipped, 137 deselected |
+| `cd frontend && npm test -- --run` | 17 passed (4 files) |
+| `cd frontend && npm run build` | OK (`vue-tsc -b` + vite) |
+| `cd frontend && npx vue-tsc --noEmit` | exit 0 |
+| `uvx ruff check app tests scripts` | All checks passed |
+| `uvx ruff format --check app tests scripts` | 104 files already formatted |
+
+DB-тесты локально пропущены из-за отсутствия Postgres; CI — авторитетный
+прогон. Ограничение точного переноса списка — B-10.

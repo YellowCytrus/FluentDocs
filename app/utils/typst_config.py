@@ -66,7 +66,9 @@ def _element_tree(element: Mapping[str, JsonValue], keys: tuple[str, ...]) -> di
     tree: dict[str, JsonValue] = {}
     for key in keys:
         raw = _value(element, key)
-        tree[key] = _text_override(raw) if key == "text_override" else raw
+        tree[key] = (
+            _text_override(raw) if key == "text_override" or key.endswith("_text_override") else raw
+        )
     if "hyphenate" in tree:
         tree["hyphenate"] = _hyphenate(tree["hyphenate"])
     return tree
@@ -79,6 +81,18 @@ def _around_item(raw: JsonValue) -> JsonValue:
     for key, value in raw.items():
         item[key] = _text_override(value) if key == "text_override" else value
     return item
+
+
+def _caption_around(raw: JsonValue) -> JsonValue:
+    """Окружение подписи: список вставок до/после с текстовым override."""
+    if not isinstance(raw, Mapping):
+        return raw
+    result: dict[str, JsonValue] = dict(raw)
+    for side in ("before", "after"):
+        items = raw.get(side, [])
+        if isinstance(items, list):
+            result[side] = [_around_item(item) for item in items]
+    return result
 
 
 def _around(values: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
@@ -309,6 +323,10 @@ def config_tree(values: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
                 "full",
                 "reversed",
                 "number_align",
+                "level_formats",
+                "alphabet",
+                "wrap_mode",
+                "left_margin_offset",
                 "tight_spacing",
                 "loose_spacing",
                 "spacing_before",
@@ -330,33 +348,50 @@ def config_tree(values: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
                 "text_override",
             ),
         ),
-        "table": _element_tree(
-            _element(values, "table"),
-            (
-                "stroke",
-                "align",
-                "inset",
-                "fill",
-                "spacing_before",
-                "spacing_after",
-                "text_override",
+        "table": {
+            **_element_tree(
+                _element(values, "table"),
+                (
+                    "stroke",
+                    "align",
+                    "inset",
+                    "fill",
+                    "caption_template",
+                    "caption_position",
+                    "caption_align",
+                    "caption_separator",
+                    "caption_text_override",
+                    "caption_around",
+                    "spacing_before",
+                    "spacing_after",
+                    "text_override",
+                ),
             ),
-        ),
-        "figure": _element_tree(
-            _element(values, "figure"),
-            (
-                "width",
-                "height",
-                "placement",
-                "gap",
-                "outlined",
-                "fit",
-                "caption_template",
-                "spacing_before",
-                "spacing_after",
-                "text_override",
+            "caption_around": _caption_around(_value(_element(values, "table"), "caption_around")),
+        },
+        "figure": {
+            **_element_tree(
+                _element(values, "figure"),
+                (
+                    "width",
+                    "height",
+                    "placement",
+                    "gap",
+                    "outlined",
+                    "fit",
+                    "caption_template",
+                    "caption_position",
+                    "caption_align",
+                    "caption_separator",
+                    "caption_text_override",
+                    "caption_around",
+                    "spacing_before",
+                    "spacing_after",
+                    "text_override",
+                ),
             ),
-        ),
+            "caption_around": _caption_around(_value(_element(values, "figure"), "caption_around")),
+        },
         "equation": _element_tree(
             _element(values, "equation"),
             ("body_indent", "spacing_before", "spacing_after", "text_override"),
