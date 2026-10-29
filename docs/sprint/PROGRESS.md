@@ -993,9 +993,10 @@ test 141 passed, integration 223 passed, frontend 17 passed, build и lint OK.
 | `uvx ruff format --check app tests scripts` | 107 files already formatted |
 | `UPDATE_GOLDEN=1 uv run pytest tests/test_typst_golden.py -m integration` | 33 passed |
 
-CI run [40883616584](https://github.com/YellowCytrus/FluentDocs/actions/runs/40883616584) — lint + test success:
+CI run [40883616584](https://github.com/YellowCytrus/FluentDocs/actions/runs/40883616584) (код `5a9a202`)
+и [40884139019](https://github.com/YellowCytrus/FluentDocs/actions/runs/40884139019) (HEAD `3038c27`) — lint + test success:
 test 145 passed / 241 deselected; integration 241 passed / 145 deselected;
-frontend 17 passed (4 files).
+frontend 17 passed (4 files); Ruff check/format OK.
 
 ### G5: golden
 
