@@ -748,9 +748,9 @@ Postgres не запущен, поэтому DB-тесты локально пр
 
 | Команда | Результат |
 |---|---|
-| **CI, GitHub Actions** | `test`: 134 passed, 148 deselected; `integration`: 148 passed, 134 deselected; `lint`: success — <https://github.com/YellowCytrus/FluentDocs/actions/runs/40844662044> |
-| Локально `pytest -m "not integration" -q -rs` (без Postgres) | 68 passed, 66 skipped, 148 deselected |
-| Локально `pytest -m integration -q -rs` (без Postgres) | 147 passed, 1 skipped, 134 deselected |
+| **CI, GitHub Actions** | `test`: 134 passed, 151 deselected; `integration`: 151 passed, 134 deselected; `lint`: success — <https://github.com/YellowCytrus/FluentDocs/actions/runs/40849261808> |
+| Локально `pytest -m "not integration" -q -rs` (без Postgres) | 68 passed, 66 skipped, 151 deselected |
+| Локально `pytest -m integration -q -rs` (без Postgres) | 150 passed, 1 skipped, 134 deselected |
 | `cd frontend && npm test -- --run` | 17 passed (4 files) |
 | `cd frontend && npm run build` | OK |
 | `npx vue-tsc --noEmit` | exit 0 |
