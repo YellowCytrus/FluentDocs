@@ -99,8 +99,10 @@
   let page-number(pattern, skip, start, n, total) = {
     if skip and n == 1 {
       none
-    } else {
+    } else if pattern.contains("/") {
       numbering(pattern, n + start - 1, total + start - 1)
+    } else {
+      numbering(pattern, n + start - 1)
     }
   }
 
@@ -363,6 +365,27 @@
     }
   }
 
+  // Текст из content с сохранением вложенных strong/emph/sequence.
+  // Нужен для форматированных заголовков: у strong нет поля text.
+  let content-text(content) = {
+    if content.func() == text {
+      content.text
+    } else {
+      let fields = content.fields()
+      if "children" in fields {
+        let out = ""
+        for child in fields.children {
+          out = out + content-text(child)
+        }
+        out
+      } else if "body" in fields {
+        content-text(fields.body)
+      } else {
+        ""
+      }
+    }
+  }
+
   // Сопоставление текста правила: equals / contains / regex.
   let matches-text(match, text) = {
     let hay = if match.case_insensitive { lower(text) } else { text }
@@ -607,7 +630,7 @@
   // Окружение элемента: у заголовка приоритет у правила сущности.
   let around-config(config, kind, it) = {
     if kind.starts-with("heading_") and it.func() == heading {
-      let entity = find-entity(config, "heading", it.body.text.trim(), it.depth)
+      let entity = find-entity(config, "heading", content-text(it.body).trim(), it.depth)
       if entity != none and entity-around(config, entity) != none {
         entity.apply.around
       } else {
@@ -664,7 +687,7 @@
   let heading-content(config, it, custom-body: none, force-none: false) = {
     let level = it.depth
     let level-cfg = config.heading_levels.at(level - 1)
-    let heading-text = it.body.text.trim()
+    let heading-text = content-text(it.body).trim()
     let entity = find-entity(config, "heading", heading-text, level)
     let numbering-value = if force-none { none } else { heading-numbering(config) }
     let body = if custom-body != none {
@@ -774,7 +797,7 @@
       let content = if kind.starts-with("heading_") {
         let heading = unit.content
         let level = heading.depth
-        let text = heading.body.text.trim()
+        let text = content-text(heading.body).trim()
         let entity = find-entity(config, "heading", text, level)
         let appendix = level == 1 and is-appendix(entity)
         let mode = if entity == none { "continue" } else { entity.numbering.mode }
@@ -793,6 +816,11 @@
           )
           appendix-letter-value = letter
           custom-body = appendix-heading-text(config, entity, text, letter)
+          custom-body = custom-body + metadata((
+            fd-appendix-kind: "heading",
+            fd-appendix-letter: letter,
+            fd-appendix-level: 1,
+          ))
           force-none = true
           // Сброс счётчиков рисунков/таблиц/формул в начале приложения.
           for number in range(1, 7) {
@@ -830,6 +858,11 @@
             appendix-subs,
             level,
           )
+          custom-body = custom-body + metadata((
+            fd-appendix-kind: "sub",
+            fd-appendix-letter: letter,
+            fd-appendix-level: level,
+          ))
           force-none = true
         } else if mode == "own" {
           let family = if own-families.keys().contains(group) {
@@ -1347,39 +1380,92 @@
     body
   }
 
-  // Регистр записи оглавления; для first_upper остальные буквы — строчные.
+  // Регистр записи оглавления. first_upper сохраняет strong/emph и меняет
+  // только текстовые узлы, чтобы форматированные заголовки не ломались.
+  let outline-first-upper(content, first) = {
+    if content.func() == text {
+      let clusters = content.text.clusters()
+      if clusters.len() == 0 {
+        (content, first)
+      } else if first {
+        (upper(clusters.at(0)) + lower(clusters.slice(1).join("")), false)
+      } else {
+        (lower(content.text), false)
+      }
+    } else if content.func() == strong {
+      let inner = outline-first-upper(content.body, first)
+      (strong(inner.at(0)), inner.at(1))
+    } else if content.func() == emph {
+      let inner = outline-first-upper(content.body, first)
+      (emph(inner.at(0)), inner.at(1))
+    } else {
+      let fields = content.fields()
+      if "children" in fields {
+        let out = none
+        let is-first = first
+        for child in fields.children {
+          let inner = outline-first-upper(child, is-first)
+          out = if out == none { inner.at(0) } else { out + inner.at(0) }
+          is-first = inner.at(1)
+        }
+        (if out == none { content } else { out }, is-first)
+      } else if "body" in fields {
+        (content, first)
+      } else {
+        (content, first)
+      }
+    }
+  }
+
   let outline-case(content, mode) = {
     if mode == "upper" {
       upper(content)
     } else if mode == "lower" {
       lower(content)
     } else if mode == "first_upper" {
-      if content.func() == text {
-        let clusters = content.text.clusters()
-        if clusters.len() == 0 {
-          content
-        } else {
-          upper(clusters.at(0)) + lower(clusters.slice(1).join(""))
-        }
-      } else {
-        content
-      }
+      outline-first-upper(content, true).at(0)
     } else {
       content
     }
   }
 
-  let outline-appendix-heading(heading) = {
-    if heading.body.func() == text {
-      lower(heading.body.text.trim()).starts-with("приложение")
+  // Метаданные структурного приложения: не зависят от текста шаблона и bold.
+  let appendix-meta(content) = {
+    if content.func() == metadata {
+      let value = content.value
+      if type(value) == dictionary and "fd-appendix-kind" in value {
+        return value
+      }
     } else {
-      false
+      let fields = content.fields()
+      if "children" in fields {
+        for child in fields.children {
+          let found = appendix-meta(child)
+          if found != none { return found }
+        }
+      } else if "body" in fields {
+        return appendix-meta(fields.body)
+      }
     }
+    none
   }
 
-  let outline-appendix-letter(heading) = {
-    let parts = heading.body.text.trim().split(" ")
-    if parts.len() > 1 { parts.at(1).replace(".", "") } else { "" }
+  // Номер страницы в формате page.numbering (римские, «1 / N» и т. д.).
+  let outline-page(config, loc) = {
+    let n = counter(page).at(loc).first()
+    let total = counter(page).final().first()
+    if config.page.numbering == "none" {
+      str(n + config.page.numbering_start - 1)
+    } else {
+      let value = page-number(
+        config.page.numbering,
+        config.page.numbering_skip_first,
+        config.page.numbering_start,
+        n,
+        total,
+      )
+      if value == none { "" } else { value }
+    }
   }
 
   // Запись оглавления: регистр, отточие и группировка приложений.
@@ -1393,12 +1479,14 @@
       return default-entry
     }
 
+    let meta = appendix-meta(it.element.body)
+    let is-appendix = meta != none
     let normal-entry = {
-      if config.outline.entry_case == "none" {
+      if config.outline.entry_case == "none" or is-appendix {
         default-entry
       } else {
         let body = outline-case(it.body(), config.outline.entry_case)
-        let page = str(counter(page).at(it.element.location()).first())
+        let page = outline-page(config, it.element.location())
         link(
           it.element.location(),
           it.indented(
@@ -1415,20 +1503,11 @@
 
     let headings = query(heading.where(outlined: true))
     let current = it.element
-    let current-text = if it.body().func() == text { it.body().text } else { "" }
     let current-index = none
     for (index, heading) in headings.enumerate() {
       if heading.location() == current.location() {
         current-index = index
         break
-      }
-    }
-    if current-index == none and current-text != "" {
-      for (index, heading) in headings.enumerate() {
-        if heading.body.func() == text and heading.body.text == current-text {
-          current-index = index
-          break
-        }
       }
     }
     if current-index == none {
@@ -1442,7 +1521,8 @@
     let runs = ()
     let current-run = ()
     for index in level-one {
-      if outline-appendix-heading(headings.at(index)) {
+      let heading-meta = appendix-meta(headings.at(index).body)
+      if heading-meta != none and heading-meta.fd-appendix-kind == "heading" {
         current-run.push(index)
       } else {
         if current-run.len() > 0 {
@@ -1454,24 +1534,45 @@
     if current-run.len() > 0 { runs.push(current-run) }
 
     let run = none
-    for candidate in runs {
-      if candidate.contains(current-index) {
-        run = candidate
-        break
+    if meta != none and meta.fd-appendix-kind == "heading" {
+      for candidate in runs {
+        if candidate.contains(current-index) {
+          run = candidate
+          break
+        }
+      }
+    } else if meta != none and meta.fd-appendix-kind == "sub" {
+      for candidate in runs {
+        if candidate.any(index => {
+          let parent-meta = appendix-meta(headings.at(index).body)
+          (
+            parent-meta != none
+              and parent-meta.fd-appendix-letter == meta.fd-appendix-letter
+          )
+        }) {
+          run = candidate
+          break
+        }
       }
     }
+
     if run != none and run.len() >= config.outline.appendix_min_group {
+      if meta != none and meta.fd-appendix-kind == "sub" {
+        return none
+      }
       let first-index = run.first()
       if current-index != first-index {
         return none
       }
       let first = headings.at(first-index)
       let last = headings.at(run.last())
+      let first-meta = appendix-meta(first.body)
+      let last-meta = appendix-meta(last.body)
       let text = config.outline.appendix_group_template
-        .replace("{first}", outline-appendix-letter(first))
-        .replace("{last}", outline-appendix-letter(last))
-      let first-page = str(counter(page).at(first.location()).first())
-      let last-page = str(counter(page).at(last.location()).first())
+        .replace("{first}", str(first-meta.fd-appendix-letter))
+        .replace("{last}", str(last-meta.fd-appendix-letter))
+      let first-page = outline-page(config, first.location())
+      let last-page = outline-page(config, last.location())
       return link(
         first.location(),
         it.indented(
@@ -1479,25 +1580,6 @@
           [#text #box(width: 1fr, repeat[.]) #first-page–#last-page],
         ),
       )
-    }
-
-    // Подзаголовки приложения скрываются, если головное приложение вошло в группу.
-    if it.level > 1 {
-      let parent-index = none
-      for (index, heading) in headings.enumerate() {
-        if index >= current-index { break }
-        if heading.level == 1 { parent-index = index }
-      }
-      if parent-index != none {
-        for candidate in runs {
-          if (
-            candidate.contains(parent-index)
-              and candidate.len() >= config.outline.appendix_min_group
-          ) {
-            return none
-          }
-        }
-      }
     }
 
     normal-entry
@@ -1725,12 +1807,6 @@
     }
     set table(..table-args)
 
-    // Явные hline из Pandoc скрываются, когда сетка рисуется целиком
-    // (двойная линия шапки или выключенные внутренние горизонтали).
-    show table.hline: it => if (
-      config.table.header_double_line or not config.table.border_inside_horizontal
-    ) { none } else { it }
-
     // Сетка по сторонам, повтор шапки и двойная линия под шапкой.
     // Функция stroke в поле — признак уже пересобранной таблицы.
     show table: it => {
@@ -1745,6 +1821,9 @@
           let rebuild = header != none and (double or not config.table.repeat_header)
           let fields = it.fields()
           let children = fields.remove("children")
+          if double or not config.table.border_inside_horizontal {
+            children = children.filter(child => child.func() != table.hline)
+          }
           if rebuild {
             let columns = it.columns.len()
             children = children.map(child => if child.func() == table.header {

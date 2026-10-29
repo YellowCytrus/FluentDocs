@@ -87,7 +87,7 @@ def test_g4_toc_options_schema() -> None:
     expected = {
         "outline.entry_case": "none",
         "outline.omit_when_pages_lte": 0,
-        "outline.appendix_grouping": False,
+        "outline.appendix_grouping": True,
         "outline.appendix_min_group": 3,
         "outline.appendix_group_template": "Приложения {first}–{last}",
     }
@@ -246,6 +246,136 @@ def test_g4_toc_appendix_grouping_render(tmp_path: Path, grouping: bool, expecte
     else:
         assert text.count("ПРИЛОЖЕНИЕ") == expected
         assert "Приложения А–В" not in text
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    shutil.which("pandoc") is None or shutil.which("typst") is None,
+    reason="pandoc and typst must be in PATH",
+)
+def test_g4_toc_appendix_grouping_default_on_render(tmp_path: Path) -> None:
+    body = "# Приложение А\n\nТекст.\n\n# Приложение Б\n\nТекст.\n\n# Приложение В\n\nТекст.\n"
+    path = _compile(
+        _outline_markdown(body),
+        _profile([APPENDIX_ENTITY]),
+        tmp_path,
+        "appendix-group-default",
+    )
+    text = _first_page_text(path)
+    assert "Приложения А–В" in text
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    shutil.which("pandoc") is None or shutil.which("typst") is None,
+    reason="pandoc and typst must be in PATH",
+)
+def test_g4_toc_appendix_grouping_bold_render(tmp_path: Path) -> None:
+    body = "# Приложение А\n\nТекст.\n\n# Приложение Б\n\nТекст.\n\n# Приложение В\n\nТекст.\n"
+    path = _compile(
+        _outline_markdown(body),
+        _profile(
+            [APPENDIX_ENTITY],
+            appendix={"bold": True},
+            outline={"appendix_grouping": True, "appendix_min_group": 3},
+        ),
+        tmp_path,
+        "appendix-group-bold",
+    )
+    text = _first_page_text(path)
+    assert "Приложения А–В" in text
+    assert text.count("ПРИЛОЖЕНИЕ") == 0
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    shutil.which("pandoc") is None or shutil.which("typst") is None,
+    reason="pandoc and typst must be in PATH",
+)
+def test_g4_toc_roman_page_numbers_render(tmp_path: Path) -> None:
+    markdown = _outline_markdown("# Введение\n\nТекст.\n")
+    path = _compile(
+        markdown,
+        _profile(
+            page={"numbering": "I"},
+            outline={"entry_case": "upper"},
+        ),
+        tmp_path,
+        "roman-pages",
+    )
+    with pdfplumber.open(path) as pdf:
+        page = pdf.pages[0]
+        line = next(line for line in page.extract_text_lines() if "ВВЕДЕНИЕ" in line["text"])
+    assert "II" in line["text"]
+    assert " 2" not in line["text"]
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    shutil.which("pandoc") is None or shutil.which("typst") is None,
+    reason="pandoc and typst must be in PATH",
+)
+@pytest.mark.parametrize("heading", ["**ВВЕДЕНИЕ**", "*ВВЕДЕНИЕ*"])
+def test_g4_toc_entry_case_formatted_render(tmp_path: Path, heading: str) -> None:
+    markdown = _outline_markdown(f"# {heading}\n\nТекст.\n")
+    path = _compile(
+        markdown,
+        _profile(outline={"entry_case": "first_upper"}),
+        tmp_path,
+        f"case-formatted-{len(heading)}",
+    )
+    text = _first_page_text(path)
+    assert "Введение" in text
+    assert "ВВЕДЕНИЕ" not in text
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    shutil.which("pandoc") is None or shutil.which("typst") is None,
+    reason="pandoc and typst must be in PATH",
+)
+def test_g4_toc_appendix_grouping_custom_template_render(tmp_path: Path) -> None:
+    body = "# Приложение А\n\nТекст.\n\n# Приложение Б\n\nТекст.\n\n# Приложение В\n\nТекст.\n"
+    path = _compile(
+        _outline_markdown(body),
+        _profile(
+            [APPENDIX_ENTITY],
+            appendix={"template": "Дополнение {letter}. {title}"},
+            outline={"appendix_grouping": True, "appendix_min_group": 3},
+        ),
+        tmp_path,
+        "appendix-group-custom-template",
+    )
+    text = _first_page_text(path)
+    assert "Приложения А–В" in text
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    shutil.which("pandoc") is None or shutil.which("typst") is None,
+    reason="pandoc and typst must be in PATH",
+)
+def test_g4_toc_appendix_grouping_roman_pages_render(tmp_path: Path) -> None:
+    body = (
+        "# Приложение А\n\nТекст.\n\n"
+        "```{=typst}\n#pagebreak()\n```\n\n"
+        "# Приложение Б\n\nТекст.\n\n"
+        "```{=typst}\n#pagebreak()\n```\n\n"
+        "# Приложение В\n\nТекст.\n"
+    )
+    path = _compile(
+        _outline_markdown(body),
+        _profile(
+            [APPENDIX_ENTITY],
+            page={"numbering": "I"},
+            outline={"appendix_grouping": True, "appendix_min_group": 3},
+        ),
+        tmp_path,
+        "appendix-group-roman",
+    )
+    text = _first_page_text(path)
+    assert "Приложения А–В" in text
+    assert "II–IV" in text
 
 
 @pytest.mark.integration

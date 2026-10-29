@@ -740,7 +740,7 @@ Typst (`1)`, `1.`). Если элементов меньше глубины сп
 |---|---|---|---|
 | `outline.entry_case` | select | `none` | Регистр записей: `none` / `upper` / `lower` / `first_upper` |
 | `outline.omit_when_pages_lte` | integer | `0` | Не выводить оглавление при числе страниц ≤ N; 0 — выключено |
-| `outline.appendix_grouping` | boolean | `false` | Сворачивать подряд идущие приложения в одну запись |
+| `outline.appendix_grouping` | boolean | `true` | Сворачивать подряд идущие приложения в одну запись |
 | `outline.appendix_min_group` | integer | `3` | Минимум приложений для групповой записи |
 | `outline.appendix_group_template` | string | `"Приложения {first}–{last}"` | Шаблон групповой записи |
 
@@ -749,14 +749,26 @@ Typst (`1)`, `1.`). Если элементов меньше глубины сп
 `outline.indent_per_level`) и в G4 не переделывались.
 
 `fd.outline-entry` заменяет запись `outline.entry` только при выбранном
-регистре или группировке. `first_upper` делает первую букву прописной,
-остальные — строчными; для форматированного содержимого регистр не
-применяется. Группировка ищет подряд идущие приложения по заголовкам уровня 1
-с текстом «Приложение…», скрывает отдельные записи и подзаголовки, а первая
-запись выводится как `Приложения А–В` с диапазоном страниц. Заполнитель —
-фиксированные точки (`repeat[.]`); по OWNER_DECISIONS 9 он не настраивается.
-Пропуск оглавления проверяет `counter(page).final().first()`.
+регистре или группировке. `first_upper` рекурсивно обрабатывает текстовые узлы
+и сохраняет `strong`/`emph`; `content-text` извлекает текст из форматированных
+заголовков. Номер страницы записи форматируется тем же `page.numbering`
+(`outline-page` → `page-number`), поэтому при `page.numbering = "I"` запись
+показывает `II`, а не `2`; total передаётся только для шаблона с `/`.
+Группировка использует `metadata` в заголовке приложения
+(`fd-appendix-kind`, `fd-appendix-letter`) и подзаголовка, а не текст
+«Приложение…». Поэтому она работает при `appendix.bold = true` и при
+пользовательском `appendix.template`; отдельные записи и подзаголовки
+скрываются, первая запись выводится как `Приложения А–В` с диапазоном
+страниц в формате `page.numbering`. Заполнитель — фиксированные точки
+(`repeat[.]`); по OWNER_DECISIONS 9 он не настраивается. Пропуск оглавления
+проверяет `counter(page).final().first()`.
 
-Тесты: `test_g4_toc_entry_case_render`, `test_g4_toc_fill_render`,
+Тесты: `test_g4_toc_entry_case_render`,
+`test_g4_toc_entry_case_formatted_render`, `test_g4_toc_fill_render`,
 `test_g4_toc_skip_render`, `test_g4_toc_appendix_grouping_render`,
+`test_g4_toc_appendix_grouping_default_on_render`,
+`test_g4_toc_appendix_grouping_bold_render`,
+`test_g4_toc_appendix_grouping_custom_template_render`,
+`test_g4_toc_appendix_grouping_roman_pages_render`,
+`test_g4_toc_roman_page_numbers_render`,
 `test_g4_toc_appendix_group_minimum_render`.

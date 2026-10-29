@@ -319,7 +319,7 @@
     indent_mm: 0.0,
     entry_case: "none",
     omit_when_pages_lte: 0,
-    appendix_grouping: false,
+    appendix_grouping: true,
     appendix_min_group: 3,
     appendix_group_template: "Приложения {first}–{last}",
     text_override: none,

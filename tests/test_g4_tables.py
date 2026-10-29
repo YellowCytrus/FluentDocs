@@ -180,6 +180,8 @@ def test_g4_table_borders_render(tmp_path: Path) -> None:
             assert max(values) < max(reference) - 1, name
         else:
             assert len(values) < len(reference), name
+            if name == "inside_horizontal":
+                assert len(values) == 2
 
 
 @pytest.mark.integration

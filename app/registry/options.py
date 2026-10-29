@@ -3226,13 +3226,14 @@ def _base_options() -> list[Option]:
             "outline",
             ("outline",),
             "boolean",
-            False,
+            True,
             ("outline", "appendix_grouping"),
             "Группировать приложения",
             order=o(opts),
             rationale=(
                 "Сворачивает три и более подряд идущих приложения в одну "
-                "запись «Приложения А–Т»; по СТУ 6.4 подзаголовки при этом не выводятся."
+                "запись «Приложения А–Т»; по умолчанию включена, по СТУ 6.4 "
+                "подзаголовки при этом не выводятся."
             ),
             source="СТУ 6.4; reference:common.toc.appendix_grouping; G4",
             test_ids=("test_g4_toc_appendix_grouping_render",),

@@ -851,36 +851,37 @@ B-10c (`number_align`, все 4 значения и маркер в поле), B
 | Пункт | Статус | Где |
 |---|---|---|
 | Границы по сторонам | ✔ `border_top/bottom/left/right` | `test_g4_table_borders_render` |
-| Внутренние горизонтали/вертикали | ✔ `border_inside_horizontal/vertical` | `test_g4_table_borders_render` |
+| Внутренние горизонтали/вертикали | ✔ `border_inside_horizontal/vertical`; при выключении линия под шапкой удаляется вместе с hline, остаются только верх и низ | `test_g4_table_borders_render` |
 | Двойная линия под шапкой | ✔ `header_double_line`, толщина и зазор | `test_g4_table_double_header_render` |
 | Повтор шапки | ✔ `repeat_header`; выключение проверено на второй странице | `test_g4_table_repeat_header_render` |
 | Отступы ячеек и кегль | ✔ `table.inset`, `table.text_override.font_size` | `test_g4_table_inset_and_font_render` |
 | Курсив одиночных латинских/греческих букв | ✔ `italic_letters`, по умолчанию выкл.; ровно одна буква в ячейке | `test_g4_table_italic_letters_render` |
 | Метки продолжения/окончания таблицы | ✔ `continuation_label`, шаблоны `{n}`; метки в колонтитуле | `test_g4_table_continuation_label_render` |
 | Глубина и отступы оглавления | ✔ не переделывались, приняты в G3a | `test_outline_indent_render` |
-| Регистр записей оглавления | ✔ `outline.entry_case`: none/upper/lower/first_upper | `test_g4_toc_entry_case_render` |
+| Регистр записей оглавления | ✔ `outline.entry_case`: none/upper/lower/first_upper; strong/emph сохраняются | `test_g4_toc_entry_case_render`, `test_g4_toc_entry_case_formatted_render` |
 | Заполнитель-отточие | ✔ фиксированные точки; по OWNER_DECISIONS 9 не настраивается | `test_g4_toc_fill_render` |
 | Авто-пропуск при страницах ≤ N | ✔ `outline.omit_when_pages_lte`, 0 — выключено | `test_g4_toc_skip_render` |
-| Группировка приложений | ✔ `appendix_grouping`, `appendix_min_group`, шаблон; подзаголовки скрываются | `test_g4_toc_appendix_grouping_render` |
+| Группировка приложений | ✔ `appendix_grouping` по умолчанию `true`; структурный kind, bold и пользовательский шаблон; подзаголовки скрываются | `test_g4_toc_appendix_grouping_render`, `test_g4_toc_appendix_grouping_default_on_render`, `test_g4_toc_appendix_grouping_bold_render`, `test_g4_toc_appendix_grouping_custom_template_render` |
 | Минимум группы | ✔ два приложения не группируются при минимуме 3 | `test_g4_toc_appendix_group_minimum_render` |
 | Новый синтаксис Markdown | ✔ не вводился | — |
 | Объединение ячеек | ✔ не делалось | — |
-| Golden | ✔ 16 снимков: только новые ключи конфига, 304 строки | `tests/fixtures/golden/` |
+| Golden | ✔ 16 снимков: только блок конфига; `appendix_grouping` по умолчанию `true` | `tests/fixtures/golden/` |
 | G5 не начат | ✔ | — |
 
 ### G4: измерения
 
 | Правило | Тест | Измерение |
 |---|---|---|
-| Границы таблицы | `test_g4_table_borders_render` | по умолчанию 3 вертикальные и 4 горизонтальные линии; каждый флаг убирает свою линию/группу |
+| Границы таблицы | `test_g4_table_borders_render` | по умолчанию 3 вертикальные и 4 горизонтальные линии; при `inside_horizontal=false` ровно 2 горизонтали (верх и низ) |
 | Двойная линия | `test_g4_table_double_header_render` | две линии с зазором 1,4 pt, толщина 0,75 pt |
 | Повтор шапки | `test_g4_table_repeat_header_render` | при `true` шапка есть на 2-й странице, при `false` — нет |
 | Курсив букв | `test_g4_table_italic_letters_render` | `x` и `α` — Italic; `AB` и `б` — Regular |
 | Метки продолжения | `test_g4_table_continuation_label_render` | на 1-й странице метки нет; на продолжении «Продолжение таблицы 1», на последней «Окончание таблицы 1» |
-| Регистр оглавления | `test_g4_toc_entry_case_render` | `none`/`upper`/`lower`/`first_upper` дают ожидаемый текст записи |
+| Регистр оглавления | `test_g4_toc_entry_case_render`, `test_g4_toc_entry_case_formatted_render` | `none`/`upper`/`lower`/`first_upper`; форматированные `**...**` и `*...*` не ломаются |
 | Отточие | `test_g4_toc_fill_render` | в записи оглавления есть точки |
 | Пропуск оглавления | `test_g4_toc_skip_render` | при 3 страницах порог 3 скрывает, порог 2 показывает |
-| Группировка приложений | `test_g4_toc_appendix_grouping_render` | «Приложения А–В», диапазон страниц 2–4; подзаголовок и отдельные приложения не выводятся |
+| Группировка приложений | `test_g4_toc_appendix_grouping_render`, `*_default_on_render`, `*_bold_render`, `*_custom_template_render` | по умолчанию «Приложения А–В»; работает при bold и шаблоне «Дополнение…»; диапазон 2–4 |
+| Номера страниц TOC | `test_g4_toc_roman_page_numbers_render`, `test_g4_toc_appendix_grouping_roman_pages_render` | при `page.numbering="I"` запись показывает `II`, диапазон `II–IV` |
 | Минимум группы | `test_g4_toc_appendix_group_minimum_render` | два приложения при минимуме 3 остаются отдельными записями |
 
 ### G4: проверки
@@ -891,8 +892,8 @@ B-10c (`number_align`, все 4 значения и маркер в поле), B
 | Команда | Результат |
 |---|---|
 | **CI, GitHub Actions** | `test`: 141 passed, 208 deselected; `integration`: 208 passed, 141 deselected; `Frontend tests`: 17 passed; `Frontend build`: OK — run `40874969639` |
-| Локально `uv run pytest tests/ -m "not integration" -q -rs` (без Postgres) | 75 passed, 66 skipped, 208 deselected |
-| Локально `uv run pytest tests/ -m integration -q -rs` (без Postgres) | 207 passed, 1 skipped, 141 deselected |
+| Локально `uv run pytest tests/ -m "not integration" -q -rs` (без Postgres) | 75 passed, 66 skipped, 215 deselected |
+| Локально `uv run pytest tests/ -m integration -q -rs` (без Postgres) | 214 passed, 1 skipped, 141 deselected |
 | `cd frontend && npm test -- --run` | 17 passed (4 files) |
 | `cd frontend && npm run build` | OK |
 | `cd frontend && npx vue-tsc --noEmit` | exit 0 |
@@ -903,7 +904,8 @@ B-10c (`number_align`, все 4 значения и маркер в поле), B
 ### G4: golden
 
 16 снимков получили только новые ключи `table.*` и `outline.*` в блоке
-конфига; тела документов не изменились. Обновление выполнено командой
+конфига; `outline.appendix_grouping` записан со значением `true` по умолчанию.
+Тела документов не изменились. Обновление выполнено командой
 `UPDATE_GOLDEN=1 uv run pytest tests/test_typst_golden.py -m integration`.
 
 ### G4: не входит в объём
@@ -912,3 +914,19 @@ B-10c (`number_align`, все 4 значения и маркер в поле), B
 `coursework.toc.form_t` в G4 не реализовывались: они не входят в промпт G4,
 а единица над таблицей и сноски таблицы требуют нового синтаксиса Markdown.
 Объединение ячеек не делалось.
+
+
+## G4-fix — чек-лист
+
+| Дефект | Исправление | Тест |
+|---|---|---|
+| `outline.appendix_grouping` по умолчанию `false` | дефолт `true` в реестре, спецификации и golden | `test_g4_toc_options_schema`, `test_g4_toc_appendix_grouping_default_on_render` |
+| Группировка ломается при `appendix.bold=true` | в заголовок приложения добавляется `metadata` с `fd-appendix-kind`/letter; группировка не зависит от текста и bold | `test_g4_toc_appendix_grouping_bold_render` |
+| Пользовательский `appendix.template` не группируется | группировка использует структурные метаданные, а не текст «Приложение» | `test_g4_toc_appendix_grouping_custom_template_render` |
+| TOC показывает `2` вместо `II` | `outline-page` использует `page.numbering`; `page-number` передаёт total только для шаблона с `/` | `test_g4_toc_roman_page_numbers_render`, `test_g4_toc_appendix_grouping_roman_pages_render` |
+| Регистр не работает для `**...**`/`*...*` | `content-text` и рекурсивный `outline-first-upper` сохраняют strong/emph | `test_g4_toc_entry_case_formatted_render` |
+| `border_inside_horizontal=false` оставляет линию под шапкой | hline удаляются из children таблицы, а не только скрываются show-правилом | `test_g4_table_borders_render` (ровно 2 горизонтали) |
+
+Локальные проверки после исправлений: non-integration 75 passed / 66 skipped /
+215 deselected; integration 214 passed / 1 skipped / 141 deselected; frontend
+17 passed; build, vue-tsc и ruff — OK; golden 33 passed.
