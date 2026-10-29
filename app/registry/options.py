@@ -147,6 +147,12 @@ SELECT_LABELS: dict[str, list[tuple[str, str]]] = {
         ("step", "Шаг на уровень"),
         ("per_level", "Свой отступ на каждый уровень"),
     ],
+    "outline_entry_case": [
+        ("none", "Как в заголовке"),
+        ("upper", "ПРОПИСНЫЕ"),
+        ("lower", "строчные"),
+        ("first_upper", "С прописной"),
+    ],
     "align": [("auto", "Авто"), ("left", "Слева"), ("center", "По центру"), ("right", "Справа")],
     "quotes": [("auto", "Авто"), ("true", "Да"), ("false", "Нет")],
     "hyphenate": [("auto", "Авто"), ("true", "Да"), ("false", "Нет")],
@@ -2542,6 +2548,254 @@ def _base_options() -> list[Option]:
             "Заливка",
             order=o(opts),
         ),
+        _option(
+            "table.border_top",
+            "table",
+            ("table",),
+            "boolean",
+            True,
+            ("table", "border_top"),
+            "Верхняя граница",
+            order=o(opts),
+            rationale=(
+                "Управляет верхней линией сетки таблицы; СТУ требует полную "
+                "сетку, но стороны и внутренние линии настраиваются отдельно."
+            ),
+            source="СТУ 7.7.4; reference:common.table.borders; G4",
+            test_ids=("test_g4_table_borders_render",),
+            legacy=False,
+        ),
+        _option(
+            "table.border_bottom",
+            "table",
+            ("table",),
+            "boolean",
+            True,
+            ("table", "border_bottom"),
+            "Нижняя граница",
+            order=o(opts),
+            rationale=(
+                "Управляет нижней линией сетки таблицы; вместе с остальными "
+                "флагами задаёт полную или частичную сетку по СТУ 7.7.4."
+            ),
+            source="СТУ 7.7.4; reference:common.table.borders; G4",
+            test_ids=("test_g4_table_borders_render",),
+            legacy=False,
+        ),
+        _option(
+            "table.border_left",
+            "table",
+            ("table",),
+            "boolean",
+            True,
+            ("table", "border_left"),
+            "Левая граница",
+            order=o(opts),
+            rationale=(
+                "Управляет левой линией сетки таблицы; позволяет отключать "
+                "отдельную сторону, не меняя остальные границы."
+            ),
+            source="СТУ 7.7.4; reference:common.table.borders; G4",
+            test_ids=("test_g4_table_borders_render",),
+            legacy=False,
+        ),
+        _option(
+            "table.border_right",
+            "table",
+            ("table",),
+            "boolean",
+            True,
+            ("table", "border_right"),
+            "Правая граница",
+            order=o(opts),
+            rationale=(
+                "Управляет правой линией сетки таблицы; позволяет отключать "
+                "отдельную сторону, не меняя остальные границы."
+            ),
+            source="СТУ 7.7.4; reference:common.table.borders; G4",
+            test_ids=("test_g4_table_borders_render",),
+            legacy=False,
+        ),
+        _option(
+            "table.border_inside_horizontal",
+            "table",
+            ("table",),
+            "boolean",
+            True,
+            ("table", "border_inside_horizontal"),
+            "Внутренние горизонтальные линии",
+            order=o(opts),
+            rationale=(
+                "Отдельно управляет горизонтальными линиями между строками; "
+                "СТУ 7.7.4 требует полную сетку, но внутренние линии настраиваются."
+            ),
+            source="СТУ 7.7.4; reference:common.table.borders; G4",
+            test_ids=("test_g4_table_borders_render",),
+            legacy=False,
+        ),
+        _option(
+            "table.border_inside_vertical",
+            "table",
+            ("table",),
+            "boolean",
+            True,
+            ("table", "border_inside_vertical"),
+            "Внутренние вертикальные линии",
+            order=o(opts),
+            rationale=(
+                "Отдельно управляет вертикальными линиями между столбцами; "
+                "позволяет получить сетку без внутренних вертикалей."
+            ),
+            source="СТУ 7.7.4; reference:common.table.borders; G4",
+            test_ids=("test_g4_table_borders_render",),
+            legacy=False,
+        ),
+        _option(
+            "table.header_double_line",
+            "table",
+            ("table",),
+            "boolean",
+            False,
+            ("table", "header_double_line"),
+            "Двойная линия под шапкой",
+            order=o(opts),
+            rationale=(
+                "Включает двойную линию под шапкой таблицы по СТУ 7.7.4; "
+                "без включения сохраняется обычная линия после шапки."
+            ),
+            source="СТУ 7.7.4; reference:common.table.borders; S3; G4",
+            test_ids=("test_g4_table_double_header_render",),
+            legacy=False,
+        ),
+        _option(
+            "table.header_double_stroke",
+            "table",
+            ("table",),
+            "number",
+            0.2645833333,
+            ("table", "header_double_stroke"),
+            "Толщина двойной линии",
+            order=o(opts),
+            unit="mm",
+            allowed_units=MM_UNITS,
+            min=0,
+            max=20,
+            step=0.01,
+            rationale=(
+                "Задаёт толщину обеих линий под шапкой; по СТУ 7.7.4 "
+                "двойная линия толще обычной сетки."
+            ),
+            source="СТУ 7.7.4; reference:common.table.borders; S3; G4",
+            test_ids=("test_g4_table_double_header_render",),
+            legacy=False,
+        ),
+        _option(
+            "table.header_double_gap",
+            "table",
+            ("table",),
+            "number",
+            0.5,
+            ("table", "header_double_gap"),
+            "Зазор двойной линии",
+            order=o(opts),
+            unit="mm",
+            allowed_units=MM_UNITS,
+            min=0,
+            max=20,
+            step=0.1,
+            rationale=(
+                "Задаёт расстояние между двумя линиями под шапкой; "
+                "по S3 зазор отделён от толщины линий."
+            ),
+            source="СТУ 7.7.4; reference:common.table.borders; S3; G4",
+            test_ids=("test_g4_table_double_header_render",),
+            legacy=False,
+        ),
+        _option(
+            "table.repeat_header",
+            "table",
+            ("table",),
+            "boolean",
+            True,
+            ("table", "repeat_header"),
+            "Повторять шапку",
+            order=o(opts),
+            rationale=(
+                "Повторяет строку шапки на страницах продолжения таблицы; "
+                "по СТУ 7.7.4 шапка должна повторяться."
+            ),
+            source="СТУ 7.7.4; reference:common.table.body; G4",
+            test_ids=("test_g4_table_repeat_header_render",),
+            legacy=False,
+        ),
+        _option(
+            "table.italic_letters",
+            "table",
+            ("table",),
+            "boolean",
+            False,
+            ("table", "italic_letters"),
+            "Курсив одиночных букв",
+            order=o(opts),
+            rationale=(
+                "Выделяет курсивом ячейку, состоящую ровно из одной латинской "
+                "или греческой буквы; по СТУ 7.7.5 это обозначения по ГОСТ 2.321."
+            ),
+            source="СТУ 7.7.5; reference:common.table.italic_letters; G4",
+            test_ids=("test_g4_table_italic_letters_render",),
+            legacy=False,
+        ),
+        _option(
+            "table.continuation_label",
+            "table",
+            ("table",),
+            "boolean",
+            False,
+            ("table", "continuation_label"),
+            "Метки продолжения таблицы",
+            order=o(opts),
+            rationale=(
+                "Включает надписи «Продолжение/Окончание таблицы N» на "
+                "страницах разрыва; по СТУ 7.7.6 они обязательны для длинных таблиц."
+            ),
+            source="СТУ 7.7.6; reference:common.table.continuation_label; S2; G4",
+            test_ids=("test_g4_table_continuation_label_render",),
+            legacy=False,
+        ),
+        _option(
+            "table.continuation_template",
+            "table",
+            ("table",),
+            "string",
+            "Продолжение таблицы {n}",
+            ("table", "continuation_template"),
+            "Шаблон продолжения",
+            order=o(opts),
+            rationale=(
+                "Задаёт текст метки на средней странице разрыва таблицы; "
+                "плейсхолдер {n} заменяется номером таблицы."
+            ),
+            source="СТУ 7.7.6; reference:common.table.continuation_label; S2; G4",
+            test_ids=("test_g4_table_continuation_label_render",),
+            legacy=False,
+        ),
+        _option(
+            "table.final_template",
+            "table",
+            ("table",),
+            "string",
+            "Окончание таблицы {n}",
+            ("table", "final_template"),
+            "Шаблон окончания",
+            order=o(opts),
+            rationale=(
+                "Задаёт текст метки на последней странице разрыва таблицы; "
+                "плейсхолдер {n} заменяется номером таблицы."
+            ),
+            source="СТУ 7.7.6; reference:common.table.continuation_label; S2; G4",
+            test_ids=("test_g4_table_continuation_label_render",),
+            legacy=False,
+        ),
         *_caption_options(
             "table",
             default_position="above",
@@ -2927,6 +3181,100 @@ def _base_options() -> list[Option]:
                 "test_outline_indent_render",
                 "test_outline_empty_per_level_does_not_crash",
             ),
+            legacy=False,
+        ),
+        _option(
+            "outline.entry_case",
+            "outline",
+            ("outline",),
+            "select",
+            "none",
+            ("outline", "entry_case"),
+            "Регистр записей",
+            order=o(opts),
+            enum=tuple(v for v, _ in SELECT_LABELS["outline_entry_case"]),
+            rationale=(
+                "Приводит текст записей оглавления к выбранному регистру; "
+                "по СТУ 6.4.2 структурные заголовки печатаются с прописной."
+            ),
+            source="СТУ 6.4.2; reference:common.toc.matches_headings; G4",
+            test_ids=("test_g4_toc_entry_case_render",),
+            legacy=False,
+        ),
+        _option(
+            "outline.omit_when_pages_lte",
+            "outline",
+            ("outline",),
+            "integer",
+            0,
+            ("outline", "omit_when_pages_lte"),
+            "Не выводить при страницах ≤",
+            order=o(opts),
+            min=0,
+            max=1000,
+            step=1,
+            rationale=(
+                "Скрывает оглавление, если в документе не больше N страниц; "
+                "0 отключает правило. По reference:common.toc.required_for_length N=24."
+            ),
+            source="СТУ 6.4; reference:common.toc.required_for_length; S6; G4",
+            test_ids=("test_g4_toc_skip_render",),
+            legacy=False,
+        ),
+        _option(
+            "outline.appendix_grouping",
+            "outline",
+            ("outline",),
+            "boolean",
+            False,
+            ("outline", "appendix_grouping"),
+            "Группировать приложения",
+            order=o(opts),
+            rationale=(
+                "Сворачивает три и более подряд идущих приложения в одну "
+                "запись «Приложения А–Т»; по СТУ 6.4 подзаголовки при этом не выводятся."
+            ),
+            source="СТУ 6.4; reference:common.toc.appendix_grouping; G4",
+            test_ids=("test_g4_toc_appendix_grouping_render",),
+            legacy=False,
+        ),
+        _option(
+            "outline.appendix_min_group",
+            "outline",
+            ("outline",),
+            "integer",
+            3,
+            ("outline", "appendix_min_group"),
+            "Минимум приложений в группе",
+            order=o(opts),
+            min=2,
+            max=26,
+            step=1,
+            depends_on=("outline.appendix_grouping",),
+            rationale=(
+                "Задаёт минимальное число подряд идущих приложений для "
+                "групповой записи; reference:common.toc.appendix_grouping использует 3."
+            ),
+            source="СТУ 6.4; reference:common.toc.appendix_grouping; G4",
+            test_ids=("test_g4_toc_appendix_grouping_render",),
+            legacy=False,
+        ),
+        _option(
+            "outline.appendix_group_template",
+            "outline",
+            ("outline",),
+            "string",
+            "Приложения {first}–{last}",
+            ("outline", "appendix_group_template"),
+            "Шаблон группы приложений",
+            order=o(opts),
+            depends_on=("outline.appendix_grouping",),
+            rationale=(
+                "Задаёт текст групповой записи приложений; {first} и {last} "
+                "заменяются буквами первого и последнего приложения."
+            ),
+            source="СТУ 6.4; reference:common.toc.appendix_grouping; G4",
+            test_ids=("test_g4_toc_appendix_grouping_render",),
             legacy=False,
         ),
     ]

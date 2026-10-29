@@ -1104,6 +1104,147 @@
     block(width: 100%, align(alignment(caption-cfg.caption_align), body))
   }
 
+  // Число ячеек в таблице, включая вложенную шапку. Нужно для внешних
+  // границ: Typst не сообщает число строк таблицы напрямую.
+  let table-cell-count(children) = {
+    let count = 0
+    for child in children {
+      if child.func() == table.cell {
+        count += 1
+      } else if child.func() == table.header {
+        count += table-cell-count(child.children)
+      }
+    }
+    count
+  }
+
+  let table-row-count(it) = {
+    let columns = it.columns.len()
+    if columns == 0 { 0 } else { calc.floor(table-cell-count(it.children) / columns) }
+  }
+
+  let table-header-row-count(it) = {
+    let columns = it.columns.len()
+    let cells = 0
+    for child in it.children {
+      if child.func() == table.header {
+        cells += table-cell-count(child.children)
+      }
+    }
+    if columns == 0 { 0 } else { calc.floor(cells / columns) }
+  }
+
+  // Сетка таблицы: внешние и внутренние линии включаются отдельно.
+  // Обслуживает table.border_* и table.header_double_line.
+  let table-stroke(config, it) = {
+    let columns = it.columns.len()
+    let original-header-rows = table-header-row-count(it)
+    let line = config.table.stroke * 1mm
+    let double = config.table.header_double_line and original-header-rows > 0
+    // Двойная линия добавляет маркер и зазор, повтор без двойной линии — маркер.
+    let extra-rows = if double {
+      2
+    } else if not config.table.repeat_header and original-header-rows > 0 {
+      1
+    } else {
+      0
+    }
+    let rows = table-row-count(it) + extra-rows
+    let header-rows = original-header-rows + extra-rows
+    (x, y) => (
+      top: if y == 0 {
+        if config.table.border_top { line } else { none }
+      } else if header-rows > 0 and y <= header-rows {
+        // Линию под шапкой рисует hline Pandoc или двойная линия.
+        none
+      } else if config.table.border_inside_horizontal {
+        line
+      } else {
+        none
+      },
+      bottom: if y == rows - 1 {
+        if config.table.border_bottom { line } else { none }
+      } else if double and y == header-rows - 1 {
+        none
+      } else {
+        none
+      },
+      left: if x == 0 {
+        if config.table.border_left { line } else { none }
+      } else if config.table.border_inside_vertical {
+        line
+      } else {
+        none
+      },
+      right: if x == columns - 1 {
+        if config.table.border_right { line } else { none }
+      } else {
+        none
+      },
+    )
+  }
+
+  // Метка-охранник, чтобы show table не пересобирал собственную шапку.
+  let table-double-marker = "FD_TABLE_DOUBLE_HEADER"
+  let table-has-marker(children) = {
+    for child in children {
+      if child.func() == table.cell {
+        let body = child.body
+        if body.func() == metadata and body.value == table-double-marker {
+          return true
+        }
+      }
+    }
+    false
+  }
+
+  let table-header-rebuilt(config, header, columns, double) = {
+    if double {
+      table.header(
+        repeat: config.table.repeat_header,
+        ..header.children,
+        table.hline(stroke: config.table.header_double_stroke * 1mm),
+        table.cell(
+          colspan: columns,
+          inset: (top: 0pt, bottom: 0pt),
+          stroke: none,
+          metadata(table-double-marker),
+        ),
+        table.cell(
+          colspan: columns,
+          inset: (top: 0pt, bottom: 0pt),
+          stroke: none,
+          v(config.table.header_double_gap * 1mm),
+        ),
+        table.hline(stroke: config.table.header_double_stroke * 1mm),
+      )
+    } else {
+      table.header(
+        repeat: config.table.repeat_header,
+        ..header.children,
+        table.cell(
+          colspan: columns,
+          inset: (top: 0pt, bottom: 0pt),
+          stroke: none,
+          metadata(table-double-marker),
+        ),
+      )
+    }
+  }
+
+  // Номер таблицы для метки продолжения: {h1}.{n}, {h1}.{h2}.{n} или {n}.
+  let table-number-preview(data, counters, number-counter) = {
+    let n = number-counter.get().first() + 1
+    let parts = ()
+    if data != none {
+      for level in data.levels {
+        parts.push(caption-chapter-value(level, counters))
+      }
+    }
+    parts.push(str(n))
+    parts.join(".")
+  }
+
   let with-caption(config, body) = {
     let figure-data = if config.figure.caption_template == none {
       none
@@ -1158,7 +1299,18 @@
     // внутри контейнера подписи Typst их запрещает.
     show figure.where(kind: table): it => {
       around-pagebreaks(config.table.caption_around.before)
-      it
+      if config.table.continuation_label {
+        context {
+          let number = table-number-preview(table-data, table-counters, table-n)
+          [#metadata(number) <fd-table-start>]
+          // Без своего шаблона подписи table-n не шагает в caption-plain.
+          if table-data == none { table-n.step() }
+          it
+          [#metadata(none) <fd-table-end>]
+        }
+      } else {
+        it
+      }
       around-pagebreaks(config.table.caption_around.after)
     }
     show figure.where(kind: image): it => {
@@ -1195,18 +1347,204 @@
     body
   }
 
+  // Регистр записи оглавления; для first_upper остальные буквы — строчные.
+  let outline-case(content, mode) = {
+    if mode == "upper" {
+      upper(content)
+    } else if mode == "lower" {
+      lower(content)
+    } else if mode == "first_upper" {
+      if content.func() == text {
+        let clusters = content.text.clusters()
+        if clusters.len() == 0 {
+          content
+        } else {
+          upper(clusters.at(0)) + lower(clusters.slice(1).join(""))
+        }
+      } else {
+        content
+      }
+    } else {
+      content
+    }
+  }
+
+  let outline-appendix-heading(heading) = {
+    if heading.body.func() == text {
+      lower(heading.body.text.trim()).starts-with("приложение")
+    } else {
+      false
+    }
+  }
+
+  let outline-appendix-letter(heading) = {
+    let parts = heading.body.text.trim().split(" ")
+    if parts.len() > 1 { parts.at(1).replace(".", "") } else { "" }
+  }
+
+  // Запись оглавления: регистр, отточие и группировка приложений.
+  // Обслуживает outline.entry_case и outline.appendix_grouping.
+  let outline-entry(config, it) = context {
+    let default-entry = link(
+      it.element.location(),
+      it.indented(it.prefix(), it.inner()),
+    )
+    if it.element.func() != heading {
+      return default-entry
+    }
+
+    let normal-entry = {
+      if config.outline.entry_case == "none" {
+        default-entry
+      } else {
+        let body = outline-case(it.body(), config.outline.entry_case)
+        let page = str(counter(page).at(it.element.location()).first())
+        link(
+          it.element.location(),
+          it.indented(
+            it.prefix(),
+            [#body #box(width: 1fr, repeat[.]) #page],
+          ),
+        )
+      }
+    }
+
+    if not config.outline.appendix_grouping {
+      return normal-entry
+    }
+
+    let headings = query(heading.where(outlined: true))
+    let current = it.element
+    let current-text = if it.body().func() == text { it.body().text } else { "" }
+    let current-index = none
+    for (index, heading) in headings.enumerate() {
+      if heading.location() == current.location() {
+        current-index = index
+        break
+      }
+    }
+    if current-index == none and current-text != "" {
+      for (index, heading) in headings.enumerate() {
+        if heading.body.func() == text and heading.body.text == current-text {
+          current-index = index
+          break
+        }
+      }
+    }
+    if current-index == none {
+      return normal-entry
+    }
+
+    let level-one = ()
+    for (index, heading) in headings.enumerate() {
+      if heading.level == 1 { level-one.push(index) }
+    }
+    let runs = ()
+    let current-run = ()
+    for index in level-one {
+      if outline-appendix-heading(headings.at(index)) {
+        current-run.push(index)
+      } else {
+        if current-run.len() > 0 {
+          runs.push(current-run)
+          current-run = ()
+        }
+      }
+    }
+    if current-run.len() > 0 { runs.push(current-run) }
+
+    let run = none
+    for candidate in runs {
+      if candidate.contains(current-index) {
+        run = candidate
+        break
+      }
+    }
+    if run != none and run.len() >= config.outline.appendix_min_group {
+      let first-index = run.first()
+      if current-index != first-index {
+        return none
+      }
+      let first = headings.at(first-index)
+      let last = headings.at(run.last())
+      let text = config.outline.appendix_group_template
+        .replace("{first}", outline-appendix-letter(first))
+        .replace("{last}", outline-appendix-letter(last))
+      let first-page = str(counter(page).at(first.location()).first())
+      let last-page = str(counter(page).at(last.location()).first())
+      return link(
+        first.location(),
+        it.indented(
+          none,
+          [#text #box(width: 1fr, repeat[.]) #first-page–#last-page],
+        ),
+      )
+    }
+
+    // Подзаголовки приложения скрываются, если головное приложение вошло в группу.
+    if it.level > 1 {
+      let parent-index = none
+      for (index, heading) in headings.enumerate() {
+        if index >= current-index { break }
+        if heading.level == 1 { parent-index = index }
+      }
+      if parent-index != none {
+        for candidate in runs {
+          if (
+            candidate.contains(parent-index)
+              and candidate.len() >= config.outline.appendix_min_group
+          ) {
+            return none
+          }
+        }
+      }
+    }
+
+    normal-entry
+  }
+
   let with-text-overrides(config, body) = {
     show par: it => text-override-body(it, config.par.text_override)
     show list: it => text-override-body(it, config.bullet_list.text_override)
     show enum: it => text-override-body(it, config.numbered_list.text_override)
-    show table.cell: it => text-override-body(it, config.table.text_override)
+    show table.cell: it => {
+      if (
+        config.table.italic_letters
+          and it.body.func() == text
+          and it.body.text.clusters().len() == 1
+          and regex("[A-Za-zΑ-Ωα-ω]") in it.body.text
+      ) {
+        // Только ячейка ровно из одной латинской/греческой буквы (СТУ 7.7.5).
+        let fields = it.fields()
+        let body = fields.remove("body")
+        text-override-body(
+          table.cell(emph(body), ..fields),
+          config.table.text_override,
+        )
+      } else {
+        text-override-body(it, config.table.text_override)
+      }
+    }
     show quote: it => text-override-body(it, config.quote.text_override)
     show raw.where(block: true): it => text-override-body(it, config.raw.text_override)
     show raw.where(block: false): it => text-override-body(it, config.raw.text_override)
     show figure: it => text-override-body(it, config.figure.text_override)
     show footnote.entry: it => text-override-body(it, config.footnote.text_override)
     show terms: it => text-override-body(it, config.terms.text_override)
-    show outline: it => text-override-body(it, config.outline.text_override)
+    show outline: it => {
+      if config.outline.omit_when_pages_lte > 0 {
+        context {
+          if counter(page).final().first() <= config.outline.omit_when_pages_lte {
+            none
+          } else {
+            text-override-body(it, config.outline.text_override)
+          }
+        }
+      } else {
+        text-override-body(it, config.outline.text_override)
+      }
+    }
+    show outline.entry: it => outline-entry(config, it)
     show math.equation.where(block: true): it => {
       let equation = if config.equation.body_indent != 0 {
         pad(left: config.equation.body_indent * 1mm, it)
@@ -1242,24 +1580,61 @@
 
   let apply(config, body) = {
     // Страница.
-    set page(
+    let page-numbering = if config.page.numbering == "none" {
+      none
+    } else if config.page.numbering_skip_first or config.page.numbering_start != 1 {
+      page-number.with(
+        config.page.numbering,
+        config.page.numbering_skip_first,
+        config.page.numbering_start,
+      )
+    } else {
+      config.page.numbering
+    }
+    let page-args = (
       paper: config.page.paper,
       flipped: config.page.flipped,
       margin: page-margins(config.page),
       columns: config.page.columns,
-      numbering: if config.page.numbering == "none" {
-        none
-      } else if config.page.numbering_skip_first or config.page.numbering_start != 1 {
-        page-number.with(
-          config.page.numbering,
-          config.page.numbering_skip_first,
-          config.page.numbering_start,
-        )
-      } else {
-        config.page.numbering
-      },
+      numbering: page-numbering,
       number-align: alignment(config.page.number_align),
     )
+    if config.table.continuation_label {
+      // Метки продолжения таблицы живут в колонтитуле: диапазон страниц
+      // определяется метками до/после figure таблицы (S2).
+      page-args.insert(
+        "header",
+        context {
+          let here-page = here().page()
+          let starts = query(<fd-table-start>)
+          let ends = query(<fd-table-end>)
+          let out = none
+          for (index, start) in starts.enumerate() {
+            if index < ends.len() {
+              let end = ends.at(index)
+              let start-page = start.location().page()
+              let end-page = end.location().page()
+              if here-page > start-page and here-page <= end-page {
+                let number = str(start.value)
+                let template = if here-page == end-page {
+                  config.table.final_template
+                } else {
+                  config.table.continuation_template
+                }
+                let label = text-override-body(
+                  [#template.replace("{n}", number)],
+                  config.table.text_override,
+                )
+                let line = align(right, label)
+                out = if out == none { line } else { out + linebreak() + line }
+              }
+            }
+          }
+          out
+        },
+      )
+    }
+    set page(..page-args)
 
     // Глобальный текст.
     set text(..text-args(config.document))
@@ -1350,6 +1725,40 @@
     }
     set table(..table-args)
 
+    // Явные hline из Pandoc скрываются, когда сетка рисуется целиком
+    // (двойная линия шапки или выключенные внутренние горизонтали).
+    show table.hline: it => if (
+      config.table.header_double_line or not config.table.border_inside_horizontal
+    ) { none } else { it }
+
+    // Сетка по сторонам, повтор шапки и двойная линия под шапкой.
+    // Функция stroke в поле — признак уже пересобранной таблицы.
+    show table: it => {
+      if type(it.stroke) == function {
+        it
+      } else {
+        let header = it.children.find(child => child.func() == table.header)
+        if header != none and table-has-marker(header.children) {
+          it
+        } else {
+          let double = config.table.header_double_line
+          let rebuild = header != none and (double or not config.table.repeat_header)
+          let fields = it.fields()
+          let children = fields.remove("children")
+          if rebuild {
+            let columns = it.columns.len()
+            children = children.map(child => if child.func() == table.header {
+              table-header-rebuilt(config, child, columns, double)
+            } else {
+              child
+            })
+          }
+          fields.insert("stroke", table-stroke(config, it))
+          table(..fields, ..children)
+        }
+      }
+    }
+
     // Изображение и рисунок.
     let image-args = (
       width: if config.figure.width == 0 {
@@ -1385,6 +1794,8 @@
       figure-args.insert("outlined", false)
     }
     set figure(..figure-args)
+    // Таблица внутри figure иначе не разрывается между страницами.
+    show figure.where(kind: table): set block(breakable: true)
 
     // Сноски.
     set footnote(numbering: config.footnote.marker_format)

@@ -16,8 +16,8 @@
 | G2c — остальные «дешёвые» правила | выполнен; G2c-fix ждёт приёмки | этот файл |
 | G2d — политика столкновения вставок | выполнен, принят владельцем | этот файл |
 | G3a — структурные сущности, приложения, оглавление | выполнен, принят владельцем | этот файл |
-| G3b — подписи и нумерация рисунков/таблиц | не принят; исправления ждут повторной проверки | этот файл |
-| G4 — таблицы и оглавление | не начат | — |
+| G3b — подписи и нумерация рисунков/таблиц | выполнен, принят владельцем | этот файл |
+| G4 — таблицы и оглавление | выполнен, ждёт приёмки | этот файл |
 | G5 — единицы измерения и чистка интерфейса | не начат | — |
 | G6 — профиль СТУ СФУ и самопроверка | не начат | — |
 
@@ -543,7 +543,7 @@ B-01…B-06 и B-08 отмечены решёнными в `BLOCKERS.md`. B-07 �
 | `text.indent.first_line` | `par.first_line_indent` | существующие | было |
 | `text.line_spacing` | `document.line_spacing` | `test_line_spacing_*` | было/G2b |
 | `referat.keywords_uppercase` | — | — | отложено владельцем (реферат) |
-| `toc.indent_levels` | — | — | отложено G4 |
+| `toc.indent_levels` | `outline.indent_mode`, `outline.indent_mm`, `outline.indent_per_level` | `test_outline_indent_render` | реализовано в G3a, проверено в G4 |
 | `heading.h1..h6` | `heading.h*` | существующие | было |
 | `heading.spacing_before/after` | `heading.h*.spacing_*` | `test_element_spacing_*` | реализовано |
 | `heading.no_hyphenation` | `text_override.hyphenate` | существующие | покрыто |
@@ -561,7 +561,7 @@ B-01…B-06 и B-08 отмечены решёнными в `BLOCKERS.md`. B-07 �
 | `table.spacing_before/after` | `table.spacing_*` | `test_element_spacing_*` | реализовано |
 | `table.cell_padding` | `table.inset` | существующие | было |
 | `table.font.size` | `table.text_override.font_size` | существующие | было |
-| `table.body` | — | — | отложено G4 |
+| `table.body` | `table.repeat_header`, `table.text_override.font_size` | `test_g4_table_repeat_header_render`, `test_g4_table_inset_and_font_render` | реализовано в объёме G4: повтор шапки и кегль; отдельная жирность шапки не входит |
 | `reference.footnote` | `footnote.*`, `separator_*` | `test_footnote_separator_*` | реализовано |
 | `coursework.*_numbering`, `graduation_qualification_work.*_numbering` | — | — | seed G6 после G3 |
 | `coursework.toc.form_t` | — | — | отложено G4 |
@@ -843,3 +843,70 @@ Postgres не запущен, поэтому DB-тесты локально пр
 DB-тесты локально пропущены из-за отсутствия Postgres; CI — авторитетный
 прогон. B-10 разделён: B-10a (верхний уровень), B-10b (вложенность),
 B-10c (`number_align`, все 4 значения и маркер в поле), B-10d (интервалы) закрыты.
+
+## G4 — чек-лист
+
+Коммиты: см. отчёт на воротах G4.
+
+| Пункт | Статус | Где |
+|---|---|---|
+| Границы по сторонам | ✔ `border_top/bottom/left/right` | `test_g4_table_borders_render` |
+| Внутренние горизонтали/вертикали | ✔ `border_inside_horizontal/vertical` | `test_g4_table_borders_render` |
+| Двойная линия под шапкой | ✔ `header_double_line`, толщина и зазор | `test_g4_table_double_header_render` |
+| Повтор шапки | ✔ `repeat_header`; выключение проверено на второй странице | `test_g4_table_repeat_header_render` |
+| Отступы ячеек и кегль | ✔ `table.inset`, `table.text_override.font_size` | `test_g4_table_inset_and_font_render` |
+| Курсив одиночных латинских/греческих букв | ✔ `italic_letters`, по умолчанию выкл.; ровно одна буква в ячейке | `test_g4_table_italic_letters_render` |
+| Метки продолжения/окончания таблицы | ✔ `continuation_label`, шаблоны `{n}`; метки в колонтитуле | `test_g4_table_continuation_label_render` |
+| Глубина и отступы оглавления | ✔ не переделывались, приняты в G3a | `test_outline_indent_render` |
+| Регистр записей оглавления | ✔ `outline.entry_case`: none/upper/lower/first_upper | `test_g4_toc_entry_case_render` |
+| Заполнитель-отточие | ✔ фиксированные точки; по OWNER_DECISIONS 9 не настраивается | `test_g4_toc_fill_render` |
+| Авто-пропуск при страницах ≤ N | ✔ `outline.omit_when_pages_lte`, 0 — выключено | `test_g4_toc_skip_render` |
+| Группировка приложений | ✔ `appendix_grouping`, `appendix_min_group`, шаблон; подзаголовки скрываются | `test_g4_toc_appendix_grouping_render` |
+| Минимум группы | ✔ два приложения не группируются при минимуме 3 | `test_g4_toc_appendix_group_minimum_render` |
+| Новый синтаксис Markdown | ✔ не вводился | — |
+| Объединение ячеек | ✔ не делалось | — |
+| Golden | ✔ 16 снимков: только новые ключи конфига, 304 строки | `tests/fixtures/golden/` |
+| G5 не начат | ✔ | — |
+
+### G4: измерения
+
+| Правило | Тест | Измерение |
+|---|---|---|
+| Границы таблицы | `test_g4_table_borders_render` | по умолчанию 3 вертикальные и 4 горизонтальные линии; каждый флаг убирает свою линию/группу |
+| Двойная линия | `test_g4_table_double_header_render` | две линии с зазором 1,4 pt, толщина 0,75 pt |
+| Повтор шапки | `test_g4_table_repeat_header_render` | при `true` шапка есть на 2-й странице, при `false` — нет |
+| Курсив букв | `test_g4_table_italic_letters_render` | `x` и `α` — Italic; `AB` и `б` — Regular |
+| Метки продолжения | `test_g4_table_continuation_label_render` | на 1-й странице метки нет; на продолжении «Продолжение таблицы 1», на последней «Окончание таблицы 1» |
+| Регистр оглавления | `test_g4_toc_entry_case_render` | `none`/`upper`/`lower`/`first_upper` дают ожидаемый текст записи |
+| Отточие | `test_g4_toc_fill_render` | в записи оглавления есть точки |
+| Пропуск оглавления | `test_g4_toc_skip_render` | при 3 страницах порог 3 скрывает, порог 2 показывает |
+| Группировка приложений | `test_g4_toc_appendix_grouping_render` | «Приложения А–В», диапазон страниц 2–4; подзаголовок и отдельные приложения не выводятся |
+| Минимум группы | `test_g4_toc_appendix_group_minimum_render` | два приложения при минимуме 3 остаются отдельными записями |
+
+### G4: проверки
+
+| Команда | Результат |
+|---|---|
+| Локально `uv run pytest tests/ -m "not integration" -q -rs` (без Postgres) | 75 passed, 66 skipped, 208 deselected |
+| Локально `uv run pytest tests/ -m integration -q -rs` (без Postgres) | 207 passed, 1 skipped, 141 deselected |
+| `cd frontend && npm test -- --run` | 17 passed (4 files) |
+| `cd frontend && npm run build` | OK |
+| `cd frontend && npx vue-tsc --noEmit` | exit 0 |
+| `uvx ruff check app tests scripts` | All checks passed |
+| `uvx ruff format --check app tests scripts` | 106 files already formatted |
+| `UPDATE_GOLDEN=1 uv run pytest tests/test_typst_golden.py -m integration` | 33 passed |
+
+CI-прогон будет добавлен после пуша.
+
+### G4: golden
+
+16 снимков получили только новые ключи `table.*` и `outline.*` в блоке
+конфига; тела документов не изменились. Обновление выполнено командой
+`UPDATE_GOLDEN=1 uv run pytest tests/test_typst_golden.py -m integration`.
+
+### G4: не входит в объём
+
+`table.numbering_row_replacement`, `table.unit_label`, `table.footnote` и
+`coursework.toc.form_t` в G4 не реализовывались: они не входят в промпт G4,
+а единица над таблицей и сноски таблицы требуют нового синтаксиса Markdown.
+Объединение ячеек не делалось.

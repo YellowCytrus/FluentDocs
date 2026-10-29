@@ -462,6 +462,8 @@ PDF через Typst CLI и Node + `typst.ts`, затем сравнивает �
 - `coursework.*`, `graduation_qualification_work.*` — значения seed-профиля (G6);
 - `bibliography.entry` — сопоставитель структурных сущностей (G3a).
 
+На G4 реализованы `toc.indent_levels` (отступы оглавления) и `table.body`
+в объёме повтора шапки и кегля через `table.text_override.font_size`.
 
 ## G3a: структурные сущности, приложения и оглавление
 
@@ -686,3 +688,75 @@ Typst (`1)`, `1.`). Если элементов меньше глубины сп
 | `numbered_list.level_formats` | `[{format: "1."}, {format: "а)"}]` |
 
 Профили «Курсовая» и «ВКР» в G3b не создаются и не копируются.
+
+## G4: таблицы и оглавление
+
+### Таблицы
+
+| Опция | Тип | Дефолт | Смысл |
+|---|---|---|---|
+| `table.border_top` | boolean | `true` | Верхняя внешняя граница |
+| `table.border_bottom` | boolean | `true` | Нижняя внешняя граница |
+| `table.border_left` | boolean | `true` | Левая внешняя граница |
+| `table.border_right` | boolean | `true` | Правая внешняя граница |
+| `table.border_inside_horizontal` | boolean | `true` | Горизонтальные линии между строками |
+| `table.border_inside_vertical` | boolean | `true` | Вертикальные линии между столбцами |
+| `table.header_double_line` | boolean | `false` | Двойная линия под шапкой |
+| `table.header_double_stroke` | number, mm | `0.2645833333` | Толщина линий двойной шапки (0,75 pt) |
+| `table.header_double_gap` | number, mm | `0.5` | Зазор между линиями двойной шапки |
+| `table.repeat_header` | boolean | `true` | Повторять шапку на страницах продолжения |
+| `table.italic_letters` | boolean | `false` | Курсив для ячейки ровно из одной латинской/греческой буквы |
+| `table.continuation_label` | boolean | `false` | Метки «Продолжение/Окончание таблицы N» |
+| `table.continuation_template` | string | `"Продолжение таблицы {n}"` | Текст метки на средней странице |
+| `table.final_template` | string | `"Окончание таблицы {n}"` | Текст метки на последней странице |
+
+Толщина обычной сетки остаётся в `table.stroke`, отступы ячеек — в
+`table.inset`, кегль ячеек — в `table.text_override.font_size`.
+`fd.table-stroke` строит функцию `stroke` по координатам ячейки, поэтому
+внешние и внутренние линии включаются независимо. `show table` пересобирает
+таблицу с этой функцией; при двойной шапке в `table.header` добавляются две
+линии и зазор, а служебные строки учитываются в индексах `stroke`. Явные
+`table.hline` из Pandoc скрываются только когда сетка рисуется целиком
+(двойная шапка или выключенные внутренние горизонтали).
+
+`repeat_header = false` пересобирает `table.header(repeat: false)`. Таблица
+внутри `figure` делается разрывной через
+`show figure.where(kind: table): set block(breakable: true)`; без этого
+длинная таблица не переходит на следующую страницу.
+
+Метки продолжения: вокруг figure таблицы ставятся `metadata(number)` с
+метками `<fd-table-start>`/`<fd-table-end>`, диапазон читается в
+`page.header` через `query`. Номер берётся из счётчиков подписи таблицы
+(`{h1}.{n}`, `{h1}.{h2}.{n}` или `{n}`) и подставляется в шаблон `{n}`.
+Тесты: `test_g4_table_borders_render`,
+`test_g4_table_double_header_render`, `test_g4_table_repeat_header_render`,
+`test_g4_table_inset_and_font_render`,
+`test_g4_table_italic_letters_render`,
+`test_g4_table_continuation_label_render`.
+
+### Оглавление
+
+| Опция | Тип | Дефолт | Смысл |
+|---|---|---|---|
+| `outline.entry_case` | select | `none` | Регистр записей: `none` / `upper` / `lower` / `first_upper` |
+| `outline.omit_when_pages_lte` | integer | `0` | Не выводить оглавление при числе страниц ≤ N; 0 — выключено |
+| `outline.appendix_grouping` | boolean | `false` | Сворачивать подряд идущие приложения в одну запись |
+| `outline.appendix_min_group` | integer | `3` | Минимум приложений для групповой записи |
+| `outline.appendix_group_template` | string | `"Приложения {first}–{last}"` | Шаблон групповой записи |
+
+Глубина, `step`/`per_level` и отступы по уровням остаются из G3a
+(`outline.depth`, `outline.indent_mode`, `outline.indent_mm`,
+`outline.indent_per_level`) и в G4 не переделывались.
+
+`fd.outline-entry` заменяет запись `outline.entry` только при выбранном
+регистре или группировке. `first_upper` делает первую букву прописной,
+остальные — строчными; для форматированного содержимого регистр не
+применяется. Группировка ищет подряд идущие приложения по заголовкам уровня 1
+с текстом «Приложение…», скрывает отдельные записи и подзаголовки, а первая
+запись выводится как `Приложения А–В` с диапазоном страниц. Заполнитель —
+фиксированные точки (`repeat[.]`); по OWNER_DECISIONS 9 он не настраивается.
+Пропуск оглавления проверяет `counter(page).final().first()`.
+
+Тесты: `test_g4_toc_entry_case_render`, `test_g4_toc_fill_render`,
+`test_g4_toc_skip_render`, `test_g4_toc_appendix_grouping_render`,
+`test_g4_toc_appendix_group_minimum_render`.
