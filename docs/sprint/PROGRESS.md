@@ -811,10 +811,10 @@ Postgres не запущен, поэтому DB-тесты локально пр
 | Полная нумерация | `test_numbered_list_full_render` | `1. а)`, `1.1. а)` |
 | Латинский алфавит | `test_numbered_list_alphabet_latin_render` | `a)`, `b)` |
 | Перенос списка | `test_numbered_list_wrap_mode_render` | x0 продолжения = левому полю (допуск 0,8 pt); body_text = тексту первой строки |
-| Вложенные уровни | `test_numbered_list_nested_indent_render` | x0 маркеров/текста растёт на каждом уровне; шаги равны; оба режима |
-| Интервалы списка | `test_numbered_list_spacing_render` | auto = 22.3 pt, tight = 13.9 pt, loose = 19.9 pt; `tight=false` = auto |
+| Вложенные уровни | `test_numbered_list_nested_indent_render` | x0 маркеров 72,98 → 87,20 → 101,42 pt; текста 85,09 → 99,31 → 113,53 pt; шаг 14,22 pt; оба режима |
+| Интервалы списка | `test_numbered_list_spacing_render` | auto = 22,3 pt, tight = 13,9 pt, loose = 19,9 pt; `tight=false` = 22,3 pt |
 | Значения tight/loose | `test_numbered_list_tight_loose_spacing_values_render` | изменение `tight_spacing`/`loose_spacing` на 1 em сдвигает пункты на 12 pt |
-| Низ маркера | `test_numbered_list_number_align_bottom_render` | `end+bottom`: `top` маркера у последней строки; `end+top`: у первой |
+| Низ маркера | `test_numbered_list_number_align_bottom_render` | `end+top`: marker top 69,71 pt; `end+bottom`: 136,6 pt = top последней строки |
 
 ### G3b: golden
 
@@ -825,14 +825,14 @@ Postgres не запущен, поэтому DB-тесты локально пр
 
 ### Проверки G3b (исправления)
 
-Коммит: `5f7bbaa`; CI run
-[40863863839](https://github.com/YellowCytrus/FluentDocs/actions/runs/40863863839) — test + lint success.
+Коммит с исправлениями: `5388795`; CI run
+[40866947134](https://github.com/YellowCytrus/FluentDocs/actions/runs/40866947134) — test + lint success.
 
 | Команда | Результат |
 |---|---|
-| **CI, GitHub Actions** | `test`: 137 passed, 177 deselected; `integration`: 177 passed, 137 deselected; `Frontend tests`: 17 passed; `Frontend build`: OK — run `40863863839` |
-| Локально `uv run pytest tests/ -m "not integration" -q -rs` (без Postgres) | 71 passed, 66 skipped, 177 deselected |
-| Локально `uv run pytest tests/ -m integration -q -rs` (без Postgres) | 176 passed, 1 skipped, 137 deselected |
+| **CI, GitHub Actions** | `test`: 137 passed, 185 deselected; `integration`: 185 passed, 137 deselected; `Frontend tests`: 17 passed; `Frontend build`: OK — run `40866947134` |
+| Локально `uv run pytest tests/ -m "not integration" -q -rs` (без Postgres) | 71 passed, 66 skipped, 185 deselected |
+| Локально `uv run pytest tests/ -m integration -q -rs` (без Postgres) | 184 passed, 1 skipped, 137 deselected |
 | `cd frontend && npm test -- --run` | 17 passed (4 files) |
 | `cd frontend && npm run build` | OK (`vue-tsc -b` + vite) |
 | `cd frontend && npx vue-tsc --noEmit` | exit 0 |
