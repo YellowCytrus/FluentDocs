@@ -97,22 +97,33 @@
 
   // --- окружение элемента (around) ---
 
-  // Пустая строка: weak при collapse=max (заменяет штатный интервал),
-  // жёсткая при sum (добавляется к штатному). count = 0 даёт v(0).
-  let around-blank(item, collapse, step) = {
-    v(item.count * step, weak: collapse == "max")
+  // Пустая строка: полный шаг строки; на верху страницы пропадает.
+  // Обслуживает элемент around item type=blank (AGENTS 5.1).
+  let around-blank(config, item) = {
+    let step = if item.line_spacing.mode == "multiplier" {
+      // Множитель пустой строки — доля полного шага строки документа.
+      item.line_spacing.value * line-step(config, config.document.line_spacing)
+    } else {
+      line-step(config, item.line_spacing)
+    }
+    let margin = if config.page.flipped {
+      config.page.margin_landscape_top
+    } else {
+      config.page.margin_top
+    }
+    context {
+      // Верх страницы: here().position().y близко к верхнему полю (плюс
+      // высота строки). Пустая строка там не создаёт зазор.
+      if here().position().y > margin * 1mm + 12pt {
+        v(step)
+      }
+    }
   }
 
   // Одна вставка окружения. Обслуживает опции around.<element>.before/after.
-  let around-item(config, item, collapse) = {
+  let around-item(config, item) = {
     if item.type == "blank" {
-      let step = if item.line_spacing.mode == "multiplier" {
-        // Множитель пустой строки — доля полного шага строки документа.
-        item.line_spacing.value * line-step(config, config.document.line_spacing)
-      } else {
-        line-step(config, item.line_spacing)
-      }
-      around-blank(item, collapse, step)
+      around-blank(config, item)
     } else if item.type == "text" {
       let body = [#item.content]
       let styled = if item.text_override != none {
@@ -128,23 +139,11 @@
     }
   }
 
-  // Оборачивает элемент вставками before/after; пустой around не меняет вывод.
-  let around-with-config(config, cfg, it) = {
-    if cfg.before.len() == 0 and cfg.after.len() == 0 {
-      it
-    } else {
-      for item in cfg.before {
-        around-item(config, item, cfg.collapse)
-      }
-      it
-      for item in cfg.after {
-        around-item(config, item, cfg.collapse)
-      }
+  // Все вставки списка; пустой список ничего не добавляет.
+  let around-items(config, items) = {
+    for item in items {
+      around-item(config, item)
     }
-  }
-
-  let around-body(config, target, it) = {
-    around-with-config(config, config.around.at(target), it)
   }
 
   // --- структурные сущности ---
@@ -170,9 +169,9 @@
     if match.mode == "equals" {
       hay == needle
     } else if match.mode == "contains" {
-      if match.target == "paragraph" { hay.starts-with(needle) } else { hay.contains(needle) }
+      hay.contains(needle)
     } else {
-      regex(needle).matches(hay).len() > 0
+      hay.contains(regex(needle))
     }
   }
 
@@ -192,7 +191,7 @@
     found
   }
 
-  // Оформление текста сущности: регистр, жирность, свой стиль.
+  // Оформление текста сущности: регистр, жирность.
   let entity-text(entity, content) = {
     let styled = content
     if entity.apply.case != "none" {
@@ -202,6 +201,7 @@
     styled
   }
 
+  // Непустое окружение сущности или none.
   let entity-around(config, entity) = {
     let cfg = entity.apply.around
     if cfg.before.len() == 0 and cfg.after.len() == 0 {
@@ -211,42 +211,84 @@
     }
   }
 
-  // --- нумерация приложений ---
+  // --- нумерация приложений и своих счётчиков ---
 
   let in-appendix = state("fd-in-appendix", false)
   let appendix-counter = counter("fd-appendix-letter")
+  let own-active = state("fd-own-active", none)
+  let heading-saved = state("fd-heading-saved", ())
   let appendix-alphabets = (
     ru_sfu: "АБВГДЕЖИКЛМНПРСТУФХЦШЩЭЮЯ",
     latin: "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
     arabic: "0123456789",
   )
 
+  let own-family(group) = counter("fd-own-" + group)
+  let own-sub(group, level) = counter("fd-own-" + group + "-" + str(level))
+
   // Буква приложения по номеру 1…; после алфавита — удвоение (АА, АБ…).
   let appendix-letter(config, index) = {
     let letters = appendix-alphabets.at(config.appendix.alphabet).clusters()
-    if config.appendix.overflow == "double" and index > letters.len() {
-      let first = calc.floor((index - 1) / letters.len())
-      let second = calc.rem(index - 1, letters.len())
+    let safe = calc.max(1, index)
+    if config.appendix.overflow == "double" and safe > letters.len() {
+      let first = calc.floor((safe - 1) / letters.len())
+      let second = calc.rem(safe - 1, letters.len())
       letters.at(first - 1) + letters.at(second)
     } else {
-      letters.at(calc.min(index, letters.len()) - 1)
+      letters.at(calc.min(safe, letters.len()) - 1)
     }
   }
 
-  // Заголовок приложения одной строкой по шаблону {service} {letter}. {title}.
-  let appendix-heading-body(config, it) = {
+  // Собственный счётчик правила берётся из group или id.
+  let entity-group(entity) = {
+    if entity.numbering.group == "" { entity.id } else { entity.numbering.group }
+  }
+
+  // Приложение — пресет own с буквенным шаблоном.
+  let is-appendix(entity) = {
+    if entity == none { false } else {
+      entity.numbering.mode == "own" and entity.numbering.template.contains("{letter}")
+    }
+  }
+
+  // Номер своей сущности; args — временно выставленный счётчик заголовков.
+  let own-numbering(entity) = (..args) => {
+    let nums = args.pos()
+    let base = numbering(entity.numbering.template, nums.at(0))
+    if nums.len() == 1 {
+      base
+    } else {
+      let parts = nums.slice(1).map(value => str(value))
+      entity.numbering.sub_template
+        .replace("{prefix}", base)
+        .replace("{n}", parts.join("."))
+    }
+  }
+
+  // Номер приложения и его подзаголовков: А, А.1, А.1.1.
+  let appendix-numbering(config, service) = (..args) => {
+    let nums = args.pos()
+    let letter = appendix-letter(config, nums.at(0))
+    if nums.len() == 1 {
+      let rendered = config.appendix.template
+        .replace("{service}", apply-case(service, config.appendix.service_case))
+        .replace("{letter}", letter)
+        .replace("{title}", "")
+        .trim()
+      if config.appendix.bold { strong(rendered) } else { rendered }
+    } else {
+      let parts = nums.slice(1).map(value => str(value))
+      letter + "." + parts.join(".")
+    }
+  }
+
+  // Название приложения без служебного слова и буквы.
+  let appendix-title-body(config, it) = {
     let text = it.body.text.trim()
     let parts = text.split(" ")
-    let service = if parts.len() > 0 { parts.at(0) } else { "" }
     let title = if parts.len() > 1 { parts.slice(1).join(" ") } else { "" }
-    service = apply-case(service, config.appendix.service_case)
     title = apply-case(title, config.appendix.title_case)
-    let letter = appendix-letter(config, appendix-counter.get().first())
-    let rendered = config.appendix.template
-    rendered = rendered.replace("{service}", service)
-    rendered = rendered.replace("{letter}", letter)
-    rendered = rendered.replace("{title}", title)
-    if config.appendix.bold { strong(rendered) } else { rendered }
+    if config.appendix.bold { strong(title) } else { title }
   }
 
   let bool-value(s) = {
@@ -286,7 +328,7 @@
   // --- заголовки ---
 
   // Нумерация с исключёнными (ненумерованными) уровнями.
-  // В приложении вместо номера раздела — буква приложения.
+  // Приложения и свои счётчики выводят номер вручную (см. heading-content).
   let heading-numbering(config) = {
     let pattern = config.heading.numbering
     if pattern == "none" {
@@ -298,15 +340,7 @@
       }
       (..args) => {
         let numbers = args.pos()
-        if in-appendix.get() {
-          let relative = numbers.slice(1)
-          if hidden.contains(numbers.len()) {
-            none
-          } else {
-            let relative = numbers.slice(1).map(number => str(number)).join(".")
-            appendix-letter(config, appendix-counter.get().first()) + "." + relative
-          }
-        } else if hidden.len() > 0 and hidden.contains(numbers.len()) {
+        if hidden.len() > 0 and hidden.contains(numbers.len()) {
           none
         } else {
           numbering(pattern, ..numbers)
@@ -315,84 +349,333 @@
     }
   }
 
-  // Текст заголовка: стиль уровня или сущности и, для приложения, шаблон строки.
-  let heading-body(it, level, config, entity) = {
-    let body = if level.numbering_enabled {
-      it
+  // Идентификатор вида элемента верхнего уровня.
+  let element-kind(it) = {
+    let fields = it.fields()
+    if it.func() == heading {
+      "heading_" + str(it.depth)
+    } else if it.func() == figure {
+      if "kind" in fields and fields.kind == table { "table" } else { "figure" }
+    } else if it.func() == math.equation and "block" in fields and fields.block {
+      "equation"
+    } else if it.func() == quote {
+      "quote"
+    } else if it.func() == raw and "block" in fields and fields.block {
+      "raw"
+    } else if it.func() == terms {
+      "terms"
+    } else if it.func() == list.item {
+      "bullet_list"
+    } else if it.func() == enum.item {
+      "numbered_list"
     } else {
-      box(it, inset: (left: config.heading.unnumbered_indent * 1em))
+      "par"
+    }
+  }
+
+  // Окружение элемента: у заголовка приоритет у правила сущности.
+  let around-config(config, kind, it) = {
+    if kind.starts-with("heading_") and it.func() == heading {
+      let entity = find-entity(config, "heading", it.body.text.trim(), it.depth)
+      if entity != none and entity-around(config, entity) != none {
+        entity.apply.around
+      } else {
+        config.around.at(kind)
+      }
+    } else {
+      config.around.at(kind)
+    }
+  }
+
+  // Политика столкновения: первое правило по виду предыдущего, иначе keep_both.
+  let collision-policy(cfg, previous) = {
+    let policy = "keep_both"
+    for rule in cfg.before_collisions {
+      if rule.previous == "any" or rule.previous == previous {
+        policy = rule.policy
+        break
+      }
+    }
+    policy
+  }
+
+  // Вставки на границе двух элементов по политике 5.1.
+  let collision-content(config, cfg, previous, previous-after) = {
+    let current-before = cfg.before
+    if previous == none {
+      around-items(config, current-before)
+    } else if previous-after.len() == 0 {
+      around-items(config, current-before)
+    } else if current-before.len() == 0 {
+      around-items(config, previous-after)
+    } else {
+      let policy = collision-policy(cfg, previous)
+      if policy == "keep_previous" {
+        around-items(config, previous-after)
+      } else if policy == "keep_current" {
+        around-items(config, current-before)
+      } else if policy == "drop_both" {
+        none
+      } else {
+        around-items(config, previous-after) + around-items(config, current-before)
+      }
+    }
+  }
+
+  // Склейка контента: none означает «пока пусто».
+  let add-content(current, next) = {
+    if current == none { next } else { current + next }
+  }
+
+  // Контент заголовка: один авторитетный heading, без второго внутри show.
+  // Возвращает (content, appendix-active, own-active).
+  let heading-content(
+    config,
+    it,
+    appendix-active: false,
+    own-active: none,
+  ) = {
+    let level = it.depth
+    let level-cfg = config.heading_levels.at(level - 1)
+    let heading-text = it.body.text.trim()
+    let entity = find-entity(config, "heading", heading-text, level)
+    let service = if heading-text.split(" ").len() > 0 {
+      heading-text.split(" ").at(0)
+    } else {
+      ""
+    }
+    let appendix = is-appendix(entity)
+    let mode = if entity == none { "continue" } else { entity.numbering.mode }
+    let group = if entity == none { "" } else { entity-group(entity) }
+    let updates = none
+    let numbering-value = heading-numbering(config)
+    let restore = false
+    let next-appendix = appendix-active
+    let next-own = own-active
+
+    if appendix {
+      updates = add-content(updates, [#appendix-counter.step()])
+      for current in range(2, 7) {
+        updates = add-content(updates, [#own-sub("appendix", current).update(0)])
+      }
+      updates = add-content(updates, [#in-appendix.update(true)])
+      for number in range(1, 7) {
+        updates = add-content(
+          updates,
+          [#counter("figure-h" + str(number)).update(0)],
+        )
+      }
+      updates = add-content(
+        updates,
+        [#counter("figure-n").update(0); #counter(figure).update(0); #counter(math.equation).update(0)],
+      )
+      numbering-value = appendix-numbering(config, service)
+      restore = true
+      next-appendix = true
+      next-own = none
+    } else if appendix-active and level > 1 {
+      updates = add-content(updates, [#own-sub("appendix", level).step()])
+      for current in range(level + 1, 7) {
+        updates = add-content(updates, [#own-sub("appendix", current).update(0)])
+      }
+      numbering-value = appendix-numbering(config, "")
+      restore = true
+    } else if level == 1 {
+      next-appendix = false
+      next-own = none
+    }
+
+    if mode == "own" and not appendix {
+      if level == 1 or own-active != group {
+        updates = add-content(updates, [#own-family(group).step()])
+        for current in range(2, 7) {
+          updates = add-content(updates, [#own-sub(group, current).update(0)])
+        }
+        next-own = group
+      } else if level > 1 {
+        updates = add-content(updates, [#own-sub(group, level).step()])
+        for current in range(level + 1, 7) {
+          updates = add-content(updates, [#own-sub(group, current).update(0)])
+        }
+      }
+      if appendix-active and level > 1 {
+        // Внутри приложения приоритет у буквы приложения.
+        numbering-value = appendix-numbering(config, "")
+      } else {
+        numbering-value = own-numbering(entity)
+      }
+      restore = true
+    } else if mode == "none" and not appendix-active {
+      numbering-value = none
+    }
+
+    // Временно выставляет счётчик заголовков на номер своей сущности:
+    // так оглавление получает тот же номер, что и тело.
+    let counter-set = none
+    if appendix or (appendix-active and level > 1) {
+      counter-set = context {
+        let family = appendix-counter.get().first()
+        if level == 1 {
+          counter(heading).update((family - 1,))
+        } else {
+          let values = (family,)
+          for current in range(2, level + 1) {
+            let value = own-sub("appendix", current).get().first()
+            values.push(if current == level { value - 1 } else { value })
+          }
+          counter(heading).update(values)
+        }
+      }
+    } else if mode == "own" {
+      counter-set = context {
+        let family = own-family(group).get().first() + entity.numbering.start - 1
+        if level == 1 {
+          counter(heading).update((family - 1,))
+        } else {
+          let values = (family,)
+          for current in range(2, level + 1) {
+            let value = own-sub(group, current).get().first()
+            values.push(if current == level { value - 1 } else { value })
+          }
+          counter(heading).update(values)
+        }
+      }
+    }
+
+    let body = if appendix {
+      appendix-title-body(config, it)
+    } else if entity != none {
+      entity-text(entity, it.body)
+    } else if level-cfg.numbering_enabled {
+      it.body
+    } else {
+      box(it.body, inset: (left: config.heading.unnumbered_indent * 1em))
     }
     let override = if entity != none and entity.apply.text_override != none {
       entity.apply.text_override
     } else {
-      level.text_override
+      level-cfg.text_override
     }
-    let content = if entity != none and entity.apply.appendix {
-      appendix-heading-body(config, it)
-    } else if entity != none {
-      entity-text(entity, it.body)
+    let body = text-override-body(body, override)
+    let heading-el = heading(
+      level: level,
+      numbering: numbering-value,
+      outlined: if entity == none { true } else { entity.apply.outlined },
+      body,
+    )
+    let block-el = block(
+      above: spacing-length(config, level-cfg.spacing_before),
+      below: spacing-length(config, level-cfg.spacing_after),
+      sticky: config.heading.keep_with_next,
+      heading-el,
+    )
+    let aligned = if entity != none and entity.apply.align != "auto" {
+      align(alignment(entity.apply.align), block-el)
     } else {
-      body
+      block-el
     }
-    text-override-body(content, override)
+    let content = if level-cfg.break_before or (entity != none and entity.apply.break_before) {
+      pagebreak(weak: true) + aligned
+    } else {
+      aligned
+    }
+    let content = if restore {
+      add-content(
+        add-content(
+          context { heading-saved.update(counter(heading).get()) },
+          add-content(counter-set, content),
+        ),
+        context { counter(heading).update(heading-saved.get()) },
+      )
+    } else {
+      content
+    }
+    (
+      content: add-content(updates, content),
+      appendix: next-appendix,
+      own: next-own,
+    )
   }
 
-  let show-heading(it, level, config, target) = {
-    let heading-text = it.body.text.trim()
-    let entity = find-entity(config, "heading", heading-text, level.level)
-    let numbering-enabled = if entity == none { true } else { entity.apply.numbering }
-    let outlined = if entity == none { it.outlined } else { entity.apply.outlined }
-    let need-unnumber = entity != none and not numbering-enabled and it.numbering != none
-    let need-outline = entity != none and outlined != it.outlined
-
-    if need-unnumber or need-outline {
-      let current = counter(heading).get()
-      if current.len() > 0 {
-        counter(heading).update(current.slice(0, -1) + (current.last() - 1,))
-      }
-      if entity != none and entity.apply.appendix and it.numbering != none {
-        appendix-counter.step()
-        in-appendix.update(true)
-        for number in range(1, 7) {
-          counter("figure-h" + str(number)).update(0)
+  // Группирует верхнеуровневые элементы в единицы вида элемента.
+  let body-units(body) = {
+    let units = ()
+    let current-kind = none
+    let current = none
+    for child in body.children {
+      let kind = element-kind(child)
+      if kind == "par" {
+        if child.func() == parbreak {
+          if current-kind == "par" {
+            current = current + child
+            units = units + ((kind: current-kind, content: current),)
+            current-kind = none
+            current = none
+          }
+        } else if current-kind == "par" {
+          current = current + child
+        } else {
+          if current-kind != none {
+            units = units + ((kind: current-kind, content: current),)
+          }
+          current-kind = "par"
+          current = child
         }
-        counter("figure-n").update(0)
-        counter(figure).update(0)
-        counter(math.equation).update(0)
-      }
-      [
-        #set text(size: config.document.font_size * 1pt)
-        #heading(
-          level: it.level,
-          numbering: if need-unnumber { none } else { it.numbering },
-          outlined: outlined,
-          it.body,
-        )
-      ]
-    } else {
-      let heading = block(
-        above: spacing-length(config, level.spacing_before),
-        below: spacing-length(config, level.spacing_after),
-        sticky: config.heading.keep_with_next,
-        [#heading-body(it, level, config, entity)],
-      )
-      let aligned = if entity != none and entity.apply.align != "auto" {
-        align(alignment(entity.apply.align), heading)
+      } else if kind == "bullet_list" or kind == "numbered_list" {
+        if current-kind == kind {
+          current = current + child
+        } else {
+          if current-kind != none {
+            units = units + ((kind: current-kind, content: current),)
+          }
+          current-kind = kind
+          current = child
+        }
       } else {
-        heading
-      }
-      let content = if level.break_before or (entity != none and entity.apply.break_before) {
-        [#pagebreak(weak: true); #aligned]
-      } else {
-        aligned
-      }
-      let entity-cfg = if entity != none { entity-around(config, entity) } else { none }
-      if entity-cfg != none {
-        around-with-config(config, entity-cfg, content)
-      } else {
-        around-body(config, target, content)
+        if current-kind != none {
+          units = units + ((kind: current-kind, content: current),)
+          current-kind = none
+          current = none
+        }
+        units = units + ((kind: kind, content: child),)
       }
     }
+    if current-kind != none {
+      units = units + ((kind: current-kind, content: current),)
+    }
+    units
+  }
+
+  // Проход по телу: вставки around с политиками столкновений и заголовки.
+  let with-around-and-headings(config, body) = {
+    let out = none
+    let previous = none
+    let previous-after = ()
+    let appendix-active = false
+    let own-active = none
+    for unit in body-units(body) {
+      let kind = unit.kind
+      let cfg = around-config(config, kind, unit.content)
+      let content = if kind.starts-with("heading_") {
+        let transformed = heading-content(
+          config,
+          unit.content,
+          appendix-active: appendix-active,
+          own-active: own-active,
+        )
+        appendix-active = transformed.appendix
+        own-active = transformed.own
+        transformed.content
+      } else {
+        unit.content
+      }
+      let spacer = collision-content(config, cfg, previous, previous-after)
+      out = add-content(out, spacer + content)
+      previous = kind
+      previous-after = cfg.after
+    }
+    let tail = around-items(config, previous-after)
+    if out == none { tail } else { out + tail }
   }
 
   // --- подпись рисунка по шаблону ---
@@ -531,37 +814,16 @@
   }
 
   let with-text-overrides(config, body) = {
-    show par: it => text-override-body(
-      around-body(config, "par", it), config.par.text_override,
-    )
-    show list: it => text-override-body(
-      around-body(config, "bullet_list", it), config.bullet_list.text_override,
-    )
-    show enum: it => text-override-body(
-      around-body(config, "numbered_list", it), config.numbered_list.text_override,
-    )
+    show par: it => text-override-body(it, config.par.text_override)
+    show list: it => text-override-body(it, config.bullet_list.text_override)
+    show enum: it => text-override-body(it, config.numbered_list.text_override)
     show table.cell: it => text-override-body(it, config.table.text_override)
-    show quote: it => text-override-body(
-      around-body(config, "quote", it), config.quote.text_override,
-    )
-    show raw.where(block: true): it => text-override-body(
-      around-body(config, "raw", it), config.raw.text_override,
-    )
-    show raw.where(block: false): it => text-override-body(
-      it, config.raw.text_override,
-    )
-    show figure: it => text-override-body(
-      around-body(
-        config,
-        if it.kind == table { "table" } else { "figure" },
-        it,
-      ),
-      config.figure.text_override,
-    )
+    show quote: it => text-override-body(it, config.quote.text_override)
+    show raw.where(block: true): it => text-override-body(it, config.raw.text_override)
+    show raw.where(block: false): it => text-override-body(it, config.raw.text_override)
+    show figure: it => text-override-body(it, config.figure.text_override)
     show footnote.entry: it => text-override-body(it, config.footnote.text_override)
-    show terms: it => text-override-body(
-      around-body(config, "terms", it), config.terms.text_override,
-    )
+    show terms: it => text-override-body(it, config.terms.text_override)
     show outline: it => text-override-body(it, config.outline.text_override)
     show math.equation.where(block: true): it => {
       let equation = if config.equation.body_indent != 0 {
@@ -569,9 +831,7 @@
       } else {
         it
       }
-      text-override-body(
-        around-body(config, "equation", equation), config.equation.text_override,
-      )
+      text-override-body(equation, config.equation.text_override)
     }
     show math.equation.where(block: false): it => text-override-body(
       it, config.equation.text_override,
@@ -815,36 +1075,28 @@
     if config.outline.depth != none {
       outline-args.insert("depth", config.outline.depth)
     }
-    if config.outline.indent_mode == "none" {
-      outline-args.insert("indent", 0mm)
-    } else if config.outline.indent_mode == "custom" {
-      outline-args.insert("indent", config.outline.indent_mm * 1mm)
+    if config.outline.indent_mode == "step" {
+      outline-args.insert(
+        "indent",
+        (level) => level * config.outline.indent_mm * 1mm,
+      )
+    } else {
+      outline-args.insert(
+        "indent",
+        (level) => {
+          let levels = config.outline.indent_per_level
+          let index = calc.min(level, levels.len() - 1)
+          levels.at(index) * 1mm
+        },
+      )
     }
-    if outline-args.len() > 0 {
-      set outline(..outline-args)
-    }
+    // set вне блока if: правило видимо всему телу apply.
+    set outline(..outline-args)
 
-    // Стили уровней заголовков. Идут после правил счётчиков подписей.
-    show heading.where(level: 1): it => show-heading(
-      it, config.heading_levels.at(0), config, "heading_1",
-    )
-    show heading.where(level: 2): it => show-heading(
-      it, config.heading_levels.at(1), config, "heading_2",
-    )
-    show heading.where(level: 3): it => show-heading(
-      it, config.heading_levels.at(2), config, "heading_3",
-    )
-    show heading.where(level: 4): it => show-heading(
-      it, config.heading_levels.at(3), config, "heading_4",
-    )
-    show heading.where(level: 5): it => show-heading(
-      it, config.heading_levels.at(4), config, "heading_5",
-    )
-    show heading.where(level: 6): it => show-heading(
-      it, config.heading_levels.at(5), config, "heading_6",
-    )
-
-    let content = with-text-overrides(config, with-caption(config, body))
+    // Заголовки и вокруг-вставки обрабатываются одним проходом по телу,
+    // чтобы у заголовка был ровно один элемент (без дублей в оглавлении).
+    let transformed = with-around-and-headings(config, body)
+    let content = with-text-overrides(config, with-caption(config, transformed))
     content
   }
 

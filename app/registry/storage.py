@@ -255,6 +255,21 @@ def validate_value(option: Option, value: JsonValue) -> JsonValue:
                 else:
                     normalized_item[_schema_key(field)] = copy.deepcopy(field.default)
             normalized_items.append(normalized_item)
+        if option.id == "structural.entities":
+            ids = [
+                str(item.get("id", "")) for item in normalized_items if isinstance(item, Mapping)
+            ]
+            if len(ids) != len(set(ids)):
+                raise RegistryError(
+                    "structural.entities: идентификаторы правил должны быть уникальны"
+                )
+            for index, item in enumerate(normalized_items):
+                match = item.get("match") if isinstance(item, Mapping) else None
+                value = match.get("value") if isinstance(match, Mapping) else None
+                if not isinstance(value, str) or not value.strip():
+                    raise RegistryError(
+                        f"structural.entities[{index}]: match.value не может быть пустым"
+                    )
         return normalized_items
 
     if option.type == "select":
@@ -310,6 +325,43 @@ def _normalize_element(
         _set_path(values, option.path, validate_value(option, value))
 
 
+def _migrate_entity(raw: JsonValue) -> JsonValue:
+    """Переносит старую сущность (numbering: bool, appendix: bool) в схему 5.2."""
+    if not isinstance(raw, Mapping):
+        return raw
+    entity = dict(raw)
+    apply = entity.get("apply")
+    if not isinstance(apply, Mapping):
+        return entity
+    apply = dict(apply)
+    around = apply.get("around")
+    if isinstance(around, Mapping) and "collapse" in around:
+        around = dict(around)
+        around.pop("collapse", None)
+        around.setdefault("before_collisions", [{"previous": "any", "policy": "keep_both"}])
+        apply["around"] = around
+    if "numbering" in apply and not isinstance(apply["numbering"], Mapping):
+        mode = "continue" if apply["numbering"] else "none"
+        entity["numbering"] = {
+            "mode": mode,
+            "template": "1",
+            "start": 1,
+            "sub_template": "{prefix}.{n}",
+            "group": "",
+        }
+        apply.pop("numbering", None)
+    if apply.pop("appendix", False):
+        entity["numbering"] = {
+            "mode": "own",
+            "template": "{letter}",
+            "start": 1,
+            "sub_template": "{prefix}.{n}",
+            "group": "appendix",
+        }
+    entity["apply"] = apply
+    return entity
+
+
 def normalize_values(raw: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
     """Дополняет неполный набор значений дефолтами и проверяет его."""
     if not isinstance(raw, Mapping):
@@ -343,15 +395,31 @@ def normalize_values(raw: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
                     raise RegistryError(f"Неизвестный элемент окружения: {target}")
                 if not isinstance(target_values, Mapping):
                     raise RegistryError(f"around.{target} должен быть объектом")
-                # Миграция старого режима none: вставок нет, остаётся max.
-                if target_values.get("collapse") == "none":
-                    target_values = {"before": [], "after": [], "collapse": "max"}
+                # Миграция старого collapse: вставки больше не схлопываются
+                # автоматически, по умолчанию действует keep_both.
+                if "collapse" in target_values:
+                    target_values = dict(target_values)
+                    target_values.pop("collapse", None)
+                    target_values.setdefault(
+                        "before_collisions",
+                        [{"previous": "any", "policy": "keep_both"}],
+                    )
                 for key, value in target_values.items():
                     option = OPTIONS_BY_PATH.get(("around", target, key))
                     if option is None:
                         raise RegistryError(f"Неизвестная опция: around.{target}.{key}")
                     _set_path(values, option.path, validate_value(option, value))
             continue
+
+        if element == "structural":
+            if not isinstance(element_values, Mapping):
+                raise RegistryError("structural должен быть объектом")
+            raw_entities = element_values.get("entities")
+            if isinstance(raw_entities, list):
+                element_values = {
+                    **element_values,
+                    "entities": [_migrate_entity(item) for item in raw_entities],
+                }
 
         if element not in ELEMENT_PATHS:
             raise RegistryError(f"Неизвестный элемент: {element}")
@@ -367,6 +435,9 @@ def _to_registry_value(option: Option, value: object) -> JsonValue:
         return None
     if option.path[-1] == "hyphenate" and isinstance(value, bool):
         return "true" if value else "false"
+    if option.id == "outline.indent_mode" and value in {"auto", "none", "custom"}:
+        # Старые режимы: auto/custom — шаг, none — нулевой шаг.
+        return "step"
     if option.type == "markers":
         return list(cast(list[str], value))
     if option.id == "document.line_spacing" and isinstance(value, (int, float)):

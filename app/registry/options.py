@@ -143,9 +143,8 @@ SELECT_LABELS: dict[str, list[tuple[str, str]]] = {
     ],
     "spacing": [("auto", "Авто"), ("tight", "Компактный"), ("loose", "Свободный")],
     "outline_indent_mode": [
-        ("auto", "Авто"),
-        ("none", "Без отступа"),
-        ("custom", "Свой отступ"),
+        ("step", "Шаг на уровень"),
+        ("per_level", "Свой отступ на каждый уровень"),
     ],
     "align": [("auto", "Авто"), ("left", "Слева"), ("center", "По центру"), ("right", "Справа")],
     "quotes": [("auto", "Авто"), ("true", "Да"), ("false", "Нет")],
@@ -274,9 +273,30 @@ AROUND_TARGET_META: dict[str, tuple[str, str, str]] = {
     "terms": ("списка определений", "plan_v2 §5", "terms"),
 }
 
-AROUND_COLLAPSE_LABELS: tuple[tuple[str, str], ...] = (
-    ("max", "Слить в одну"),
-    ("sum", "Сложить"),
+COLLISION_POLICY_LABELS: tuple[tuple[str, str], ...] = (
+    ("keep_previous", "Оставить вставку предыдущего элемента"),
+    ("keep_current", "Оставить свою вставку"),
+    ("keep_both", "Оставить обе"),
+    ("drop_both", "Убрать обе"),
+)
+
+COLLISION_PREVIOUS_LABELS: tuple[tuple[str, str], ...] = (
+    ("any", "Любой элемент"),
+    ("par", "Абзац"),
+    ("heading_1", "Заголовок 1"),
+    ("heading_2", "Заголовок 2"),
+    ("heading_3", "Заголовок 3"),
+    ("heading_4", "Заголовок 4"),
+    ("heading_5", "Заголовок 5"),
+    ("heading_6", "Заголовок 6"),
+    ("bullet_list", "Маркированный список"),
+    ("numbered_list", "Нумерованный список"),
+    ("table", "Таблица"),
+    ("figure", "Рисунок"),
+    ("equation", "Формула"),
+    ("quote", "Цитата"),
+    ("raw", "Код"),
+    ("terms", "Список определений"),
 )
 
 AROUND_ITEM_LABELS: tuple[tuple[str, str], ...] = (
@@ -686,33 +706,72 @@ def _around_options() -> list[Option]:
                 )
             )
         opts.append(
-            _option(
-                f"around.{target}.collapse",
-                "around",
-                (target,),
-                "select",
-                "max",
-                ("around", target, "collapse"),
-                f"Схлопывание отступов {target_label}",
-                order=len(opts),
-                enum=tuple(value for value, _ in AROUND_COLLAPSE_LABELS),
-                enum_labels=AROUND_COLLAPSE_LABELS,
-                rationale=(
-                    f"Определяет, как складываются пустые строки вокруг {target_label}: "
-                    "max заменяет штатный интервал элемента одной вставкой, sum "
-                    "добавляет вставку к штатному интервалу."
-                ),
-                source=f"{stu}; plan_v2 {rule}; reference: around.{target}.collapse",
-                test_ids=(f"test_around_{target}_options",),
-                legacy=False,
+            _collision_option(
+                f"around.{target}.before_collisions",
+                target,
+                f"Столкновение вставок перед {target_label}",
+                len(opts),
+                f"{stu}; plan_v2 {rule}",
                 ui_section=section,
-                ui_help=(
-                    "«Слить в одну» — вставка заменяет штатный интервал элемента; "
-                    "«Сложить» — вставка добавляется к штатному."
-                ),
             )
         )
     return opts
+
+
+def _collision_fields() -> tuple[Option, ...]:
+    """Поля правила столкновения вставок: вид предыдущего элемента и политика."""
+    return (
+        _nested_option(
+            "previous",
+            "select",
+            "any",
+            "Предыдущий элемент",
+            order=0,
+            enum=tuple(value for value, _ in COLLISION_PREVIOUS_LABELS),
+            enum_labels=COLLISION_PREVIOUS_LABELS,
+        ),
+        _nested_option(
+            "policy",
+            "select",
+            "keep_both",
+            "Политика",
+            order=1,
+            enum=tuple(value for value, _ in COLLISION_POLICY_LABELS),
+            enum_labels=COLLISION_POLICY_LABELS,
+        ),
+    )
+
+
+def _collision_option(
+    option_id: str,
+    target: str,
+    label: str,
+    order: int,
+    source: str,
+    ui_section: str | None = None,
+) -> Option:
+    """Опция before_collisions: первое подходящее правило, иначе keep_both."""
+    return _option(
+        option_id,
+        "around",
+        (target,),
+        "list",
+        [],
+        ("around", target, "before_collisions"),
+        label,
+        order=order,
+        item_fields=_collision_fields(),
+        rationale=(
+            "Задаёт, что делать, когда после предыдущего элемента и перед текущим "
+            "одновременно есть вставки: оставить предыдущую, свою, обе или убрать обе. "
+            "Пустой список означает «оставить обе»."
+        ),
+        source=f"{source}; СТУ 7.5.4; AGENTS 5.1; OWNER_DECISIONS 1",
+        test_ids=(f"test_around_{target}_options",),
+        legacy=False,
+        ui_section=ui_section,
+        ui_help="Правила проверяются по порядку; первое подходящее по виду предыдущего элемента.",
+    )
 
 
 def _structural_options() -> list[Option]:
@@ -813,17 +872,40 @@ def _structural_options() -> list[Option]:
             item_variants=around_variants,
         ),
         schema_field(
-            "collapse",
-            "select",
-            "max",
-            "Схлопывание отступов",
+            "before_collisions",
+            "list",
+            [],
+            "Столкновения вставок",
             2,
-            enum=tuple(value for value, _ in AROUND_COLLAPSE_LABELS),
-            enum_labels=AROUND_COLLAPSE_LABELS,
+            item_fields=_collision_fields(),
         ),
     )
+    numbering_fields = (
+        schema_field(
+            "mode",
+            "select",
+            "continue",
+            "Режим нумерации",
+            0,
+            enum=("none", "continue", "own"),
+            enum_labels=(
+                ("none", "Без номера"),
+                ("continue", "Продолжать общий счётчик"),
+                ("own", "Свой счётчик"),
+            ),
+        ),
+        schema_field("template", "string", "1", "Шаблон номера", 1),
+        schema_field("start", "integer", 1, "Начальный номер", 2, min=1, max=999),
+        schema_field(
+            "sub_template",
+            "string",
+            "{prefix}.{n}",
+            "Шаблон подзаголовков",
+            3,
+        ),
+        schema_field("group", "string", "", "Общий счётчик (group)", 4),
+    )
     apply_fields = (
-        schema_field("numbering", "boolean", True, "Нумеровать", 0),
         schema_field("break_before", "boolean", False, "С новой страницы", 1),
         schema_field(
             "align",
@@ -856,18 +938,11 @@ def _structural_options() -> list[Option]:
         schema_field("bold", "boolean", False, "Полужирный", 4),
         schema_field("outlined", "boolean", True, "В оглавлении", 5),
         schema_field(
-            "appendix",
-            "boolean",
-            False,
-            "Начать приложение",
-            6,
-        ),
-        schema_field(
             "around",
             "object",
-            {"before": [], "after": [], "collapse": "max"},
+            {"before": [], "after": [], "before_collisions": []},
             "Окружение сущности",
-            7,
+            6,
             fields=around_fields_nested,
         ),
         schema_field(
@@ -875,7 +950,7 @@ def _structural_options() -> list[Option]:
             "object",
             None,
             "Свой стиль текста",
-            8,
+            7,
             nullable=True,
             fields=text_override_field.fields,
         ),
@@ -884,22 +959,36 @@ def _structural_options() -> list[Option]:
         schema_field("id", "string", "", "Идентификатор", 0, required=True),
         schema_field("label", "string", "", "Название сущности", 1),
         schema_field("match", "object", {}, "Сопоставление", 2, fields=match_fields),
-        schema_field("apply", "object", {}, "Оформление", 3, fields=apply_fields),
+        schema_field(
+            "numbering",
+            "object",
+            {
+                "mode": "continue",
+                "template": "1",
+                "start": 1,
+                "sub_template": "{prefix}.{n}",
+                "group": "",
+            },
+            "Нумерация",
+            3,
+            fields=numbering_fields,
+        ),
+        schema_field("apply", "object", {}, "Оформление", 4, fields=apply_fields),
     )
     entities = _option(
         "structural.entities",
-        "structural",
+        "heading",
         ("structural",),
         "list",
         [],
         ("structural", "entities"),
-        "Структурные элементы",
-        order=0,
+        "Шаблонные заголовки",
+        order=95,
         item_fields=entity_fields,
         rationale=(
-            "Список правил «заголовок/абзац содержит текст X → оформить так». "
-            "Позволяет убрать номер у введения и заключения, начать приложение, "
-            "задать разрыв страницы и регистр без отдельного кода под каждый элемент."
+            "Список правил «заголовок содержит текст X → оформить так». "
+            "Позволяет убрать номер у введения и заключения, задать свой счётчик "
+            "приложения, разрыв страницы и регистр без отдельного кода под каждый элемент."
         ),
         source="СТУ 7.4, 7.5; plan_v2 structural entities; AGENTS 5.2",
         test_ids=(
@@ -907,9 +996,14 @@ def _structural_options() -> list[Option]:
             "test_structural_unnumbered_keeps_counter",
             "test_structural_break_before",
             "test_structural_case_render",
+            "test_structural_numbering_own",
+            "test_structural_numbering_own_group",
+            "test_structural_outline_numbering_none",
+            "test_structural_outline_outlined_false",
         ),
         legacy=False,
         beta=True,
+        ui_section="Шаблонные заголовки",
     )
 
     appendix_options = [
@@ -1027,15 +1121,11 @@ def _structural_options() -> list[Option]:
             "Когда буквы кончились",
             order=5,
             beta=True,
-            enum=("double", "stop", "latin"),
-            enum_labels=(
-                ("double", "Удваивать (АА, АБ…)"),
-                ("stop", "Остановиться (не реализовано)"),
-                ("latin", "Латинские буквы (не реализовано)"),
-            ),
+            enum=("double",),
+            enum_labels=(("double", "Удваивать (АА, АБ…)"),),
             rationale=(
-                "Определяет поведение после 25-й буквы; обязательный режим — "
-                "удвоение (АА, АБ…), остальные оставлены в реестре без реализации."
+                "Определяет поведение после 25-й буквы: буквы удваиваются "
+                "(АА, АБ…), других режимов нет."
             ),
             source="СТУ 7.5.5; OWNER_DECISIONS 4; plan_v2 alphabet_overflow",
             test_ids=("test_appendix_options", "test_appendix_letter_sequence"),
@@ -2410,19 +2500,20 @@ def _base_options() -> list[Option]:
             "outline",
             ("outline",),
             "select",
-            "auto",
+            "step",
             ("outline", "indent_mode"),
             "Режим отступа вложенности",
             order=o(opts),
             enum=tuple(v for v, _ in SELECT_LABELS["outline_indent_mode"]),
             rationale=(
-                "Управляет отступом вложенных записей оглавления: авто — правило Typst, "
-                "без отступа — ноль, свой — явное значение в мм вместо исполняемой строки."
+                "Выбирает, как считается отступ подзаголовков в оглавлении: "
+                "единый шаг на уровень или отдельное значение для каждого уровня."
             ),
-            source="СТУ 6.4; plan_v2 toc.indent",
+            source="СТУ 6.4; plan_v2 toc.indent; OWNER_DECISIONS 9",
             test_ids=(
                 "test_outline_indent_modes_config",
                 "test_outline_indent_rejects_arbitrary_strings",
+                "test_outline_indent_render",
             ),
             legacy=False,
         ),
@@ -2433,7 +2524,7 @@ def _base_options() -> list[Option]:
             "number",
             0.0,
             ("outline", "indent_mm"),
-            "Свой отступ вложенности",
+            "Шаг отступа, мм",
             order=o(opts),
             unit="mm",
             allowed_units=MM_UNITS,
@@ -2442,13 +2533,57 @@ def _base_options() -> list[Option]:
             step=0.1,
             depends_on=("outline.indent_mode",),
             rationale=(
-                "Задаёт величину отступа вложенных записей оглавления в миллиметрах; "
-                "применяется только в режиме «Свой отступ»."
+                "Задаёт шаг отступа в миллиметрах: отступ уровня равен "
+                "(уровень − 1) × значение; применяется в режиме «Шаг на уровень»."
             ),
-            source="СТУ 6.4; plan_v2 toc.indent",
+            source="СТУ 6.4; plan_v2 toc.indent; OWNER_DECISIONS 9",
             test_ids=(
                 "test_outline_indent_modes_config",
                 "test_outline_indent_rejects_arbitrary_strings",
+                "test_outline_indent_render",
+            ),
+            legacy=False,
+        ),
+        _option(
+            "outline.indent_per_level",
+            "outline",
+            ("outline",),
+            "list",
+            [
+                {"mm": 0.0},
+                {"mm": 5.0},
+                {"mm": 10.0},
+                {"mm": 15.0},
+                {"mm": 20.0},
+                {"mm": 25.0},
+            ],
+            ("outline", "indent_per_level"),
+            "Отступы по уровням, мм",
+            order=o(opts),
+            item_fields=(
+                _nested_option(
+                    "mm",
+                    "number",
+                    0.0,
+                    "Отступ, мм",
+                    order=0,
+                    unit="mm",
+                    allowed_units=MM_UNITS,
+                    min=0,
+                    max=100,
+                    step=0.1,
+                ),
+            ),
+            depends_on=("outline.indent_mode",),
+            rationale=(
+                "Задаёт отдельный отступ для каждого уровня оглавления; "
+                "применяется в режиме «Свой отступ на каждый уровень»."
+            ),
+            source="СТУ 6.4; plan_v2 toc.indent; OWNER_DECISIONS 9",
+            test_ids=(
+                "test_outline_indent_modes_config",
+                "test_outline_indent_rejects_arbitrary_strings",
+                "test_outline_indent_render",
             ),
             legacy=False,
         ),

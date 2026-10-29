@@ -77,7 +77,7 @@ class OutlineStyle(TextOverrideMixin, Base):
     depth: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, default=None)
     # Старая строковая колонка: не удаляется, но реестром не используется.
     indent: Mapped[str] = mapped_column(String(32), nullable=False, default="auto")
-    indent_mode: Mapped[str] = mapped_column(String(16), nullable=False, default="auto")
+    indent_mode: Mapped[str] = mapped_column(String(16), nullable=False, default="step")
     indent_mm: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     text_override_style_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("text_override_styles.id", ondelete="SET NULL"),

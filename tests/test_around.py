@@ -47,7 +47,7 @@ def _assert_target_options(target: str) -> None:
             target: {
                 "before": [_text_item()],
                 "after": [_blank(count=2, value=6.0, mode="mm")],
-                "collapse": "sum",
+                "before_collisions": [{"previous": "table", "policy": "keep_previous"}],
             }
         }
     )
@@ -56,7 +56,10 @@ def _assert_target_options(target: str) -> None:
     assert "count: 2" in source
     assert 'mode: "mm"' in source
     assert "value: 6.0" in source
-    assert 'collapse: "sum"' in source
+    assert "before_collisions: (" in source
+    assert 'previous: "table"' in source
+    assert 'policy: "keep_previous"' in source
+    assert "collapse" not in source
 
 
 def test_around_heading_1_options() -> None:
@@ -171,15 +174,29 @@ def test_around_validation_rejects_unknown_and_required() -> None:
     with pytest.raises(RegistryError):
         normalize_values({"around": {"table": {"after": [{"type": "line", "length": 101}]}}})
     with pytest.raises(RegistryError):
-        normalize_values({"around": {"table": {"collapse": "bogus"}}})
-    # Режим none удалён; старые значения мигрируют в пустые вставки и max.
+        normalize_values(
+            {
+                "around": {
+                    "table": {"before_collisions": [{"previous": "table", "policy": "keep_larger"}]}
+                }
+            }
+        )
+    with pytest.raises(RegistryError):
+        normalize_values(
+            {
+                "around": {
+                    "table": {"before_collisions": [{"previous": "unknown", "policy": "keep_both"}]}
+                }
+            }
+        )
+    # Старый collapse переносится в правило по умолчанию keep_both.
     migrated = normalize_values(
-        {"around": {"table": {"before": [_text_item()], "collapse": "none"}}}
+        {"around": {"table": {"before": [_text_item()], "collapse": "sum"}}}
     )
     assert migrated["around"]["table"] == {
-        "before": [],
+        "before": [_text_item()],
         "after": [],
-        "collapse": "max",
+        "before_collisions": [{"previous": "any", "policy": "keep_both"}],
     }
 
 
@@ -218,9 +235,9 @@ async def test_options_around_roundtrip_and_legacy_write(client) -> None:
         "table": {
             "before": [_text_item("ДО ТАБЛИЦЫ")],
             "after": [_blank(count=2, value=4.0, mode="mm")],
-            "collapse": "sum",
+            "before_collisions": [{"previous": "table", "policy": "drop_both"}],
         },
-        "heading_1": {"before": [_blank(count=0)], "collapse": "max"},
+        "heading_1": {"before": [_blank(count=0)]},
     }
     put = await client.put(
         f"/profiles/{profile_id}/options",
@@ -230,9 +247,11 @@ async def test_options_around_roundtrip_and_legacy_write(client) -> None:
 
     got = await client.get(f"/profiles/{profile_id}/options")
     assert got.status_code == 200
-    assert got.json()["values"]["around"]["table"]["collapse"] == "sum"
+    assert got.json()["values"]["around"]["table"]["before_collisions"] == [
+        {"previous": "table", "policy": "drop_both"}
+    ]
     assert got.json()["values"]["around"]["table"]["after"][0]["count"] == 2
-    assert got.json()["values"]["around"]["heading_1"]["collapse"] == "max"
+    assert got.json()["values"]["around"]["heading_1"]["before"][0]["count"] == 0
 
     # Запись в старую таблицу не должна затирать around, которого там нет.
     patched = await client.patch(f"/profiles/{profile_id}/page", json={"margin_left": 21.0})
@@ -300,66 +319,41 @@ def _paragraph_pitch(page) -> float:
     shutil.which("pandoc") is None or shutil.which("typst") is None,
     reason="pandoc and typst must be in PATH",
 )
-def test_around_render_spacing_max_sum_count_zero(tmp_path) -> None:
+def test_around_render_collision_policies(tmp_path) -> None:
     blank = _blank(count=1)
-    base = _table_heading_gap(pdfplumber.open(_render({}, TABLE_DOC, tmp_path / "base")).pages[0])
-    max_pdf = pdfplumber.open(
-        _render(
+
+    def gap(around: dict, name: str):
+        with pdfplumber.open(_render(around, TABLE_DOC, tmp_path / name)) as pdf:
+            return _table_heading_gap(pdf.pages[0])
+
+    def pair(policy: str, name: str):
+        return gap(
             {
                 "table": {"after": [blank]},
-                "heading_1": {"before": [blank]},
+                "heading_1": {
+                    "before": [blank],
+                    "before_collisions": [{"previous": "table", "policy": policy}],
+                },
             },
-            TABLE_DOC,
-            tmp_path / "max",
+            name,
         )
-    )
-    sum_pdf = pdfplumber.open(
-        _render(
-            {
-                "table": {"after": [blank], "collapse": "sum"},
-                "heading_1": {"before": [blank], "collapse": "sum"},
-            },
-            TABLE_DOC,
-            tmp_path / "sum",
-        )
-    )
-    zero_pdf = pdfplumber.open(
-        _render(
-            {"table": {"after": [_blank(count=0)]}},
-            TABLE_DOC,
-            tmp_path / "zero",
-        )
-    )
-    zero_sum_pdf = pdfplumber.open(
-        _render(
-            {"table": {"after": [_blank(count=0)], "collapse": "sum"}},
-            TABLE_DOC,
-            tmp_path / "zero-sum",
-        )
-    )
-    with max_pdf as pdf:
-        max_gap = _table_heading_gap(pdf.pages[0])
-    with sum_pdf as pdf:
-        sum_gap = _table_heading_gap(pdf.pages[0])
-    with zero_pdf as pdf:
-        zero_gap = _table_heading_gap(pdf.pages[0])
-    with zero_sum_pdf as pdf:
-        zero_sum_gap = _table_heading_gap(pdf.pages[0])
 
-    base_pdf = pdfplumber.open(_render({}, TABLE_DOC, tmp_path / "pitch"))
-    with base_pdf as pdf:
+    base = gap({}, "base")
+    both = gap({"table": {"after": [blank]}, "heading_1": {"before": [blank]}}, "both")
+    previous = pair("keep_previous", "previous")
+    current = pair("keep_current", "current")
+    dropped = pair("drop_both", "dropped")
+
+    with pdfplumber.open(_render({}, TABLE_DOC, tmp_path / "pitch")) as pdf:
         pitch = _paragraph_pitch(pdf.pages[0])
 
-    # Калибровка: при v(0) остаётся только геометрическое смещение строки.
-    assert abs(zero_gap - ZERO_GAP_PT) < 0.5
-    # max: явная пустая строка заменяет штатный интервал ровно одной строкой.
-    # Эталон — измеренный шаг строк обычного абзаца в том же PDF.
-    assert abs((max_gap - zero_gap) - pitch) < 0.5
-    # sum: две жёсткие строки добавляются к штатному интервалу.
-    assert abs((sum_gap - base) - 2 * pitch) < 0.5
-    # sum с count=0 ничего не добавляет.
-    assert abs(zero_sum_gap - base) < 0.5
-    # Единица blank: шаг строки документа (5,08 мм + высота строки).
+    # keep_both: складываются обе вставки; одна вставка = полный шаг строки.
+    assert abs((both - base) - 2 * pitch) < 0.5
+    # keep_previous / keep_current оставляют ровно одну строку.
+    assert abs((previous - base) - pitch) < 0.5
+    assert abs((current - base) - pitch) < 0.5
+    # drop_both убирает обе.
+    assert abs(dropped - base) < 0.5
     assert abs(pitch - LINE_PT) < 0.5
 
 
@@ -368,53 +362,56 @@ def test_around_render_spacing_max_sum_count_zero(tmp_path) -> None:
     shutil.which("pandoc") is None or shutil.which("typst") is None,
     reason="pandoc and typst must be in PATH",
 )
-def test_around_render_count_zero_and_top_of_page(tmp_path) -> None:
-    zero_pdf = pdfplumber.open(
-        _render(
-            {"table": {"after": [_blank(count=0)]}},
-            TABLE_DOC,
-            tmp_path / "zero",
-        )
-    )
-    with zero_pdf as pdf:
-        zero_gap = _table_heading_gap(pdf.pages[0])
-    assert abs(zero_gap - ZERO_GAP_PT) < 0.5
+def test_around_render_one_side_top_and_previous_kind(tmp_path) -> None:
+    blank = _blank(count=1)
+    base = _table_heading_gap(pdfplumber.open(_render({}, TABLE_DOC, tmp_path / "base")).pages[0])
+    with pdfplumber.open(_render({}, TABLE_DOC, tmp_path / "pitch")) as pdf:
+        pitch = _paragraph_pitch(pdf.pages[0])
 
+    # Вставка только с одной стороны действует всегда.
+    one_side = _table_heading_gap(
+        pdfplumber.open(_render({"table": {"after": [blank]}}, TABLE_DOC, tmp_path / "one")).pages[
+            0
+        ]
+    )
+    assert abs((one_side - base) - pitch) < 0.5
+
+    # Первое подходящее правило по виду предыдущего элемента.
+    by_kind = _table_heading_gap(
+        pdfplumber.open(
+            _render(
+                {
+                    "table": {"after": [blank]},
+                    "heading_1": {
+                        "before": [blank],
+                        "before_collisions": [
+                            {"previous": "par", "policy": "drop_both"},
+                            {"previous": "table", "policy": "keep_previous"},
+                        ],
+                    },
+                },
+                TABLE_DOC,
+                tmp_path / "kind",
+            )
+        ).pages[0]
+    )
+    assert abs((by_kind - base) - pitch) < 0.5
+
+    # Пустая строка на верху страницы пропадает (сравнение с базой).
     top_doc = "# Верх\n\nТекст.\n"
     base_top = min(
         char["top"]
         for char in pdfplumber.open(_render({}, top_doc, tmp_path / "top-base")).pages[0].chars
     )
-    weak_pdf = pdfplumber.open(
+    with pdfplumber.open(
         _render(
-            {
-                "heading_1": {
-                    "before": [_blank(count=5, value=10.0, mode="mm")],
-                    "collapse": "max",
-                }
-            },
+            {"heading_1": {"before": [_blank(count=5, value=10.0, mode="mm")]}},
             top_doc,
-            tmp_path / "top-weak",
+            tmp_path / "top",
         )
-    )
-    hard_pdf = pdfplumber.open(
-        _render(
-            {
-                "heading_1": {
-                    "before": [_blank(count=5, value=10.0, mode="mm")],
-                    "collapse": "sum",
-                }
-            },
-            top_doc,
-            tmp_path / "top-hard",
-        )
-    )
-    with weak_pdf as pdf:
-        weak_top = min(char["top"] for char in pdf.pages[0].chars)
-    with hard_pdf as pdf:
-        hard_top = min(char["top"] for char in pdf.pages[0].chars)
-    assert abs(weak_top - base_top) < 0.5
-    assert hard_top > base_top + 50
+    ) as pdf:
+        top = min(char["top"] for char in pdf.pages[0].chars)
+    assert abs(top - base_top) < 0.5
 
 
 @pytest.mark.integration

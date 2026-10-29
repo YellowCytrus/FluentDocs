@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import shutil
 import subprocess
 from pathlib import Path
@@ -140,6 +141,31 @@ def _markdown(group: str, level: int = 1) -> str:
         "numbered_list": "1. Первый пункт\n2. Второй пункт",
     }[group]
     return f"START\n\n{body}\n\nEND\n"
+
+
+BASELINE_PATH = Path(__file__).parent / "fixtures" / "baseline" / "g2c_geometry.json"
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    shutil.which("pandoc") is None or shutil.which("typst") is None,
+    reason="pandoc and typst must be in PATH",
+)
+@pytest.mark.parametrize("option_id", SPACING_IDS)
+def test_default_geometry_baseline(option_id: str, tmp_path: Path) -> None:
+    """Принятые дефолты G2c: текущая геометрия PDF для каждого элемента."""
+    baseline = json.loads(BASELINE_PATH.read_text(encoding="utf-8"))
+    option = OPTIONS_BY_ID[option_id]
+    group = option.path[0]
+    level = int(option.path[1]) if group == "heading_levels" else 1
+    markdown = _markdown("heading" if group == "heading_levels" else group, level)
+    pdf = _render(
+        markdown,
+        _profile_with(option_id, option.default),
+        tmp_path,
+        option_id.replace(".", "_"),
+    )
+    assert _span(pdf) == pytest.approx(baseline[option_id], abs=0.5)
 
 
 @pytest.mark.integration

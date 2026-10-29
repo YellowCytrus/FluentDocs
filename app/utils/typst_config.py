@@ -97,9 +97,15 @@ def _around(values: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
         tree[target] = {
             "before": [_around_item(item) for item in before],
             "after": [_around_item(item) for item in after],
-            "collapse": _value(raw, "collapse"),
+            "before_collisions": [_collision(rule) for rule in raw.get("before_collisions", [])],
         }
     return tree
+
+
+def _collision(raw: JsonValue) -> JsonValue:
+    if not isinstance(raw, Mapping):
+        raise ValueError("Правило столкновения вставок должно быть объектом")
+    return {"previous": raw.get("previous", "any"), "policy": raw.get("policy", "keep_both")}
 
 
 def _heading_levels(values: Mapping[str, JsonValue]) -> list[JsonValue]:
@@ -138,6 +144,13 @@ def _structural_entity(raw: JsonValue) -> JsonValue:
     after = around.get("after")
     if not isinstance(before, list) or not isinstance(after, list):
         raise ValueError("structural.entities: around.before/after должны быть списками")
+    raw_numbering = raw.get("numbering")
+    if not isinstance(raw_numbering, Mapping):
+        raise ValueError("structural.entities: нужен numbering")
+    numbering = {
+        key: raw_numbering.get(key)
+        for key in ("mode", "template", "start", "sub_template", "group")
+    }
     return {
         "id": raw.get("id", ""),
         "label": raw.get("label", ""),
@@ -151,18 +164,19 @@ def _structural_entity(raw: JsonValue) -> JsonValue:
                 "case_insensitive",
             )
         },
+        "numbering": numbering,
         "apply": {
-            "numbering": apply.get("numbering"),
             "break_before": apply.get("break_before"),
             "align": apply.get("align"),
             "case": apply.get("case"),
             "bold": apply.get("bold"),
             "outlined": apply.get("outlined"),
-            "appendix": apply.get("appendix"),
             "around": {
                 "before": [_around_item(item) for item in before],
                 "after": [_around_item(item) for item in after],
-                "collapse": around.get("collapse"),
+                "before_collisions": [
+                    _collision(rule) for rule in around.get("before_collisions", [])
+                ],
             },
             "text_override": _text_override(apply.get("text_override")),
         },
@@ -175,6 +189,18 @@ def _structural(values: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
     if not isinstance(entities, list):
         raise ValueError("structural.entities должен быть списком")
     return {"entities": [_structural_entity(item) for item in entities]}
+
+
+def _outline_levels(values: Mapping[str, JsonValue]) -> list[float]:
+    raw = _value(_element(values, "outline"), "indent_per_level")
+    if not isinstance(raw, list):
+        raise ValueError("outline.indent_per_level должен быть списком")
+    result: list[float] = []
+    for item in raw:
+        if not isinstance(item, Mapping) or not isinstance(item.get("mm"), (int, float)):
+            raise ValueError("outline.indent_per_level: каждый уровень — объект {mm}")
+        result.append(float(item["mm"]))
+    return result
 
 
 def _number(element: Mapping[str, JsonValue], key: str) -> float:
@@ -355,10 +381,13 @@ def config_tree(values: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
             _element(values, "raw"),
             ("tab_size", "align", "theme", "spacing_before", "spacing_after", "text_override"),
         ),
-        "outline": _element_tree(
-            _element(values, "outline"),
-            ("depth", "indent_mode", "indent_mm", "text_override"),
-        ),
+        "outline": {
+            **_element_tree(
+                _element(values, "outline"),
+                ("depth", "indent_mode", "indent_mm", "text_override"),
+            ),
+            "indent_per_level": _outline_levels(values),
+        },
         "structural": _structural(values),
         "appendix": _element_tree(
             _element(values, "appendix"),
