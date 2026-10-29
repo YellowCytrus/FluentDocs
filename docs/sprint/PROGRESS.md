@@ -742,7 +742,7 @@ Postgres не запущен, поэтому DB-тесты локально пр
 
 | Команда | Результат |
 |---|---|
-| **CI, GitHub Actions** | `test`: 133 passed, 139 deselected; `integration`: 139 passed, 133 deselected; `lint`: success — <https://github.com/YellowCytrus/FluentDocs/actions/runs/40832823434> |
+| **CI, GitHub Actions** | `test`: 134 passed, 146 deselected; `integration`: 146 passed, 134 deselected; `lint`: success — <https://github.com/YellowCytrus/FluentDocs/actions/runs/40842636830> |
 | Локально `pytest -m "not integration" -q -rs` (без Postgres) | 68 passed, 66 skipped, 146 deselected |
 | Локально `pytest -m integration -q -rs` (без Postgres) | 145 passed, 1 skipped, 134 deselected |
 | `cd frontend && npm test -- --run` | 16 passed (4 files) |
