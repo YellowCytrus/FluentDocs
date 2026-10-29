@@ -818,10 +818,12 @@ Postgres не запущен, поэтому DB-тесты локально пр
 
 ### Проверки G3b (исправления)
 
-CI будет указан после пуша исправлений.
+Коммит: `5f7bbaa`; CI run
+[40863863839](https://github.com/YellowCytrus/FluentDocs/actions/runs/40863863839) — test + lint success.
 
 | Команда | Результат |
 |---|---|
+| **CI, GitHub Actions** | `test`: 137 passed, 177 deselected; `integration`: 177 passed, 137 deselected; `Frontend tests`: 17 passed; `Frontend build`: OK — run `40863863839` |
 | Локально `uv run pytest tests/ -m "not integration" -q -rs` (без Postgres) | 71 passed, 66 skipped, 177 deselected |
 | Локально `uv run pytest tests/ -m integration -q -rs` (без Postgres) | 176 passed, 1 skipped, 137 deselected |
 | `cd frontend && npm test -- --run` | 17 passed (4 files) |
