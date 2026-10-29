@@ -25,7 +25,6 @@ async def test_registry_api_exposes_option_contract(client):
     indent_mode = options["outline.indent_mode"]
     assert indent_mode["type"] == "select"
     assert {item["value"] for item in indent_mode["ui"]["options"]} == {
-        "auto",
-        "none",
-        "custom",
+        "step",
+        "per_level",
     }

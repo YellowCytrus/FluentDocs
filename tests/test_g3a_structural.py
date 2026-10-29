@@ -25,15 +25,20 @@ APPENDIX_ENTITY = {
         "value": "Приложение",
         "case_insensitive": True,
     },
+    "numbering": {
+        "mode": "own",
+        "template": "{letter}",
+        "start": 1,
+        "sub_template": "{prefix}.{n}",
+        "group": "appendix",
+    },
     "apply": {
-        "numbering": False,
         "break_before": False,
         "align": "auto",
         "case": "none",
         "bold": False,
         "outlined": True,
-        "appendix": True,
-        "around": {"before": [], "after": [], "collapse": "max"},
+        "around": {"before": [], "after": [], "before_collisions": []},
         "text_override": None,
     },
 }
@@ -43,9 +48,10 @@ def _entity(
     value: str,
     *,
     level: str = "any",
-    mode: str = "equals",
-    numbering: bool = True,
-    appendix: bool = False,
+    match_mode: str = "equals",
+    mode: str = "continue",
+    group: str = "",
+    template: str = "1",
     break_before: bool = False,
     case: str = "none",
     bold: bool = False,
@@ -60,19 +66,24 @@ def _entity(
         "match": {
             "target": target,
             "level": level,
-            "mode": mode,
+            "mode": match_mode,
             "value": value,
             "case_insensitive": True,
         },
+        "numbering": {
+            "mode": mode,
+            "template": template,
+            "start": 1,
+            "sub_template": "{prefix}.{n}",
+            "group": group,
+        },
         "apply": {
-            "numbering": numbering,
             "break_before": break_before,
             "align": align,
             "case": case,
             "bold": bold,
             "outlined": outlined,
-            "appendix": appendix,
-            "around": {"before": [], "after": [], "collapse": "max"},
+            "around": {"before": [], "after": [], "before_collisions": []},
             "text_override": text_override,
         },
     }
@@ -119,7 +130,7 @@ def test_structural_entities_schema() -> None:
     assert option.legacy is False
     assert option.ui.get("beta") is True
     keys = {field.path[-1] for field in option.item_fields}
-    assert keys == {"id", "label", "match", "apply"}
+    assert keys == {"id", "label", "match", "numbering", "apply"}
     match = next(field for field in option.item_fields if field.path[-1] == "match")
     apply = next(field for field in option.item_fields if field.path[-1] == "apply")
     assert {field.path[-1] for field in match.fields} == {
@@ -130,26 +141,37 @@ def test_structural_entities_schema() -> None:
         "case_insensitive",
     }
     assert {field.path[-1] for field in apply.fields} >= {
-        "numbering",
         "break_before",
         "align",
         "case",
         "bold",
         "outlined",
-        "appendix",
         "around",
         "text_override",
     }
+    numbering = next(field for field in option.item_fields if field.path[-1] == "numbering")
+    assert {field.path[-1] for field in numbering.fields} == {
+        "mode",
+        "template",
+        "start",
+        "sub_template",
+        "group",
+    }
+    assert {value for value, _ in numbering.fields[0].enum_labels} == {
+        "none",
+        "continue",
+        "own",
+    }
 
     values = default_values()
-    values["structural"]["entities"] = [APPENDIX_ENTITY, _entity("Введение", numbering=False)]
+    values["structural"]["entities"] = [APPENDIX_ENTITY, _entity("Введение", mode="none")]
     normalized = normalize_values(values)
     assert len(normalized["structural"]["entities"]) == 2  # type: ignore[arg-type]
     config = config_tree(normalized)
     first = config["structural"]["entities"][0]  # type: ignore[index]
     assert first["match"]["mode"] == "contains"  # type: ignore[index]
-    assert first["apply"]["appendix"] is True  # type: ignore[index]
-    assert first["apply"]["around"]["collapse"] == "max"  # type: ignore[index]
+    assert first["numbering"]["mode"] == "own"  # type: ignore[index]
+    assert first["apply"]["around"]["before_collisions"] == []  # type: ignore[index]
 
     # Обязательный текст сопоставления и неизвестные поля отвергаются.
     broken = {**APPENDIX_ENTITY, "match": {**APPENDIX_ENTITY["match"], "value": None}}
@@ -158,6 +180,12 @@ def test_structural_entities_schema() -> None:
     unknown = {**APPENDIX_ENTITY, "extra": 1}
     with pytest.raises(RegistryError):
         validate_value(option, [unknown])
+    duplicate = {**APPENDIX_ENTITY, "match": {**APPENDIX_ENTITY["match"], "value": "Другое"}}
+    with pytest.raises(RegistryError):
+        validate_value(option, [APPENDIX_ENTITY, duplicate])
+    empty = {**APPENDIX_ENTITY, "id": "empty", "match": {**APPENDIX_ENTITY["match"], "value": " "}}
+    with pytest.raises(RegistryError):
+        validate_value(option, [empty])
 
 
 def test_appendix_options() -> None:
@@ -177,10 +205,7 @@ def test_appendix_options() -> None:
         assert option.test_ids
         if option.group == "appendix":
             assert option.ui.get("beta") is True
-    assert "double" in OPTIONS_BY_ID["appendix.overflow"].enum
-    labels = dict(OPTIONS_BY_ID["appendix.overflow"].enum_labels)
-    assert "не реализовано" in labels["stop"]
-    assert "не реализовано" in labels["latin"]
+    assert OPTIONS_BY_ID["appendix.overflow"].enum == ("double",)
 
 
 @pytest.mark.integration
@@ -194,9 +219,7 @@ def test_structural_unnumbered_keeps_counter(tmp_path: Path) -> None:
         "# Первый раздел\n\nТекст раздела.\n\n"
         "# Заключение\n\nКонец.\n"
     )
-    profile = _profile(
-        [_entity("Введение", numbering=False), _entity("Заключение", numbering=False)]
-    )
+    profile = _profile([_entity("Введение", mode="none"), _entity("Заключение", mode="none")])
     path = _render(markdown, profile, tmp_path, "unnumbered")
     lines = _lines(path)
     assert "Введение" in lines
@@ -227,7 +250,7 @@ def test_structural_break_before(tmp_path: Path) -> None:
 )
 def test_structural_case_render(tmp_path: Path) -> None:
     markdown = "# Введение\n\nТекст.\n"
-    profile = _profile([_entity("Введение", numbering=False, case="upper", bold=True)])
+    profile = _profile([_entity("Введение", mode="none", case="upper", bold=True)])
     path = _render(markdown, profile, tmp_path, "case")
     lines = _lines(path)
     assert "ВВЕДЕНИЕ" in lines
@@ -260,7 +283,7 @@ def test_structural_text_override_render(tmp_path: Path) -> None:
         "number_type": "auto",
         "number_width": "auto",
     }
-    profile = _profile([_entity("Введение", numbering=False, text_override=override)])
+    profile = _profile([_entity("Введение", mode="none", text_override=override)])
     path = _render(markdown, profile, tmp_path, "override")
     with pdfplumber.open(path) as pdf:
         sizes = {round(char["size"], 1) for char in pdf.pages[0].chars if char["text"] == "В"}
@@ -361,7 +384,7 @@ def test_bibliography_heading_entity(tmp_path: Path) -> None:
         "1. Источник один.\n2. Источник два.\n"
     )
     profile = _profile(
-        [_entity("Список использованных источников", numbering=False, break_before=True)]
+        [_entity("Список использованных источников", mode="none", break_before=True)]
     )
     path = _render(markdown, profile, tmp_path, "bibliography")
     lines = _lines(path)
@@ -395,3 +418,281 @@ def test_heading_keep_with_next_render(tmp_path: Path) -> None:
             break
     assert boundary is not None
     assert not first_page_last_line(True, boundary, "on").endswith("КОНТРОЛЬНЫЙ ЗАГОЛОВОК")
+
+
+def _outline_markdown(body: str) -> str:
+    return "```{=typst}\n#outline()\n```\n\n" + body
+
+
+def _outline_text(pdf_path: Path) -> str:
+    with pdfplumber.open(pdf_path) as pdf:
+        return pdf.pages[0].extract_text() or ""
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    shutil.which("pandoc") is None or shutil.which("typst") is None,
+    reason="pandoc and typst must be in PATH",
+)
+def test_structural_numbering_own(tmp_path: Path) -> None:
+    profile = _profile([_entity("Раздел", mode="own", template="I")])
+    text = _outline_text(
+        _render(
+            _outline_markdown("# Раздел\n\nТекст.\n\n# Другой\n\nТекст.\n"),
+            profile,
+            tmp_path,
+            "own",
+        )
+    )
+    # Ровно две записи: оглавление и тело, без дублей.
+    assert text.count("I Раздел") == 2
+    assert text.count("1 Другой") == 2
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    shutil.which("pandoc") is None or shutil.which("typst") is None,
+    reason="pandoc and typst must be in PATH",
+)
+def test_structural_numbering_own_group(tmp_path: Path) -> None:
+    profile = _profile(
+        [
+            _entity("Первый", mode="own", template="I", group="shared"),
+            _entity("Второй", mode="own", template="I", group="shared"),
+        ]
+    )
+    lines = _lines(
+        _render("# Первый\n\nТекст.\n\n# Второй\n\nТекст.\n", profile, tmp_path, "group")
+    )
+    assert "I Первый" in lines
+    assert "II Второй" in lines
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    shutil.which("pandoc") is None or shutil.which("typst") is None,
+    reason="pandoc and typst must be in PATH",
+)
+def test_structural_outline_numbering_none(tmp_path: Path) -> None:
+    profile = _profile([_entity("Введение", mode="none")])
+    text = _outline_text(
+        _render(
+            _outline_markdown("# Введение\n\nТекст.\n\n# Раздел\n\nТекст.\n"),
+            profile,
+            tmp_path,
+            "outline-none",
+        )
+    )
+    assert text.count("Введение") == 2
+    assert "1 Введение" not in text
+    assert text.count("1 Раздел") == 2
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    shutil.which("pandoc") is None or shutil.which("typst") is None,
+    reason="pandoc and typst must be in PATH",
+)
+def test_structural_outline_outlined_false(tmp_path: Path) -> None:
+    profile = _profile([_entity("Введение", outlined=False)])
+    text = _outline_text(
+        _render(
+            _outline_markdown("# Введение\n\nТекст.\n\n# Раздел\n\nТекст.\n"),
+            profile,
+            tmp_path,
+            "outlined-false",
+        )
+    )
+    assert text.count("Введение") == 1
+    assert "1 Введение" in text
+    assert text.count("Раздел") == 2
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    shutil.which("pandoc") is None or shutil.which("typst") is None,
+    reason="pandoc and typst must be in PATH",
+)
+def test_appendix_numbering_true_and_global_none(tmp_path: Path) -> None:
+    profile = _profile(
+        [APPENDIX_ENTITY],
+        heading={"numbering": "none"},
+    )
+    markdown = (
+        "# Приложение Первое\n\n## Состав\n\nТекст.\n\n"
+        "# Приложение Второе\n\n## Состав два\n\nТекст.\n"
+    )
+    lines = _lines(_render(markdown, profile, tmp_path, "appendix-none"))
+    assert "ПРИЛОЖЕНИЕ А. Первое" in lines
+    assert "ПРИЛОЖЕНИЕ Б. Второе" in lines
+    assert any(line.startswith("А.1 Состав") for line in lines)
+    assert any(line.startswith("Б.1 Состав два") for line in lines)
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    shutil.which("pandoc") is None or shutil.which("typst") is None,
+    reason="pandoc and typst must be in PATH",
+)
+def test_appendix_custom_template_and_empty_title(tmp_path: Path) -> None:
+    profile = _profile(
+        [APPENDIX_ENTITY],
+        appendix={"template": "Приложение {letter}. {title}"},
+    )
+    lines = _lines(
+        _render(
+            "# Приложение\n\nТекст.\n\n# Приложение   Название\n\nТекст.\n",
+            profile,
+            tmp_path,
+            "appendix-custom",
+        )
+    )
+    assert any(line.startswith("Приложение А.") for line in lines)
+    assert any("Название" in line for line in lines)
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    shutil.which("pandoc") is None or shutil.which("typst") is None,
+    reason="pandoc and typst must be in PATH",
+)
+def test_structural_match_modes_level_and_priority(tmp_path: Path) -> None:
+    entities = [
+        _entity("Особый", match_mode="equals", mode="none"),
+        _entity("содержит", match_mode="contains", mode="none"),
+        _entity(r"^Рег.*$", match_mode="regex", mode="none"),
+        _entity("Уровень два", level="2", mode="none"),
+        _entity("Первый приоритет", mode="none"),
+        _entity("Первый приоритет", mode="continue"),
+    ]
+    entities[5]["id"] = "priority-2"
+    markdown = (
+        "# Особый\n\nТекст.\n\n"
+        "# Есть содержит внутри\n\nТекст.\n\n"
+        "# Регулярное\n\nТекст.\n\n"
+        "# Уровень два\n\nТекст.\n\n"
+        "# Первый приоритет\n\nТекст.\n"
+    )
+    lines = _lines(_render(markdown, _profile(entities), tmp_path, "match"))
+    assert "Особый" in lines
+    assert "Есть содержит внутри" in lines
+    assert "Регулярное" in lines
+    assert "1 Уровень два" in lines
+    assert "Первый приоритет" in lines
+    assert "1 Первый приоритет" not in lines
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    shutil.which("pandoc") is None or shutil.which("typst") is None,
+    reason="pandoc and typst must be in PATH",
+)
+def test_structural_align_and_around(tmp_path: Path) -> None:
+    entity = _entity("Введение", mode="none", align="center")
+    entity["apply"]["around"] = {
+        "before": [
+            {
+                "type": "text",
+                "content": "ДО ЗАГОЛОВКА",
+                "text_override": None,
+                "align": "left",
+            }
+        ],
+        "after": [],
+        "before_collisions": [],
+    }
+    path = _render("# Введение\n\nТекст.\n", _profile([entity]), tmp_path, "align")
+    with pdfplumber.open(path) as pdf:
+        page = pdf.pages[0]
+        heading = [line for line in page.extract_text_lines() if "Введение" in line["text"]][0]
+        page_width = page.width
+    assert "ДО ЗАГОЛОВКА" in _outline_text(path)
+    center = (heading["x0"] + heading["x1"]) / 2
+    assert abs(center - page_width / 2) < 60
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    shutil.which("pandoc") is None or shutil.which("typst") is None,
+    reason="pandoc and typst must be in PATH",
+)
+def test_outline_indent_render(tmp_path: Path) -> None:
+    markdown = _outline_markdown("# Один\n\nТекст.\n\n## Два\n\nТекст.\n\n### Три\n\nТекст.\n")
+    profile = _profile(
+        outline={"indent_mode": "step", "indent_mm": 5.0},
+    )
+    step_path = _render(markdown, profile, tmp_path, "indent-step")
+    with pdfplumber.open(step_path) as pdf:
+        lines = pdf.pages[0].extract_text_lines()
+    positions = {}
+    for line in lines:
+        for title in ("Один", "Два", "Три"):
+            if title in line["text"] and "...." in line["text"]:
+                positions[title] = line["x0"]
+    assert positions["Два"] - positions["Один"] > 10
+    assert positions["Три"] - positions["Два"] > 10
+
+    profile = _profile(
+        outline={
+            "indent_mode": "per_level",
+            "indent_per_level": [
+                {"mm": 0.0},
+                {"mm": 10.0},
+                {"mm": 30.0},
+                {"mm": 0.0},
+                {"mm": 0.0},
+                {"mm": 0.0},
+            ],
+        },
+    )
+    per_path = _render(markdown, profile, tmp_path, "indent-per-level")
+    with pdfplumber.open(per_path) as pdf:
+        lines = pdf.pages[0].extract_text_lines()
+    positions = {}
+    for line in lines:
+        for title in ("Один", "Два", "Три"):
+            if title in line["text"] and "...." in line["text"]:
+                positions[title] = line["x0"]
+    assert positions["Два"] - positions["Один"] > 25
+    assert positions["Три"] - positions["Один"] > 75
+
+
+def test_structural_entity_migration() -> None:
+    """Старые apply.numbering/appendix переносятся в numbering.mode."""
+    old = {
+        "id": "old",
+        "label": "Старое",
+        "match": {
+            "target": "heading",
+            "level": "any",
+            "mode": "equals",
+            "value": "Введение",
+            "case_insensitive": True,
+        },
+        "apply": {
+            "numbering": False,
+            "appendix": False,
+            "break_before": False,
+            "align": "auto",
+            "case": "none",
+            "bold": False,
+            "outlined": True,
+            "around": {"before": [], "after": [], "collapse": "max"},
+            "text_override": None,
+        },
+    }
+    values = normalize_values({"structural": {"entities": [old]}})
+    entity = values["structural"]["entities"][0]  # type: ignore[index]
+    assert entity["numbering"]["mode"] == "none"  # type: ignore[index]
+    assert "numbering" not in entity["apply"]  # type: ignore[operator]
+    assert "appendix" not in entity["apply"]  # type: ignore[operator]
+    assert entity["apply"]["around"]["before_collisions"] == [  # type: ignore[index]
+        {"previous": "any", "policy": "keep_both"}
+    ]
+
+    appendix = {**old, "id": "old-appendix"}
+    appendix["apply"] = {**old["apply"], "numbering": True, "appendix": True}
+    values = normalize_values({"structural": {"entities": [appendix]}})
+    entity = values["structural"]["entities"][0]  # type: ignore[index]
+    assert entity["numbering"]["mode"] == "own"  # type: ignore[index]
+    assert entity["numbering"]["template"] == "{letter}"  # type: ignore[index]

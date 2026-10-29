@@ -111,35 +111,53 @@ def test_config_escaping_and_region_none():
 
 
 def test_outline_indent_modes_config():
-    """Оглавление: auto не передаёт indent, none даёт 0, custom — мм."""
+    """Оглавление: step — шаг в мм, per_level — список мм по уровням."""
     profile = default_profile()
-    auto_source = build_typst_preamble(profile)
-    assert 'indent_mode: "auto"' in auto_source
-    assert "indent_mm: 0.0" in auto_source
-    assert 'indent: "auto"' not in auto_source
+    source = build_typst_preamble(profile)
+    assert 'indent_mode: "step"' in source
+    assert "indent_mm: 0.0" in source
+    assert "indent_per_level: (" in source
 
-    profile.outline_style.indent_mode = "none"
-    profile.outline_style.indent_mm = 0.0
-    none_source = build_typst_preamble(profile)
-    assert 'indent_mode: "none"' in none_source
-
-    profile.outline_style.indent_mode = "custom"
+    profile.outline_style.indent_mode = "step"
     profile.outline_style.indent_mm = 5.5
-    custom_source = build_typst_preamble(profile)
-    assert 'indent_mode: "custom"' in custom_source
-    assert "indent_mm: 5.5" in custom_source
+    step_source = build_typst_preamble(profile)
+    assert 'indent_mode: "step"' in step_source
+    assert "indent_mm: 5.5" in step_source
+
+    profile.outline_style.indent_mode = "per_level"
+    profile.options = normalize_values(
+        {
+            "outline": {
+                "indent_mode": "per_level",
+                "indent_per_level": [
+                    {"mm": 0.0},
+                    {"mm": 2.0},
+                    {"mm": 4.0},
+                    {"mm": 6.0},
+                    {"mm": 8.0},
+                    {"mm": 10.0},
+                ],
+            }
+        }
+    )
+    profile.options_schema_version = SCHEMA_VERSION
+    per_source = build_typst_preamble(profile)
+    assert 'indent_mode: "per_level"' in per_source
+    assert "2.0," in per_source
 
 
 def test_outline_indent_rejects_arbitrary_strings():
-    """Строка-выражение в отступе оглавления отвергается на уровне реестра."""
+    """Старые и произвольные режимы отступа оглавления отвергаются."""
     from app.registry import RegistryError, normalize_values
 
     with pytest.raises(RegistryError):
-        normalize_values({"outline": {"indent": "1.5em"}})
+        normalize_values({"outline": {"indent_mode": "auto"}})
     with pytest.raises(RegistryError):
-        normalize_values({"outline": {"indent_mode": "1.5em"}})
+        normalize_values({"outline": {"indent_mode": "custom"}})
     with pytest.raises(RegistryError):
         normalize_values({"outline": {"indent_mm": "5mm"}})
+    with pytest.raises(RegistryError):
+        normalize_values({"outline": {"indent_per_level": [{"unknown": 1}]}})
 
 
 def test_fd_library_has_no_dynamic_code_execution():
