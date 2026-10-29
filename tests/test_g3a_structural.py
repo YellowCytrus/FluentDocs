@@ -26,6 +26,7 @@ APPENDIX_ENTITY = {
         "case_insensitive": True,
     },
     "numbering": {
+        "kind": "appendix",
         "mode": "own",
         "template": "{letter}",
         "start": 1,
@@ -50,6 +51,7 @@ def _entity(
     level: str = "any",
     match_mode: str = "equals",
     mode: str = "continue",
+    kind: str = "section",
     group: str = "",
     template: str = "1",
     break_before: bool = False,
@@ -71,6 +73,7 @@ def _entity(
             "case_insensitive": True,
         },
         "numbering": {
+            "kind": kind,
             "mode": mode,
             "template": template,
             "start": 1,
@@ -103,7 +106,7 @@ def _profile(entities: list[dict] | None = None, **changes: object):
     return profile
 
 
-def _render(markdown: str, profile, tmp_path: Path, name: str) -> Path:
+def _compile(markdown: str, profile, tmp_path: Path, name: str) -> tuple[Path, str]:
     site = tmp_path / name
     site.mkdir(parents=True, exist_ok=True)
     (site / "input.typ").write_text(build_source(markdown, profile), encoding="utf-8")
@@ -115,7 +118,12 @@ def _render(markdown: str, profile, tmp_path: Path, name: str) -> Path:
         timeout=120,
     )
     assert result.returncode == 0, result.stderr
-    return site / "output.pdf"
+    return site / "output.pdf", result.stderr
+
+
+def _render(markdown: str, profile, tmp_path: Path, name: str) -> Path:
+    path, _stderr = _compile(markdown, profile, tmp_path, name)
+    return path
 
 
 def _lines(pdf_path: Path) -> list[str]:
@@ -151,17 +159,18 @@ def test_structural_entities_schema() -> None:
     }
     numbering = next(field for field in option.item_fields if field.path[-1] == "numbering")
     assert {field.path[-1] for field in numbering.fields} == {
+        "kind",
         "mode",
         "template",
         "start",
         "sub_template",
         "group",
     }
-    assert {value for value, _ in numbering.fields[0].enum_labels} == {
-        "none",
-        "continue",
-        "own",
-    }
+    kind = next(field for field in numbering.fields if field.path[-1] == "kind")
+    assert kind.default == "section"
+    assert {value for value, _ in kind.enum_labels} == {"section", "appendix"}
+    mode = next(field for field in numbering.fields if field.path[-1] == "mode")
+    assert {value for value, _ in mode.enum_labels} == {"none", "continue", "own"}
 
     values = default_values()
     values["structural"]["entities"] = [APPENDIX_ENTITY, _entity("Введение", mode="none")]
@@ -170,6 +179,7 @@ def test_structural_entities_schema() -> None:
     config = config_tree(normalized)
     first = config["structural"]["entities"][0]  # type: ignore[index]
     assert first["match"]["mode"] == "contains"  # type: ignore[index]
+    assert first["numbering"]["kind"] == "appendix"  # type: ignore[index]
     assert first["numbering"]["mode"] == "own"  # type: ignore[index]
     assert first["apply"]["around"]["before_collisions"] == []  # type: ignore[index]
 
@@ -367,9 +377,11 @@ def test_appendix_letter_sequence(tmp_path: Path) -> None:
 )
 def test_appendix_numbering_subheadings(tmp_path: Path) -> None:
     markdown = "# Приложение Название\n\n## Состав\n\nТекст.\n\n### Детали\n\nЕщё текст.\n"
-    lines = _lines(_render(markdown, _profile([APPENDIX_ENTITY]), tmp_path, "subheadings"))
+    path, stderr = _compile(markdown, _profile([APPENDIX_ENTITY]), tmp_path, "subheadings")
+    lines = _lines(path)
     assert any(line.startswith("А.1 Состав") for line in lines)
     assert any(line.startswith("А.1.1 Детали") for line in lines)
+    assert "did not converge" not in stderr
 
 
 @pytest.mark.integration
@@ -694,5 +706,113 @@ def test_structural_entity_migration() -> None:
     appendix["apply"] = {**old["apply"], "numbering": True, "appendix": True}
     values = normalize_values({"structural": {"entities": [appendix]}})
     entity = values["structural"]["entities"][0]  # type: ignore[index]
+    assert entity["numbering"]["kind"] == "appendix"  # type: ignore[index]
     assert entity["numbering"]["mode"] == "own"  # type: ignore[index]
     assert entity["numbering"]["template"] == "{letter}"  # type: ignore[index]
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    shutil.which("pandoc") is None or shutil.which("typst") is None,
+    reason="pandoc and typst must be in PATH",
+)
+def test_structural_unnumbered_subheading_has_no_zero_prefix(tmp_path: Path) -> None:
+    markdown = "# Введение\n\n## Подраздел\n\nТекст.\n\n# Раздел\n\nТекст раздела.\n"
+    profile = _profile([_entity("Введение", mode="none")])
+    text = _outline_text(_render(_outline_markdown(markdown), profile, tmp_path, "none-subheading"))
+    assert "0.1" not in text
+    assert text.count("Подраздел") == 2
+    assert "1 Раздел" in text
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    shutil.which("pandoc") is None or shutil.which("typst") is None,
+    reason="pandoc and typst must be in PATH",
+)
+def test_appendix_template_title_in_any_position(tmp_path: Path) -> None:
+    profile = _profile(
+        [APPENDIX_ENTITY],
+        appendix={"template": "{title} — {letter} {service}"},
+    )
+    lines = _lines(
+        _render("# Приложение Название\n\nТекст.\n", profile, tmp_path, "appendix-title-first")
+    )
+    assert "Название — А ПРИЛОЖЕНИЕ" in lines
+    assert not any(line.startswith("ПРИЛОЖЕНИЕ") for line in lines)
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    shutil.which("pandoc") is None or shutil.which("typst") is None,
+    reason="pandoc and typst must be in PATH",
+)
+def test_own_letter_template_is_not_appendix(tmp_path: Path) -> None:
+    profile = _profile([_entity("Раздел", mode="own", kind="section", template="({letter})")])
+    lines = _lines(_render("# Раздел\n\nТекст.\n", profile, tmp_path, "own-letter"))
+    assert "(А) Раздел" in lines
+    assert not any(line.startswith("ПРИЛОЖЕНИЕ") for line in lines)
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    shutil.which("pandoc") is None or shutil.which("typst") is None,
+    reason="pandoc and typst must be in PATH",
+)
+def test_appendix_start_and_sub_template(tmp_path: Path) -> None:
+    entity = {
+        **APPENDIX_ENTITY,
+        "numbering": {
+            **APPENDIX_ENTITY["numbering"],
+            "start": 5,
+            "sub_template": "{prefix}-{n}",
+        },
+    }
+    markdown = "# Приложение Название\n\n## Состав\n\nТекст.\n\n### Детали\n\nЕщё текст.\n"
+    lines = _lines(_render(markdown, _profile([entity]), tmp_path, "appendix-start"))
+    assert "ПРИЛОЖЕНИЕ Д. Название" in lines
+    assert "Д-1 Состав" in lines
+    assert "Д-1.1 Детали" in lines
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    shutil.which("pandoc") is None or shutil.which("typst") is None,
+    reason="pandoc and typst must be in PATH",
+)
+def test_outline_empty_per_level_does_not_crash(tmp_path: Path) -> None:
+    profile = _profile(
+        outline={"indent_mode": "per_level", "indent_per_level": []},
+    )
+    text = _outline_text(
+        _render(
+            _outline_markdown("# Один\n\nТекст.\n\n## Два\n\nТекст.\n"),
+            profile,
+            tmp_path,
+            "outline-empty",
+        )
+    )
+    assert "Один" in text
+    assert "Два" in text
+
+
+def test_own_letter_template_migrates_to_section() -> None:
+    values = normalize_values(
+        {"structural": {"entities": [_entity("Раздел", mode="own", template="({letter})")]}}
+    )
+    entity = values["structural"]["entities"][0]  # type: ignore[index]
+    assert entity["numbering"]["kind"] == "section"  # type: ignore[index]
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    shutil.which("pandoc") is None or shutil.which("typst") is None,
+    reason="pandoc and typst must be in PATH",
+)
+def test_structural_own_subheadings_use_sub_template(tmp_path: Path) -> None:
+    markdown = "# Раздел\n\n## Подраздел\n\n### Детали\n\nТекст.\n"
+    profile = _profile([_entity("Раздел", mode="own", template="I")])
+    lines = _lines(_render(markdown, profile, tmp_path, "own-subheadings"))
+    assert "I.1 Подраздел" in lines
+    assert "I.1.1 Детали" in lines
+    assert not any("0.1" in line for line in lines)

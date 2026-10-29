@@ -688,12 +688,16 @@ Typst 1,0 em, `table` 1,2 em, списки 1,2 em. Это не ошибка ко
 | Схема сущности: `match`, `numbering`, `apply` | ✔ `numbering` — top-level | `app/registry/options.py` |
 | Режимы `none` / `continue` / `own` задаются явно | ✔ без авто-переключения | `app/typst/fd.typ` |
 | `none`: без номера, общий счётчик не сбит | ✔ | `test_structural_outline_numbering_none` |
+| `none` + `##`: подраздел без `0.1` | ✔ | `test_structural_unnumbered_subheading_has_no_zero_prefix` |
 | `continue`: общий номер и влияние на следующие | ✔ | `test_structural_numbering_own` |
 | `own`: отдельный счётчик, `template`, `start`, `sub_template`, `group` | ✔ | `test_structural_numbering_own`, `test_structural_numbering_own_group` |
-| Приложение — пресет `own` с `{letter}` | ✔ буква не зависит от `heading.numbering` | `test_appendix_numbering_true_and_global_none` |
+| `own` + `{letter}` при `kind=section` — не приложение | ✔ `(А) Раздел` | `test_own_letter_template_is_not_appendix` |
+| Приложение — явный пресет `numbering.kind = "appendix"` | ✔ буква не зависит от `heading.numbering` | `test_appendix_numbering_true_and_global_none` |
 | Подзаголовки приложения `А.1`, `А.1.1` | ✔ | `test_appendix_numbering_true_and_global_none` |
 | Защита индекса 0 (не «Я») | ✔ `calc.max(1, index)` | `app/typst/fd.typ` |
-| Тело приложения — `ПРИЛОЖЕНИЕ {letter}. {title}` | ✔ без числового префикса | `test_appendix_...` |
+| Тело приложения — `appendix.template` с `{service}`/`{letter}`/`{title}` в любом порядке | ✔ без числового префикса | `test_appendix_template_title_in_any_position`, `test_appendix_custom_template_and_empty_title` |
+| Приложение: `numbering.start` сдвигает букву, `sub_template` применяется | ✔ start=5 → Д, `Д-1`, `Д-1.1` | `test_appendix_start_and_sub_template` |
+| Приложение: нет `layout did not converge` на `А.1.1` | ✔ stderr проверяется | `test_appendix_numbering_subheadings` |
 | Один авторитетный `heading`, без второго в `show` | ✔ заголовки собираются проходом по телу | `app/typst/fd.typ` |
 | `outlined=false` убирает запись из `#outline()` | ✔ ровно одна запись в теле | `test_structural_outline_outlined_false` |
 | `numbering=false` — одна запись без номера | ✔ | `test_structural_outline_numbering_none` |
@@ -702,9 +706,10 @@ Typst 1,0 em, `table` 1,2 em, списки 1,2 em. Это не ошибка ко
 | Отступы `step` и `per_level` | ✔ 0-based level Typst | `test_outline_indent_render` |
 | `match.mode` equals/contains/regex, регистр, уровень, приоритет | ✔ | `test_structural_match_modes_level_and_priority` |
 | `apply.align`, `apply.around` сущности | ✔ | `test_structural_align_and_around` |
-| `appendix.template`, пустое/многословное название | ✔ | `test_appendix_custom_template_and_empty_title` |
+| `appendix.template`, пустое/многословное название, `{title}` не в конце | ✔ | `test_appendix_custom_template_and_empty_title`, `test_appendix_template_title_in_any_position` |
 | `appendix.overflow` только `double` | ✔ `stop`/`latin` удалены | `tests/test_g3a_structural.py` |
-| Миграция `apply.numbering`/`apply.appendix` | ✔ bool → mode; appendix → own | `test_structural_entity_migration` |
+| Миграция `apply.numbering`/`apply.appendix` | ✔ bool → mode; appendix → `kind=appendix` + own | `test_structural_entity_migration` |
+| Пустой `outline.indent_per_level` | ✔ fallback `0mm`, без падения | `test_outline_empty_per_level_does_not_crash` |
 | UI: подвкладка «Шаблонные заголовки» в «Заголовках», beta | ✔ универсальный рендерер | `app/registry/options.py` |
 | Прототип S13: один авторитетный заголовок | ✔ | `SPIKES.md` |
 | Отдельные счётчики рисунков/таблиц | — G3b, не начато | — |
@@ -725,9 +730,10 @@ Typst 1,0 em, `table` 1,2 em, списки 1,2 em. Это не ошибка ко
 ### G3a: golden
 
 16 снимков получили только ключи конфига: `numbering` у сущностей
-(`mode`/`template`/`start`/`sub_template`/`group`), `before_collisions`,
+(`kind`/`mode`/`template`/`start`/`sub_template`/`group`), `before_collisions`,
 `outline.indent_mode: "step"`, `outline.indent_per_level`. Тела документов не
-изменились.
+изменились. В фиксе блокеров G3a golden-снимки не менялись: дефолтный профиль
+не содержит структурных сущностей, поэтому `kind` в снимки не попадает.
 
 ### Проверки G2d + G3a
 
@@ -737,8 +743,8 @@ Postgres не запущен, поэтому DB-тесты локально пр
 | Команда | Результат |
 |---|---|
 | **CI, GitHub Actions** | `test`: 133 passed, 139 deselected; `integration`: 139 passed, 133 deselected; `lint`: success — <https://github.com/YellowCytrus/FluentDocs/actions/runs/40832823434> |
-| Локально `pytest -m "not integration" -q -rs` (без Postgres) | 67 passed, 66 skipped, 139 deselected |
-| Локально `pytest -m integration -q -rs` (без Postgres) | 138 passed, 1 skipped, 133 deselected |
+| Локально `pytest -m "not integration" -q -rs` (без Postgres) | 68 passed, 66 skipped, 146 deselected |
+| Локально `pytest -m integration -q -rs` (без Postgres) | 145 passed, 1 skipped, 134 deselected |
 | `cd frontend && npm test -- --run` | 16 passed (4 files) |
 | `cd frontend && npm run build` | OK |
 | `npx vue-tsc --noEmit` | exit 0 |

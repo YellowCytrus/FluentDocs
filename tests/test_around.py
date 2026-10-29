@@ -466,3 +466,64 @@ def test_around_render_text_line_and_pagebreak(tmp_path) -> None:
     with break_pdf as pdf:
         assert len(pdf.pages) == 2
         assert "Следующий" in (pdf.pages[1].extract_text() or "")
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    shutil.which("pandoc") is None or shutil.which("typst") is None,
+    reason="pandoc and typst must be in PATH",
+)
+def test_around_render_collision_text_line_pagebreak(tmp_path) -> None:
+    table_then_heading = "| A | B |\n|---|---|\n| 1 | 2 |\n\n# Следующий\n\nТекст."
+    line = {"type": "line", "length": 100, "stroke_mm": 0.5}
+    previous_text = _text_item("ПОСЛЕ ТАБЛИЦЫ")
+    current_text = _text_item("ПЕРЕД ЗАГОЛОВКОМ")
+
+    with pdfplumber.open(_render({}, table_then_heading, tmp_path / "base")) as pdf:
+        base_lines = len(pdf.pages[0].lines)
+
+    both = {
+        "table": {"after": [previous_text, line]},
+        "heading_1": {
+            "before": [current_text, line],
+            "before_collisions": [{"previous": "table", "policy": "keep_both"}],
+        },
+    }
+    with pdfplumber.open(_render(both, table_then_heading, tmp_path / "both")) as pdf:
+        text = pdf.pages[0].extract_text() or ""
+        assert "ПОСЛЕ ТАБЛИЦЫ" in text
+        assert "ПЕРЕД ЗАГОЛОВКОМ" in text
+        assert text.index("ПОСЛЕ ТАБЛИЦЫ") < text.index("ПЕРЕД ЗАГОЛОВКОМ")
+        assert text.index("ПЕРЕД ЗАГОЛОВКОМ") < text.index("Следующий")
+        assert len(pdf.pages[0].lines) == base_lines + 2
+
+    dropped = {
+        "table": {"after": [previous_text, line]},
+        "heading_1": {
+            "before": [current_text, line],
+            "before_collisions": [{"previous": "table", "policy": "drop_both"}],
+        },
+    }
+    with pdfplumber.open(_render(dropped, table_then_heading, tmp_path / "dropped")) as pdf:
+        text = pdf.pages[0].extract_text() or ""
+        assert "ПОСЛЕ ТАБЛИЦЫ" not in text
+        assert "ПЕРЕД ЗАГОЛОВКОМ" not in text
+        assert len(pdf.pages[0].lines) == base_lines
+
+    # Разрыв страницы внутри вставки подчиняется той же политике.
+    pagebreak = {"type": "pagebreak", "weak": False}
+    current_break = {
+        "table": {"after": [previous_text, pagebreak]},
+        "heading_1": {
+            "before": [current_text, pagebreak],
+            "before_collisions": [{"previous": "table", "policy": "keep_current"}],
+        },
+    }
+    with pdfplumber.open(_render(current_break, table_then_heading, tmp_path / "break")) as pdf:
+        assert len(pdf.pages) == 2
+        first = pdf.pages[0].extract_text() or ""
+        second = pdf.pages[1].extract_text() or ""
+        assert "ПЕРЕД ЗАГОЛОВКОМ" in first
+        assert "ПОСЛЕ ТАБЛИЦЫ" not in first
+        assert "ПОСЛЕ ТАБЛИЦЫ" not in second
+        assert "Следующий" in second

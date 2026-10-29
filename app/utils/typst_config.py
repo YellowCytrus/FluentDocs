@@ -149,7 +149,7 @@ def _structural_entity(raw: JsonValue) -> JsonValue:
         raise ValueError("structural.entities: нужен numbering")
     numbering = {
         key: raw_numbering.get(key)
-        for key in ("mode", "template", "start", "sub_template", "group")
+        for key in ("kind", "mode", "template", "start", "sub_template", "group")
     }
     return {
         "id": raw.get("id", ""),

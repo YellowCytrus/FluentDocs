@@ -882,11 +882,23 @@ def _structural_options() -> list[Option]:
     )
     numbering_fields = (
         schema_field(
+            "kind",
+            "select",
+            "section",
+            "Вид правила",
+            0,
+            enum=("section", "appendix"),
+            enum_labels=(
+                ("section", "Обычный заголовок"),
+                ("appendix", "Приложение (пресет)"),
+            ),
+        ),
+        schema_field(
             "mode",
             "select",
             "continue",
             "Режим нумерации",
-            0,
+            1,
             enum=("none", "continue", "own"),
             enum_labels=(
                 ("none", "Без номера"),
@@ -894,16 +906,16 @@ def _structural_options() -> list[Option]:
                 ("own", "Свой счётчик"),
             ),
         ),
-        schema_field("template", "string", "1", "Шаблон номера", 1),
-        schema_field("start", "integer", 1, "Начальный номер", 2, min=1, max=999),
+        schema_field("template", "string", "1", "Шаблон номера", 2),
+        schema_field("start", "integer", 1, "Начальный номер", 3, min=1, max=999),
         schema_field(
             "sub_template",
             "string",
             "{prefix}.{n}",
             "Шаблон подзаголовков",
-            3,
+            4,
         ),
-        schema_field("group", "string", "", "Общий счётчик (group)", 4),
+        schema_field("group", "string", "", "Общий счётчик (group)", 5),
     )
     apply_fields = (
         schema_field("break_before", "boolean", False, "С новой страницы", 1),
@@ -963,6 +975,7 @@ def _structural_options() -> list[Option]:
             "numbering",
             "object",
             {
+                "kind": "section",
                 "mode": "continue",
                 "template": "1",
                 "start": 1,
@@ -1000,6 +1013,11 @@ def _structural_options() -> list[Option]:
             "test_structural_numbering_own_group",
             "test_structural_outline_numbering_none",
             "test_structural_outline_outlined_false",
+            "test_structural_unnumbered_subheading_has_no_zero_prefix",
+            "test_own_letter_template_is_not_appendix",
+            "test_appendix_start_and_sub_template",
+            "test_appendix_numbering_subheadings",
+            "test_structural_own_subheadings_use_sub_template",
         ),
         legacy=False,
         beta=True,
@@ -1022,7 +1040,12 @@ def _structural_options() -> list[Option]:
                 "в одной строке; меняется без правки генератора."
             ),
             source="СТУ 7.5.5; plan_v2 appendix.template; AGENTS 5.3",
-            test_ids=("test_appendix_options", "test_appendix_heading_one_line"),
+            test_ids=(
+                "test_appendix_options",
+                "test_appendix_heading_one_line",
+                "test_appendix_custom_template_and_empty_title",
+                "test_appendix_template_title_in_any_position",
+            ),
             legacy=False,
         ),
         _option(
@@ -2584,6 +2607,7 @@ def _base_options() -> list[Option]:
                 "test_outline_indent_modes_config",
                 "test_outline_indent_rejects_arbitrary_strings",
                 "test_outline_indent_render",
+                "test_outline_empty_per_level_does_not_crash",
             ),
             legacy=False,
         ),

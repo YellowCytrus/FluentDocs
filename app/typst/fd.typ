@@ -214,17 +214,11 @@
   // --- нумерация приложений и своих счётчиков ---
 
   let in-appendix = state("fd-in-appendix", false)
-  let appendix-counter = counter("fd-appendix-letter")
-  let own-active = state("fd-own-active", none)
-  let heading-saved = state("fd-heading-saved", ())
   let appendix-alphabets = (
     ru_sfu: "АБВГДЕЖИКЛМНПРСТУФХЦШЩЭЮЯ",
     latin: "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
     arabic: "0123456789",
   )
-
-  let own-family(group) = counter("fd-own-" + group)
-  let own-sub(group, level) = counter("fd-own-" + group + "-" + str(level))
 
   // Буква приложения по номеру 1…; после алфавита — удвоение (АА, АБ…).
   let appendix-letter(config, index) = {
@@ -244,51 +238,62 @@
     if entity.numbering.group == "" { entity.id } else { entity.numbering.group }
   }
 
-  // Приложение — пресет own с буквенным шаблоном.
+  // Приложение — явный пресет numbering.kind, а не догадка по шаблону.
   let is-appendix(entity) = {
-    if entity == none { false } else {
-      entity.numbering.mode == "own" and entity.numbering.template.contains("{letter}")
-    }
+    if entity == none { false } else { entity.numbering.kind == "appendix" }
   }
 
-  // Номер своей сущности; args — временно выставленный счётчик заголовков.
-  let own-numbering(entity) = (..args) => {
-    let nums = args.pos()
-    let base = numbering(entity.numbering.template, nums.at(0))
-    if nums.len() == 1 {
-      base
+  // Увеличивает счётчик уровня и сбрасывает более глубокие.
+  let step-array(values, level) = {
+    range(0, 6).map(i => {
+      if i == level - 1 { values.at(i) + 1 }
+      else if i > level - 1 { 0 }
+      else { values.at(i) }
+    })
+  }
+
+  // Строка номера своего правила: Typst-шаблон или плейсхолдер {letter}.
+  let own-base-value(config, entity, family) = {
+    let shifted = family + entity.numbering.start - 1
+    if entity.numbering.template.contains("{letter}") {
+      entity.numbering.template.replace(
+        "{letter}",
+        appendix-letter(config, shifted),
+      )
     } else {
-      let parts = nums.slice(1).map(value => str(value))
-      entity.numbering.sub_template
-        .replace("{prefix}", base)
-        .replace("{n}", parts.join("."))
+      numbering(entity.numbering.template, shifted)
     }
   }
 
-  // Номер приложения и его подзаголовков: А, А.1, А.1.1.
-  let appendix-numbering(config, service) = (..args) => {
-    let nums = args.pos()
-    let letter = appendix-letter(config, nums.at(0))
-    if nums.len() == 1 {
-      let rendered = config.appendix.template
-        .replace("{service}", apply-case(service, config.appendix.service_case))
-        .replace("{letter}", letter)
-        .replace("{title}", "")
-        .trim()
-      if config.appendix.bold { strong(rendered) } else { rendered }
-    } else {
-      let parts = nums.slice(1).map(value => str(value))
-      letter + "." + parts.join(".")
-    }
+  // Подпись подраздела своего счётчика: {prefix} и {n}.
+  let own-sub-text(entity, base, subs, level) = {
+    let parts = range(1, level).map(i => str(subs.at(i)))
+    entity.numbering.sub_template
+      .replace("{prefix}", base)
+      .replace("{n}", parts.join("."))
   }
 
-  // Название приложения без служебного слова и буквы.
-  let appendix-title-body(config, it) = {
-    let text = it.body.text.trim()
-    let parts = text.split(" ")
+  // Заголовок приложения целиком: шаблон appendix.template с {title} в любом месте.
+  let appendix-heading-text(config, entity, heading-text, letter) = {
+    let parts = heading-text.split(" ").filter(part => part != "")
+    let service = if parts.len() > 0 { parts.at(0) } else { "" }
     let title = if parts.len() > 1 { parts.slice(1).join(" ") } else { "" }
-    title = apply-case(title, config.appendix.title_case)
-    if config.appendix.bold { strong(title) } else { title }
+    let rendered = config.appendix.template
+      .replace("{service}", apply-case(service, config.appendix.service_case))
+      .replace("{letter}", letter)
+      .replace("{title}", apply-case(title, config.appendix.title_case))
+    if config.appendix.bold { strong(rendered) } else { rendered }
+  }
+
+  // Подзаголовок приложения: буква вместо номера раздела, sub_template.
+  let appendix-sub-text(config, entity, heading-text, letter, subs, level) = {
+    let parts = range(1, level).map(i => str(subs.at(i)))
+    let prefix = entity.numbering.sub_template
+      .replace("{prefix}", letter)
+      .replace("{n}", parts.join("."))
+    let title = apply-case(heading-text, config.appendix.title_case)
+    let rendered = prefix + " " + title
+    if config.appendix.bold { strong(rendered) } else { rendered }
   }
 
   let bool-value(s) = {
@@ -428,129 +433,24 @@
   }
 
   // Контент заголовка: один авторитетный heading, без второго внутри show.
-  // Возвращает (content, appendix-active, own-active).
-  let heading-content(
-    config,
-    it,
-    appendix-active: false,
-    own-active: none,
-  ) = {
+  // Номера своих счётчиков и приложений приходят готовой строкой (custom-body)
+  // и выводятся при numbering: none, поэтому #outline() видит тот же текст.
+  let heading-content(config, it, custom-body: none, force-none: false) = {
     let level = it.depth
     let level-cfg = config.heading_levels.at(level - 1)
     let heading-text = it.body.text.trim()
     let entity = find-entity(config, "heading", heading-text, level)
-    let service = if heading-text.split(" ").len() > 0 {
-      heading-text.split(" ").at(0)
-    } else {
-      ""
-    }
-    let appendix = is-appendix(entity)
-    let mode = if entity == none { "continue" } else { entity.numbering.mode }
-    let group = if entity == none { "" } else { entity-group(entity) }
-    let updates = none
-    let numbering-value = heading-numbering(config)
-    let restore = false
-    let next-appendix = appendix-active
-    let next-own = own-active
-
-    if appendix {
-      updates = add-content(updates, [#appendix-counter.step()])
-      for current in range(2, 7) {
-        updates = add-content(updates, [#own-sub("appendix", current).update(0)])
-      }
-      updates = add-content(updates, [#in-appendix.update(true)])
-      for number in range(1, 7) {
-        updates = add-content(
-          updates,
-          [#counter("figure-h" + str(number)).update(0)],
-        )
-      }
-      updates = add-content(
-        updates,
-        [#counter("figure-n").update(0); #counter(figure).update(0); #counter(math.equation).update(0)],
-      )
-      numbering-value = appendix-numbering(config, service)
-      restore = true
-      next-appendix = true
-      next-own = none
-    } else if appendix-active and level > 1 {
-      updates = add-content(updates, [#own-sub("appendix", level).step()])
-      for current in range(level + 1, 7) {
-        updates = add-content(updates, [#own-sub("appendix", current).update(0)])
-      }
-      numbering-value = appendix-numbering(config, "")
-      restore = true
-    } else if level == 1 {
-      next-appendix = false
-      next-own = none
-    }
-
-    if mode == "own" and not appendix {
-      if level == 1 or own-active != group {
-        updates = add-content(updates, [#own-family(group).step()])
-        for current in range(2, 7) {
-          updates = add-content(updates, [#own-sub(group, current).update(0)])
-        }
-        next-own = group
-      } else if level > 1 {
-        updates = add-content(updates, [#own-sub(group, level).step()])
-        for current in range(level + 1, 7) {
-          updates = add-content(updates, [#own-sub(group, current).update(0)])
-        }
-      }
-      if appendix-active and level > 1 {
-        // Внутри приложения приоритет у буквы приложения.
-        numbering-value = appendix-numbering(config, "")
-      } else {
-        numbering-value = own-numbering(entity)
-      }
-      restore = true
-    } else if mode == "none" and not appendix-active {
-      numbering-value = none
-    }
-
-    // Временно выставляет счётчик заголовков на номер своей сущности:
-    // так оглавление получает тот же номер, что и тело.
-    let counter-set = none
-    if appendix or (appendix-active and level > 1) {
-      counter-set = context {
-        let family = appendix-counter.get().first()
-        if level == 1 {
-          counter(heading).update((family - 1,))
-        } else {
-          let values = (family,)
-          for current in range(2, level + 1) {
-            let value = own-sub("appendix", current).get().first()
-            values.push(if current == level { value - 1 } else { value })
-          }
-          counter(heading).update(values)
-        }
-      }
-    } else if mode == "own" {
-      counter-set = context {
-        let family = own-family(group).get().first() + entity.numbering.start - 1
-        if level == 1 {
-          counter(heading).update((family - 1,))
-        } else {
-          let values = (family,)
-          for current in range(2, level + 1) {
-            let value = own-sub(group, current).get().first()
-            values.push(if current == level { value - 1 } else { value })
-          }
-          counter(heading).update(values)
-        }
-      }
-    }
-
-    let body = if appendix {
-      appendix-title-body(config, it)
+    let numbering-value = if force-none { none } else { heading-numbering(config) }
+    let body = if custom-body != none {
+      custom-body
     } else if entity != none {
       entity-text(entity, it.body)
-    } else if level-cfg.numbering_enabled {
-      it.body
-    } else {
+    } else if not level-cfg.numbering_enabled {
       box(it.body, inset: (left: config.heading.unnumbered_indent * 1em))
+    } else {
+      it.body
     }
+
     let override = if entity != none and entity.apply.text_override != none {
       entity.apply.text_override
     } else {
@@ -574,27 +474,11 @@
     } else {
       block-el
     }
-    let content = if level-cfg.break_before or (entity != none and entity.apply.break_before) {
+    if level-cfg.break_before or (entity != none and entity.apply.break_before) {
       pagebreak(weak: true) + aligned
     } else {
       aligned
     }
-    let content = if restore {
-      add-content(
-        add-content(
-          context { heading-saved.update(counter(heading).get()) },
-          add-content(counter-set, content),
-        ),
-        context { counter(heading).update(heading-saved.get()) },
-      )
-    } else {
-      content
-    }
-    (
-      content: add-content(updates, content),
-      appendix: next-appendix,
-      own: next-own,
-    )
   }
 
   // Группирует верхнеуровневые элементы в единицы вида элемента.
@@ -651,21 +535,145 @@
     let out = none
     let previous = none
     let previous-after = ()
-    let appendix-active = false
+    let appendix-active = none
     let own-active = none
+    let none-active = false
+    let own-families = (:)
+    let own-subs = (:)
+    let appendix-count = 0
+    let appendix-subs = (0, 0, 0, 0, 0, 0)
     for unit in body-units(body) {
       let kind = unit.kind
       let cfg = around-config(config, kind, unit.content)
       let content = if kind.starts-with("heading_") {
-        let transformed = heading-content(
+        let heading = unit.content
+        let level = heading.depth
+        let text = heading.body.text.trim()
+        let entity = find-entity(config, "heading", text, level)
+        let appendix = level == 1 and is-appendix(entity)
+        let mode = if entity == none { "continue" } else { entity.numbering.mode }
+        let group = if entity == none { "" } else { entity-group(entity) }
+        let custom-body = none
+        let force-none = false
+        let before = none
+
+        if appendix {
+          appendix-count = appendix-count + 1
+          appendix-subs = (0, 0, 0, 0, 0, 0)
+          let letter = appendix-letter(
+            config,
+            appendix-count + entity.numbering.start - 1,
+          )
+          custom-body = appendix-heading-text(config, entity, text, letter)
+          force-none = true
+          // Сброс счётчиков рисунков/таблиц/формул в начале приложения.
+          before = add-content(before, [#in-appendix.update(true)])
+          for number in range(1, 7) {
+            before = add-content(
+              before,
+              [#counter("figure-h" + str(number)).update(0)],
+            )
+          }
+          before = add-content(
+            before,
+            [#counter("figure-n").update(0); #counter(figure).update(0); #counter(math.equation).update(0)],
+          )
+        } else if appendix-active != none and level > 1 {
+          appendix-subs = step-array(appendix-subs, level)
+          let parent = appendix-active
+          let letter = appendix-letter(
+            config,
+            appendix-count + parent.numbering.start - 1,
+          )
+          custom-body = appendix-sub-text(
+            config,
+            parent,
+            text,
+            letter,
+            appendix-subs,
+            level,
+          )
+          force-none = true
+        } else if mode == "own" {
+          let family = if own-families.keys().contains(group) {
+            own-families.at(group)
+          } else {
+            0
+          }
+          let subs = if own-subs.keys().contains(group) {
+            own-subs.at(group)
+          } else {
+            (0, 0, 0, 0, 0, 0)
+          }
+          let active-group = if own-active == none {
+            ""
+          } else {
+            entity-group(own-active)
+          }
+          if level == 1 or active-group != group {
+            family = family + 1
+            subs = (0, 0, 0, 0, 0, 0)
+          }
+          subs = step-array(subs, level)
+          own-families.insert(group, family)
+          own-subs.insert(group, subs)
+          let base = own-base-value(config, entity, family)
+          let prefix = if level == 1 {
+            base
+          } else {
+            own-sub-text(entity, base, subs, level)
+          }
+          custom-body = [#prefix #entity-text(entity, heading.body)]
+          force-none = true
+        } else if mode == "none" or (none-active and level > 1) {
+          force-none = true
+        } else if own-active != none and level > 1 and entity == none {
+          let parent = own-active
+          let parent-group = entity-group(parent)
+          let family = own-families.at(parent-group)
+          let subs = if own-subs.keys().contains(parent-group) {
+            own-subs.at(parent-group)
+          } else {
+            (0, 0, 0, 0, 0, 0)
+          }
+          subs = step-array(subs, level)
+          own-subs.insert(parent-group, subs)
+          let base = own-base-value(config, parent, family)
+          let prefix = own-sub-text(parent, base, subs, level)
+          custom-body = [#prefix #heading.body]
+          force-none = true
+        }
+
+        let rendered = heading-content(
           config,
-          unit.content,
-          appendix-active: appendix-active,
-          own-active: own-active,
+          heading,
+          custom-body: custom-body,
+          force-none: force-none,
         )
-        appendix-active = transformed.appendix
-        own-active = transformed.own
-        transformed.content
+        let rendered = if before == none { rendered } else { before + rendered }
+
+        if appendix {
+          appendix-active = entity
+          own-active = none
+          none-active = false
+        } else if appendix-active != none and level > 1 {
+          none-active = false
+        } else if mode == "own" {
+          appendix-active = none
+          own-active = entity
+          none-active = false
+        } else if mode == "none" or (none-active and level > 1) {
+          if level == 1 {
+            appendix-active = none
+            own-active = none
+          }
+          none-active = true
+        } else if level == 1 {
+          appendix-active = none
+          own-active = none
+          none-active = false
+        }
+        rendered
       } else {
         unit.content
       }
@@ -1085,8 +1093,12 @@
         "indent",
         (level) => {
           let levels = config.outline.indent_per_level
-          let index = calc.min(level, levels.len() - 1)
-          levels.at(index) * 1mm
+          if levels.len() == 0 {
+            0mm
+          } else {
+            let index = calc.min(level, levels.len() - 1)
+            levels.at(index) * 1mm
+          }
         },
       )
     }

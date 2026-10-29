@@ -343,6 +343,7 @@ def _migrate_entity(raw: JsonValue) -> JsonValue:
     if "numbering" in apply and not isinstance(apply["numbering"], Mapping):
         mode = "continue" if apply["numbering"] else "none"
         entity["numbering"] = {
+            "kind": "section",
             "mode": mode,
             "template": "1",
             "start": 1,
@@ -352,12 +353,22 @@ def _migrate_entity(raw: JsonValue) -> JsonValue:
         apply.pop("numbering", None)
     if apply.pop("appendix", False):
         entity["numbering"] = {
+            "kind": "appendix",
             "mode": "own",
             "template": "{letter}",
             "start": 1,
             "sub_template": "{prefix}.{n}",
             "group": "appendix",
         }
+    numbering = entity.get("numbering")
+    if isinstance(numbering, Mapping) and "kind" not in numbering:
+        numbering = dict(numbering)
+        template = numbering.get("template")
+        group = numbering.get("group")
+        numbering["kind"] = (
+            "appendix" if template == "{letter}" and group == "appendix" else "section"
+        )
+        entity["numbering"] = numbering
     entity["apply"] = apply
     return entity
 
