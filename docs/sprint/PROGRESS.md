@@ -826,14 +826,14 @@ Postgres не запущен, поэтому DB-тесты локально пр
 
 ### Проверки G3b (исправления)
 
-Коммит с исправлениями: `5388795`; CI run
-[40866947134](https://github.com/YellowCytrus/FluentDocs/actions/runs/40866947134) — test + lint success.
+Коммит с исправлениями: `64c01ce`; CI run
+[40869042588](https://github.com/YellowCytrus/FluentDocs/actions/runs/40869042588) — test + lint success.
 
 | Команда | Результат |
 |---|---|
-| **CI, GitHub Actions** | `test`: 137 passed, 185 deselected; `integration`: 185 passed, 137 deselected; `Frontend tests`: 17 passed; `Frontend build`: OK — run `40866947134` |
-| Локально `uv run pytest tests/ -m "not integration" -q -rs` (без Postgres) | 71 passed, 66 skipped, 185 deselected |
-| Локально `uv run pytest tests/ -m integration -q -rs` (без Postgres) | 184 passed, 1 skipped, 137 deselected |
+| **CI, GitHub Actions** | `test`: 137 passed, 190 deselected; `integration`: 190 passed, 137 deselected; `Frontend tests`: 17 passed; `Frontend build`: OK — run `40869042588` |
+| Локально `uv run pytest tests/ -m "not integration" -q -rs` (без Postgres) | 71 passed, 66 skipped, 190 deselected |
+| Локально `uv run pytest tests/ -m integration -q -rs` (без Postgres) | 189 passed, 1 skipped, 137 deselected |
 | `cd frontend && npm test -- --run` | 17 passed (4 files) |
 | `cd frontend && npm run build` | OK (`vue-tsc -b` + vite) |
 | `cd frontend && npx vue-tsc --noEmit` | exit 0 |
