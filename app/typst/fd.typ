@@ -216,26 +216,30 @@
   let appendix-alphabets = (
     ru_sfu: "АБВГДЕЖИКЛМНПРСТУФХЦШЩЭЮЯ",
     latin: "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
-    arabic: "0123456789",
   )
 
-  // Буква приложения по номеру 1…; после алфавита — удвоение (АА, АБ…),
-  // после исчерпания удвоения — те же буквы в тройном сочетании (ААА, ААБ…).
-  // Это продолжение режима double, а не отдельный режим; индекс никогда не
-  // выходит за границы массива (appendix.start до 999 и длинные серии).
+  // Номер приложения: arabic — 1-based десятичное число (1, 2, …, 999),
+  // остальные алфавиты — буквы. После алфавита — удвоение (АА, АБ…), после
+  // исчерпания удвоения — тройное сочетание (ААА, ААБ…); это продолжение
+  // режима double, а не отдельный режим. Индекс не выходит за границы массива
+  // (appendix.start до 999 и длинные серии приложений).
   let appendix-letter(config, index) = {
-    let letters = appendix-alphabets.at(config.appendix.alphabet).clusters()
     let value = calc.max(1, index)
-    if config.appendix.overflow == "double" {
-      let digits = ()
-      while value > 0 {
-        value = value - 1
-        digits.push(letters.at(calc.rem(value, letters.len())))
-        value = calc.floor(value / letters.len())
-      }
-      digits.rev().join("")
+    if config.appendix.alphabet == "arabic" {
+      str(value)
     } else {
-      letters.at(calc.min(value, letters.len()) - 1)
+      let letters = appendix-alphabets.at(config.appendix.alphabet).clusters()
+      if config.appendix.overflow == "double" {
+        let digits = ()
+        while value > 0 {
+          value = value - 1
+          digits.push(letters.at(calc.rem(value, letters.len())))
+          value = calc.floor(value / letters.len())
+        }
+        digits.rev().join("")
+      } else {
+        letters.at(calc.min(value, letters.len()) - 1)
+      }
     }
   }
 
@@ -295,15 +299,26 @@
   }
 
   // Подзаголовок приложения: буква вместо номера раздела, sub_template.
-  let appendix-sub-text(config, entity, heading-text, letter, subs, level) = {
+  // apply.case/bold текущего правила подзаголовка применяется после
+  // appendix.title_case; appendix.bold действует глобально.
+  let appendix-sub-text(config, current, parent, heading-text, letter, subs, level) = {
     let parts = range(1, level).map(i => str(subs.at(i)))
-    let prefix = entity.numbering.sub_template
+    let prefix = parent.numbering.sub_template
       .replace("{prefix}", letter)
       .replace("{n}", parts.join("."))
     let title = apply-case(heading-text, config.appendix.title_case)
     let rendered = prefix + " " + title
-    let cased = apply-case(rendered, entity.apply.case)
-    if config.appendix.bold or entity.apply.bold { strong(cased) } else { cased }
+    let cased = if current == none {
+      rendered
+    } else {
+      apply-case(rendered, current.apply.case)
+    }
+    let bold = if current == none {
+      config.appendix.bold
+    } else {
+      config.appendix.bold or current.apply.bold
+    }
+    if bold { strong(cased) } else { cased }
   }
 
   let bool-value(s) = {
@@ -596,6 +611,7 @@
           )
           custom-body = appendix-sub-text(
             config,
+            entity,
             parent,
             text,
             letter,
@@ -636,7 +652,7 @@
           force-none = true
         } else if mode == "none" or (none-active and level > 1) {
           force-none = true
-        } else if own-active != none and level > 1 and entity == none {
+        } else if own-active != none and level > 1 and (entity == none or mode == "continue") {
           let parent = own-active
           let parent-group = entity-group(parent)
           let family = own-families.at(parent-group)
@@ -649,7 +665,12 @@
           own-subs.insert(parent-group, subs)
           let base = own-base-value(config, parent, family)
           let prefix = own-sub-text(parent, base, subs, level)
-          custom-body = [#prefix #heading.body]
+          let body = if entity == none {
+            heading.body
+          } else {
+            entity-text(entity, heading.body)
+          }
+          custom-body = [#prefix #body]
           force-none = true
         }
 

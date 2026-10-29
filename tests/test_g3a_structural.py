@@ -384,6 +384,65 @@ def test_appendix_letter_sequence(tmp_path: Path) -> None:
     shutil.which("pandoc") is None or shutil.which("typst") is None,
     reason="pandoc and typst must be in PATH",
 )
+def test_appendix_arabic_alphabet_is_decimal(tmp_path: Path) -> None:
+    entity = {
+        **APPENDIX_ENTITY,
+        "numbering": {**APPENDIX_ENTITY["numbering"], "start": 9},
+    }
+    markdown = "\n\n".join(f"# Приложение Приложение {index}\n\nТекст." for index in range(1, 4))
+    lines = _lines(
+        _render(
+            markdown,
+            _profile([entity], appendix={"alphabet": "arabic"}),
+            tmp_path,
+            "appendix-arabic",
+        )
+    )
+    assert "ПРИЛОЖЕНИЕ 9. Приложение 1" in lines
+    assert "ПРИЛОЖЕНИЕ 10. Приложение 2" in lines
+    assert "ПРИЛОЖЕНИЕ 11. Приложение 3" in lines
+
+    high = {
+        **APPENDIX_ENTITY,
+        "numbering": {**APPENDIX_ENTITY["numbering"], "start": 999},
+    }
+    lines = _lines(
+        _render(
+            "# Приложение Название\n\nТекст.\n",
+            _profile([high], appendix={"alphabet": "arabic"}),
+            tmp_path,
+            "appendix-arabic-999",
+        )
+    )
+    assert "ПРИЛОЖЕНИЕ 999. Название" in lines
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    shutil.which("pandoc") is None or shutil.which("typst") is None,
+    reason="pandoc and typst must be in PATH",
+)
+def test_appendix_latin_letter_sequence(tmp_path: Path) -> None:
+    markdown = "\n\n".join(f"# Приложение Приложение {index}\n\nТекст." for index in range(1, 28))
+    lines = _lines(
+        _render(
+            markdown,
+            _profile([APPENDIX_ENTITY], appendix={"alphabet": "latin"}),
+            tmp_path,
+            "appendix-latin",
+        )
+    )
+    headings = [line for line in lines if line.startswith("ПРИЛОЖЕНИЕ ")]
+    assert headings[0].startswith("ПРИЛОЖЕНИЕ A.")
+    assert headings[25].startswith("ПРИЛОЖЕНИЕ Z.")
+    assert headings[26].startswith("ПРИЛОЖЕНИЕ AA.")
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    shutil.which("pandoc") is None or shutil.which("typst") is None,
+    reason="pandoc and typst must be in PATH",
+)
 def test_appendix_numbering_subheadings(tmp_path: Path) -> None:
     markdown = "# Приложение Название\n\n## Состав\n\nТекст.\n\n### Детали\n\nЕщё текст.\n"
     path, stderr = _compile(markdown, _profile([APPENDIX_ENTITY]), tmp_path, "subheadings")
@@ -837,6 +896,46 @@ def test_appendix_entity_case_and_bold_apply(tmp_path: Path) -> None:
         heading_chars = [char for char in pdf.pages[0].chars if char["text"] in "ПРИЛОЖЕНИЕ"]
     assert heading_chars
     assert any("Bold" in char["fontname"] for char in heading_chars)
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    shutil.which("pandoc") is None or shutil.which("typst") is None,
+    reason="pandoc and typst must be in PATH",
+)
+def test_subheading_entity_case_and_bold_apply(tmp_path: Path) -> None:
+    subheading = _entity("Подраздел", level="2", case="upper", bold=True)
+
+    appendix_path = _render(
+        "# Приложение Название\n\n## Подраздел\n\nТекст.\n",
+        _profile([APPENDIX_ENTITY, subheading]),
+        tmp_path,
+        "appendix-subheading-case",
+    )
+    appendix_lines = _lines(appendix_path)
+    assert "А.1 ПОДРАЗДЕЛ" in appendix_lines
+    with pdfplumber.open(appendix_path) as pdf:
+        appendix_chars = [char for char in pdf.pages[0].chars if char["text"] in "ПОДРАЗДЕЛ"]
+    assert appendix_chars
+    assert any("Bold" in char["fontname"] for char in appendix_chars)
+
+    own_path = _render(
+        "# Раздел\n\n## Подраздел\n\nТекст.\n",
+        _profile(
+            [
+                _entity("Раздел", mode="own", template="I"),
+                subheading,
+            ]
+        ),
+        tmp_path,
+        "own-subheading-case",
+    )
+    own_lines = _lines(own_path)
+    assert "I.1 ПОДРАЗДЕЛ" in own_lines
+    with pdfplumber.open(own_path) as pdf:
+        own_chars = [char for char in pdf.pages[0].chars if char["text"] in "ПОДРАЗДЕЛ"]
+    assert own_chars
+    assert any("Bold" in char["fontname"] for char in own_chars)
 
 
 @pytest.mark.integration

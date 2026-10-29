@@ -1051,6 +1051,7 @@ def _structural_options() -> list[Option]:
             "test_appendix_start_and_sub_template",
             "test_appendix_large_start_does_not_overflow",
             "test_appendix_entity_case_and_bold_apply",
+            "test_subheading_entity_case_and_bold_apply",
             "test_appendix_numbering_subheadings",
             "test_structural_own_subheadings_use_sub_template",
         ),
@@ -1152,21 +1153,27 @@ def _structural_options() -> list[Option]:
             "select",
             "ru_sfu",
             ("appendix", "alphabet"),
-            "Алфавит букв приложений",
+            "Алфавит нумерации приложений",
             order=4,
             beta=True,
             enum=("ru_sfu", "latin", "arabic"),
             enum_labels=(
                 ("ru_sfu", "Русский по СТУ (25 букв)"),
                 ("latin", "Латинский"),
-                ("arabic", "Цифры"),
+                ("arabic", "Цифры (1, 2, 3…)"),
             ),
             rationale=(
-                "Задаёт набор букв для автоматической нумерации приложений; "
-                "ru_sfu исключает Ё, З, Й, О, Ч, Ь, Ы, Ъ."
+                "Задаёт нумерацию приложений: ru_sfu — 25 букв без Ё, З, Й, О, "
+                "Ч, Ь, Ы, Ъ; latin — A–Z; arabic — 1-based десятичное число "
+                "(1, 2, …, 999), а не 0-based цифры."
             ),
             source="СТУ 7.5.5; plan_v2 alphabet ru_sfu",
-            test_ids=("test_appendix_options", "test_appendix_letter_sequence"),
+            test_ids=(
+                "test_appendix_options",
+                "test_appendix_letter_sequence",
+                "test_appendix_arabic_alphabet_is_decimal",
+                "test_appendix_latin_letter_sequence",
+            ),
             legacy=False,
         ),
         _option(

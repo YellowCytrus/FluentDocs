@@ -14,7 +14,7 @@
 | G2a — типы реестра и окружения «до/после» | выполнен, принят владельцем | этот файл |
 | G2b — интервал, шрифты, зашитые значения | выполнен, принят владельцем | этот файл |
 | G2c — остальные «дешёвые» правила | выполнен; G2c-fix ждёт приёмки | этот файл |
-| G2d — политика столкновения вставок | выполнен, ждёт приёмки | этот файл |
+| G2d — политика столкновения вставок | выполнен, принят владельцем | этот файл |
 | G3a — структурные сущности, приложения, оглавление | переделан, ждёт приёмки | этот файл |
 | G3b — подписи и нумерация рисунков/таблиц | не начат | — |
 | G4 — таблицы и оглавление | не начат | — |
@@ -697,8 +697,11 @@ Typst 1,0 em, `table` 1,2 em, списки 1,2 em. Это не ошибка ко
 | Защита индекса 0 (не «Я») | ✔ `calc.max(1, index)` | `app/typst/fd.typ` |
 | Тело приложения — `appendix.template` с `{service}`/`{letter}`/`{title}` в любом порядке | ✔ без числового префикса | `test_appendix_template_title_in_any_position`, `test_appendix_custom_template_and_empty_title` |
 | Приложение: `numbering.start` сдвигает букву, `sub_template` применяется | ✔ start=5 → Д, `Д-1`, `Д-1.1` | `test_appendix_start_and_sub_template` |
-| Приложение: `start=999` и серия после `ЯЯ` не падают | ✔ `АРЮ`, `ААА` | `test_appendix_large_start_does_not_overflow` |
+| Приложение: `start=999` и серия после `ЯЯ` не падают | ✔ `АРЮ`, `ААА`; поведение закреплено в `AGENTS.md`/`OWNER_DECISIONS.md` | `test_appendix_large_start_does_not_overflow` |
 | Приложение: `apply.case`/`apply.bold` сущности работают | ✔ регистр и полужирный | `test_appendix_entity_case_and_bold_apply` |
+| Приложение: `apply.case`/`apply.bold` правила подзаголовка работают | ✔ `А.1 ПОДРАЗДЕЛ` | `test_subheading_entity_case_and_bold_apply` |
+| Приложение: `arabic` — 1-based число, `latin` — A–Z | ✔ 9/10/11, 999; A/Z/AA | `test_appendix_arabic_alphabet_is_decimal`, `test_appendix_latin_letter_sequence` |
+| `own`: подзаголовок с правилом и `apply.case`/`bold` | ✔ `I.1 ПОДРАЗДЕЛ` | `test_subheading_entity_case_and_bold_apply` |
 | Неприменимые поля приложения скрыты в UI | ✔ `numbering.mode/template/group` при `kind=appendix` | `test_structural_entities_schema`, `RuleField.test.ts` |
 | Приложение: нет `layout did not converge` на `А.1.1` | ✔ stderr проверяется | `test_appendix_numbering_subheadings` |
 | Один авторитетный `heading`, без второго в `show` | ✔ заголовки собираются проходом по телу | `app/typst/fd.typ` |
@@ -710,7 +713,7 @@ Typst 1,0 em, `table` 1,2 em, списки 1,2 em. Это не ошибка ко
 | `match.mode` equals/contains/regex, регистр, уровень, приоритет | ✔ | `test_structural_match_modes_level_and_priority` |
 | `apply.align`, `apply.around` сущности | ✔ | `test_structural_align_and_around` |
 | `appendix.template`, пустое/многословное название, `{title}` не в конце | ✔ | `test_appendix_custom_template_and_empty_title`, `test_appendix_template_title_in_any_position` |
-| `appendix.overflow` только `double` | ✔ `stop`/`latin` удалены | `tests/test_g3a_structural.py` |
+| `appendix.overflow` только `double`, после `ЯЯ` — тройное продолжение | ✔ `stop`/`latin` удалены | `test_appendix_large_start_does_not_overflow` |
 | Миграция `apply.numbering`/`apply.appendix` | ✔ bool → mode; appendix → `kind=appendix` + own | `test_structural_entity_migration` |
 | Пустой `outline.indent_per_level` | ✔ fallback `0mm`, без падения | `test_outline_empty_per_level_does_not_crash` |
 | UI: подвкладка «Шаблонные заголовки» в «Заголовках», beta | ✔ универсальный рендерер | `app/registry/options.py` |
