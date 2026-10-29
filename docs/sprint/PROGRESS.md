@@ -888,12 +888,12 @@ B-10c (`number_align`, все 4 значения и маркер в поле), B
 
 ### G4: проверки
 
-Коммит: `fa2a26b`; CI run
-[40878493785](https://github.com/YellowCytrus/FluentDocs/actions/runs/40878493785) — test + lint success.
+Коммит: `461bb56`; CI run
+[40880102560](https://github.com/YellowCytrus/FluentDocs/actions/runs/40880102560) — test + lint success.
 
 | Команда | Результат |
 |---|---|
-| **CI, GitHub Actions** | `test`: 141 passed, 215 deselected; `integration`: 215 passed, 141 deselected; `Frontend tests`: 17 passed; `Frontend build`: OK — run `40878493785` |
+| **CI, GitHub Actions** | `test`: 141 passed, 223 deselected; `integration`: 223 passed, 141 deselected; `Frontend tests`: 17 passed; `Frontend build`: OK — run `40880102560` |
 | Локально `uv run pytest tests/ -m "not integration" -q -rs` (без Postgres) | 75 passed, 66 skipped, 223 deselected |
 | Локально `uv run pytest tests/ -m integration -q -rs` (без Postgres) | 222 passed, 1 skipped, 141 deselected |
 | `cd frontend && npm test -- --run` | 17 passed (4 files) |
@@ -932,4 +932,5 @@ B-10c (`number_align`, все 4 значения и маркер в поле), B
 
 Локальные проверки после исправлений: non-integration 75 passed / 66 skipped /
 223 deselected; integration 222 passed / 1 skipped / 141 deselected; frontend
-17 passed; build, vue-tsc и ruff — OK; golden 33 passed.
+17 passed; build, vue-tsc и ruff — OK; golden 33 passed. CI run `40880102560`:
+test 141 passed, integration 223 passed, frontend 17 passed, build и lint OK.
