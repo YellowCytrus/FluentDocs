@@ -171,7 +171,6 @@
     level_formats: (),
     alphabet: "ru_sfu",
     wrap_mode: "left_margin",
-    left_margin_offset: 2.1166666667,
     tight_spacing: 0.5,
     loose_spacing: 1.0,
     spacing_before: 1.2,

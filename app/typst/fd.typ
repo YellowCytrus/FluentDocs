@@ -26,6 +26,11 @@
   // Обслуживает caption.<kind> и сброс нумерации в приложении.
   let appendix-state = state("fd-appendix-letter", none)
 
+  // Глубина и номера предков для собственного рендера enum.
+  // Нужны, чтобы продолжение пункта начиналось у левого поля.
+  let list-depth-state = state("fd-list-depth", 0)
+  let list-counts-state = state("fd-list-counts", (0, 0, 0, 0, 0, 0))
+
   // Цвет из строки профиля; none используется для отсутствия заливки.
   let paint(s) = {
     if s == "none" { none } else { rgb(s) }
@@ -117,13 +122,18 @@
     out.rev().join("")
   }
 
-  // Формат нумерации по уровню: {n}, {letter} или шаблон Typst.
-  let numbered-list-numbering(config) = (..nums) => {
-    let values = nums.pos()
+  // Маркер списка по уровням: {n}, {letter} или шаблон Typst.
+  // Обслуживает numbered_list.level_formats, alphabet, full, numbering.
+  let list-marker(config, values) = {
     let level = values.len()
     let formats = config.numbered_list.level_formats
     let rendered = if formats.len() == 0 {
-      numbering(config.numbered_list.numbering, ..values)
+      let shown = if config.numbered_list.full {
+        values
+      } else {
+        (values.last(),)
+      }
+      numbering(config.numbered_list.numbering, ..shown)
     } else {
       let format = formats.at(calc.min(level, formats.len()) - 1).format
       let current = values.last()
@@ -147,12 +157,95 @@
         prefix = prefix + str(value) + "."
       }
     }
-    let result = if prefix == "" { rendered } else { [#prefix #rendered] }
-    if config.numbered_list.wrap_mode == "left_margin" {
-      [#result\u{00A0}]
+    if prefix == "" { rendered } else { [#prefix #rendered] }
+  }
+
+  // Собственный рендер enum: маркер ставится в поле, тело идёт потоком.
+  // Обслуживает numbered_list.wrap_mode: left_margin и body_text.
+  let list-render(config, it) = {
+    let depth = list-depth-state.get()
+    let counts = list-counts-state.get()
+    let children = it.children
+    let count = children.len()
+    let reversed = it.reversed or (depth == 0 and config.numbered_list.reversed)
+    let start = if depth == 0 and config.numbered_list.start != none {
+      config.numbered_list.start
+    } else if it.start == auto {
+      if reversed { count } else { 1 }
     } else {
-      result
+      it.start
     }
+    let entries = ()
+    for (index, child) in children.enumerate() {
+      let number = if child.number != auto {
+        child.number
+      } else if reversed {
+        start - index
+      } else {
+        start + index
+      }
+      let values = counts.slice(0, depth)
+      values.push(number)
+      let next-counts = ()
+      for (idx, value) in counts.enumerate() {
+        next-counts.push(
+          if idx == depth { number } else if idx > depth { 0 } else { value },
+        )
+      }
+      entries.push((
+        marker: list-marker(config, values),
+        body: child.body,
+        counts: next-counts,
+      ))
+    }
+
+    let marker-width = 0pt
+    for entry in entries {
+      let width = measure(entry.marker).width
+      if width > marker-width { marker-width = width }
+    }
+    let gap = config.numbered_list.body_indent * 1mm
+    let spacing = list-spacing(
+      config.numbered_list.spacing,
+      config.numbered_list.tight_spacing,
+      config.numbered_list.loose_spacing,
+    )
+    let extra = if spacing == auto {
+      if config.numbered_list.tight { 0pt } else { config.par.spacing * 1mm }
+    } else {
+      spacing
+    }
+    // line-pitch — межстрочный шаг между пунктами; без него блоки пунктов
+    // встают вплотную, в отличие от штатного enum.
+    let item-spacing = line-pitch(config) + extra
+
+    let rendered = ()
+    for (index, entry) in entries.enumerate() {
+      let marker = block(
+        width: marker-width,
+        align(alignment(config.numbered_list.number_align), entry.marker),
+      )
+      let item = block(width: 100%, {
+        place(top + left, marker)
+        [#list-depth-state.update(depth + 1)]
+        [#list-counts-state.update(entry.counts)]
+        if config.numbered_list.wrap_mode == "left_margin" {
+          set par(first-line-indent: (amount: marker-width + gap, all: true))
+          entry.body
+        } else {
+          block(inset: (left: marker-width + gap), entry.body)
+        }
+        [#list-depth-state.update(depth)]
+      })
+      rendered.push(item)
+      if index < count - 1 {
+        rendered.push(v(item-spacing))
+      }
+    }
+    block(
+      inset: (left: config.numbered_list.indent * 1mm),
+      stack(dir: ttb, spacing: 0pt, ..rendered),
+    )
   }
 
   // --- окружение элемента (around) ---
@@ -181,7 +274,9 @@
   }
 
   // Одна вставка окружения. Обслуживает опции around.<element>.before/after.
-  let around-item(config, item) = {
+  // skip-pagebreak нужен для подписи: разрыв страницы внутри figure
+  // Typst запрещает, поэтому его выносит наружу show figure.
+  let around-item(config, item, skip-pagebreak: false) = {
     if item.type == "blank" {
       around-blank(config, item)
     } else if item.type == "text" {
@@ -194,15 +289,25 @@
       align(alignment(item.align), styled)
     } else if item.type == "line" {
       block(line(length: item.length * 1%, stroke: item.stroke_mm * 1mm))
-    } else if item.type == "pagebreak" {
+    } else if item.type == "pagebreak" and not skip-pagebreak {
       pagebreak(weak: item.weak)
     }
   }
 
   // Все вставки списка; пустой список ничего не добавляет.
-  let around-items(config, items) = {
+  let around-items(config, items, skip-pagebreak: false) = {
     for item in items {
-      around-item(config, item)
+      around-item(config, item, skip-pagebreak: skip-pagebreak)
+    }
+  }
+
+  // Разрывы страниц из окружения подписи вне figure: внутри подписи
+  // pagebreak запрещён Typst.
+  let around-pagebreaks(items) = {
+    for item in items {
+      if item.type == "pagebreak" {
+        pagebreak(weak: item.weak)
+      }
     }
   }
 
@@ -906,8 +1011,8 @@
       #if not data.has-content { [#caption-cfg.caption_separator #it.body] }
     ]
     let content = text-override-body(content, caption-cfg.caption_text_override)
-    let before = around-items(config, caption-cfg.caption_around.before)
-    let after = around-items(config, caption-cfg.caption_around.after)
+    let before = around-items(config, caption-cfg.caption_around.before, skip-pagebreak: true)
+    let after = around-items(config, caption-cfg.caption_around.after, skip-pagebreak: true)
     if before == none and after == none {
       content
     } else if before == none {
@@ -922,8 +1027,25 @@
   // Подпись без шаблона: только текст, без английского «Table 1».
   let caption-plain(config, caption-cfg, it) = {
     let content = text-override-body(it.body, caption-cfg.caption_text_override)
-    let before = around-items(config, caption-cfg.caption_around.before)
-    let after = around-items(config, caption-cfg.caption_around.after)
+    let before = around-items(config, caption-cfg.caption_around.before, skip-pagebreak: true)
+    let after = around-items(config, caption-cfg.caption_around.after, skip-pagebreak: true)
+    if before == none and after == none {
+      content
+    } else if before == none {
+      content + after
+    } else if after == none {
+      before + content
+    } else {
+      before + content + after
+    }
+  }
+
+  // Нативная подпись рисунка без шаблона: сохраняет «Figure 1: …»,
+  // но применяет окружение, стиль и выравнивание из опций.
+  let caption-native(config, caption-cfg, it) = {
+    let content = text-override-body(it, caption-cfg.caption_text_override)
+    let before = around-items(config, caption-cfg.caption_around.before, skip-pagebreak: true)
+    let after = around-items(config, caption-cfg.caption_around.after, skip-pagebreak: true)
     if before == none and after == none {
       content
     } else if before == none {
@@ -941,7 +1063,9 @@
     } else {
       caption-body(config, caption-cfg, it, data, counters, number-counter)
     }
-    align(alignment(caption-cfg.caption_align), body)
+    // block(width: 100%) обязателен: align по естественной ширине подписи
+    // не сдвигает сам блок подписи.
+    block(width: 100%, align(alignment(caption-cfg.caption_align), body))
   }
 
   let with-caption(config, body) = {
@@ -981,11 +1105,30 @@
       config, config.table, table-data, table-counters, table-n, it,
     )
     show figure.caption.where(kind: image): it => if figure-data == none {
-      it
+      block(
+        width: 100%,
+        align(
+          alignment(config.figure.caption_align),
+          caption-native(config, config.figure, it),
+        ),
+      )
     } else {
       caption-for(
         config, config.figure, figure-data, figure-counters, figure-n, it,
       )
+    }
+
+    // Разрывы страниц из caption_around выносятся за пределы figure:
+    // внутри контейнера подписи Typst их запрещает.
+    show figure.where(kind: table): it => {
+      around-pagebreaks(config.table.caption_around.before)
+      it
+      around-pagebreaks(config.table.caption_around.after)
+    }
+    show figure.where(kind: image): it => {
+      around-pagebreaks(config.figure.caption_around.before)
+      it
+      around-pagebreaks(config.figure.caption_around.after)
     }
 
     // Шесть уровней заголовков: каждый шаблон ведёт свои счётчики.
@@ -1154,33 +1297,9 @@
       marker: config.bullet_list.marker,
     )
 
-    // Нумерованный список.
-    let enum-args = (
-      tight: config.numbered_list.tight,
-      indent: config.numbered_list.indent * 1mm,
-      body-indent: if config.numbered_list.wrap_mode == "left_margin" {
-        let shifted = config.numbered_list.body_indent - config.numbered_list.left_margin_offset
-        if shifted > 0 { shifted * 1mm } else { 0mm }
-      } else {
-        config.numbered_list.body_indent * 1mm
-      },
-      spacing: list-spacing(config.numbered_list.spacing, config.numbered_list.tight_spacing, config.numbered_list.loose_spacing),
-      numbering: numbered-list-numbering(config),
-    )
-    if config.numbered_list.start != none {
-      enum-args.insert("start", config.numbered_list.start)
-    }
-    if config.numbered_list.full or config.numbered_list.level_formats.len() > 0 {
-      enum-args.insert("full", true)
-    }
-    if config.numbered_list.reversed { enum-args.insert("reversed", true) }
-    if config.numbered_list.number_align != "end+top" {
-      enum-args.insert(
-        "number-align",
-        alignment(config.numbered_list.number_align),
-      )
-    }
-    set enum(..enum-args)
+    // Нумерованный список: собственный рендер, чтобы точно управлять
+    // положением маркера и продолжения строки.
+    show enum: it => list-render(config, it)
 
     // Таблица.
     let table-args = (

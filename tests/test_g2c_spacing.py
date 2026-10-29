@@ -90,9 +90,11 @@ def test_element_spacing_options() -> None:
         assert normalize_values(values) is not None
 
 
-def _profile_with(option_id: str, value: float):
+def _profile_with(option_id: str, value: float, *, wrap_mode: str | None = None):
     values = default_values()
     _set_path(values, OPTIONS_BY_ID[option_id].path, value)
+    if wrap_mode is not None:
+        values["numbered_list"]["wrap_mode"] = wrap_mode
     profile = default_profile()
     profile.options = normalize_values(values)
     profile.options_schema_version = SCHEMA_VERSION
@@ -209,9 +211,20 @@ def test_list_item_wrapped_line_indent(group: str, marker: str, tmp_path: Path) 
     option_id = f"{group}.body_indent"
     base_indent = float(OPTIONS_BY_ID[option_id].default)
     delta_mm = 6.0
-    base = _render(markdown, _profile_with(option_id, base_indent), tmp_path, "wrap-base")
+    # body_indent — отступ тела пункта; в G3b проверяем его в режиме
+    # body_text, где первая строка и продолжение выровнены по телу.
+    wrap_mode = "body_text" if group == "numbered_list" else None
+    base = _render(
+        markdown,
+        _profile_with(option_id, base_indent, wrap_mode=wrap_mode),
+        tmp_path,
+        "wrap-base",
+    )
     wide = _render(
-        markdown, _profile_with(option_id, base_indent + delta_mm), tmp_path, "wrap-wide"
+        markdown,
+        _profile_with(option_id, base_indent + delta_mm, wrap_mode=wrap_mode),
+        tmp_path,
+        "wrap-wide",
     )
 
     def wrapped_x(path: Path) -> tuple[float, float]:

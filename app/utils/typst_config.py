@@ -326,7 +326,6 @@ def config_tree(values: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
                 "level_formats",
                 "alphabet",
                 "wrap_mode",
-                "left_margin_offset",
                 "tight_spacing",
                 "loose_spacing",
                 "spacing_before",

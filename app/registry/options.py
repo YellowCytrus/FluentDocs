@@ -1444,7 +1444,7 @@ def _caption_options(
                 "СТУ требует подпись таблицы над таблицей, подпись рисунка — под рисунком."
             ),
             source=source,
-            test_ids=(f"test_{kind}_caption_render",),
+            test_ids=(f"test_{kind}_caption_position_render",),
             legacy=False,
         ),
         _option(
@@ -1463,7 +1463,7 @@ def _caption_options(
                 "без изменения выравнивания самого элемента."
             ),
             source=source,
-            test_ids=(f"test_{kind}_caption_render",),
+            test_ids=(f"test_{kind}_caption_align_render",),
             legacy=False,
         ),
         _option(
@@ -1480,7 +1480,7 @@ def _caption_options(
                 "{content}; СТУ использует тире с пробелами."
             ),
             source=source,
-            test_ids=(f"test_{kind}_caption_render",),
+            test_ids=(f"test_{kind}_caption_separator_render",),
             legacy=False,
         ),
         around_object,
@@ -2287,6 +2287,8 @@ def _base_options() -> list[Option]:
             test_ids=(
                 "test_numbered_list_options_schema",
                 "test_numbered_list_level_formats_render",
+                "test_numbered_list_level_format_repeat_render",
+                "test_numbered_list_full_render",
             ),
             legacy=False,
             ui_help="Порядок элементов — уровни вложенности; для более глубоких уровней повторяется последний формат.",
@@ -2307,7 +2309,10 @@ def _base_options() -> list[Option]:
                 "ru_sfu исключает Ё, З, Й, О, Ч, Ь, Ы, Ъ."
             ),
             source="СТУ 7.4.3; plan_v2 list.lettered; SPIKE S7",
-            test_ids=("test_numbered_list_level_formats_render",),
+            test_ids=(
+                "test_numbered_list_level_formats_render",
+                "test_numbered_list_alphabet_latin_render",
+            ),
             legacy=False,
         ),
         _option(
@@ -2327,29 +2332,6 @@ def _base_options() -> list[Option]:
             rationale=(
                 "Выбирает, как выравнивать продолжение пункта списка: к левому "
                 "краю списка или по тексту первой строки (висячий отступ)."
-            ),
-            source="СТУ 7.4.3; plan_v2 list.item; OWNER_DECISIONS 3",
-            test_ids=("test_numbered_list_wrap_mode_render",),
-            legacy=False,
-        ),
-        _option(
-            "numbered_list.left_margin_offset",
-            "numbered_list",
-            ("numbered_list",),
-            "number",
-            2.1166666667,
-            ("numbered_list", "left_margin_offset"),
-            "Сдвиг к левому полю",
-            order=o(opts),
-            unit="mm",
-            allowed_units=MM_UNITS,
-            min=0,
-            max=100,
-            step=0.1,
-            rationale=(
-                "Вычитается из отступа тела пункта в режиме «К левому полю», "
-                "чтобы продолжение строки начиналось у левого края списка, "
-                "а не по тексту первой строки."
             ),
             source="СТУ 7.4.3; plan_v2 list.item; OWNER_DECISIONS 3",
             test_ids=("test_numbered_list_wrap_mode_render",),

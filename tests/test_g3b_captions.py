@@ -88,6 +88,24 @@ def _line_top(pdf_path: Path, needle: str) -> float:
     raise AssertionError(f"строка не найдена: {needle}")
 
 
+def _line_x0(pdf_path: Path, needle: str) -> float:
+    with pdfplumber.open(pdf_path) as pdf:
+        for page in pdf.pages:
+            for line in page.extract_text_lines():
+                if needle in line["text"]:
+                    return float(line["x0"])
+    raise AssertionError(f"строка не найдена: {needle}")
+
+
+def _caption_sizes(pdf_path: Path, needle: str) -> list[float]:
+    with pdfplumber.open(pdf_path) as pdf:
+        for page in pdf.pages:
+            for line in page.extract_text_lines():
+                if needle in line["text"]:
+                    return [float(char["size"]) for char in line["chars"]]
+    raise AssertionError(f"строка не найдена: {needle}")
+
+
 def test_caption_options_schema() -> None:
     expected = {
         "figure.caption_template": None,
@@ -206,6 +224,165 @@ def test_table_caption_render(tmp_path: Path) -> None:
     shutil.which("pandoc") is None or shutil.which("typst") is None,
     reason="pandoc and typst must be in PATH",
 )
+@pytest.mark.parametrize(
+    "template", [None, "Рисунок {h1}.{n} — {content}"], ids=["without-template", "template"]
+)
+def test_figure_caption_position_render(tmp_path: Path, template: str | None) -> None:
+    markdown = "# Глава\n\nАбзац.\n\n![Первый](sample.png){#fig:a}\n"
+    tops: dict[str, float] = {}
+    images: dict[str, tuple[float, float]] = {}
+    for position in ("above", "below"):
+        path = _compile(
+            markdown,
+            _profile(
+                figure={
+                    "caption_template": template,
+                    "caption_position": position,
+                }
+            ),
+            tmp_path,
+            f"figure-position-{position}-{template is None}",
+        )
+        tops[position] = _line_top(path, "Первый")
+        with pdfplumber.open(path) as pdf:
+            assert pdf.pages[0].images
+            images[position] = (
+                min(float(image["top"]) for image in pdf.pages[0].images),
+                max(float(image["bottom"]) for image in pdf.pages[0].images),
+            )
+    assert tops["above"] < images["above"][0]
+    assert tops["below"] > images["below"][1]
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    shutil.which("pandoc") is None or shutil.which("typst") is None,
+    reason="pandoc and typst must be in PATH",
+)
+@pytest.mark.parametrize(
+    "template", [None, "Таблица {h1}.{n} — {content}"], ids=["without-template", "template"]
+)
+def test_table_caption_position_render(tmp_path: Path, template: str | None) -> None:
+    markdown = "| A | B |\n|---|---|\n| 1 | 2 |\n\n: Подпись таблицы\n"
+    for position in ("above", "below"):
+        path = _compile(
+            markdown,
+            _profile(
+                table={
+                    "caption_template": template,
+                    "caption_position": position,
+                }
+            ),
+            tmp_path,
+            f"table-position-{position}-{template is None}",
+        )
+        caption_top = _line_top(path, "Подпись таблицы")
+        table_top = _line_top(path, "A B")
+        if position == "above":
+            assert caption_top < table_top
+        else:
+            assert caption_top > table_top
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    shutil.which("pandoc") is None or shutil.which("typst") is None,
+    reason="pandoc and typst must be in PATH",
+)
+@pytest.mark.parametrize(
+    "template", [None, "Рисунок {h1}.{n} — {content}"], ids=["without-template", "template"]
+)
+def test_figure_caption_align_render(tmp_path: Path, template: str | None) -> None:
+    markdown = "# Глава\n\n![Первый](sample.png){#fig:a}\n"
+    x0: dict[str, float] = {}
+    for align in ("left", "center", "right"):
+        path = _compile(
+            markdown,
+            _profile(figure={"caption_template": template, "caption_align": align}),
+            tmp_path,
+            f"figure-align-{align}-{template is None}",
+        )
+        x0[align] = _line_x0(path, "Первый")
+    margin_pt = default_values()["page"]["margin_left"] * 72 / 25.4
+    assert abs(x0["left"] - margin_pt) < 0.8
+    assert x0["left"] < x0["center"] < x0["right"]
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    shutil.which("pandoc") is None or shutil.which("typst") is None,
+    reason="pandoc and typst must be in PATH",
+)
+@pytest.mark.parametrize(
+    "template", [None, "Таблица {h1}.{n} — {content}"], ids=["without-template", "template"]
+)
+def test_table_caption_align_render(tmp_path: Path, template: str | None) -> None:
+    markdown = "| A | B |\n|---|---|\n| 1 | 2 |\n\n: Подпись таблицы\n"
+    x0: dict[str, float] = {}
+    for align in ("left", "center", "right"):
+        path = _compile(
+            markdown,
+            _profile(table={"caption_template": template, "caption_align": align}),
+            tmp_path,
+            f"table-align-{align}-{template is None}",
+        )
+        x0[align] = _line_x0(path, "Подпись таблицы")
+    margin_pt = default_values()["page"]["margin_left"] * 72 / 25.4
+    assert abs(x0["left"] - margin_pt) < 0.8
+    assert x0["left"] < x0["center"] < x0["right"]
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    shutil.which("pandoc") is None or shutil.which("typst") is None,
+    reason="pandoc and typst must be in PATH",
+)
+def test_figure_caption_separator_render(tmp_path: Path) -> None:
+    profile = _profile(
+        figure={
+            "caption_template": "X {n}",
+            "caption_separator": " — ",
+        }
+    )
+    lines = _lines(
+        _compile(
+            "# Глава\n\n![Первый](sample.png){#fig:a}\n",
+            profile,
+            tmp_path,
+            "figure-caption-separator",
+        )
+    )
+    assert "X 1 — Первый" in lines
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    shutil.which("pandoc") is None or shutil.which("typst") is None,
+    reason="pandoc and typst must be in PATH",
+)
+def test_table_caption_separator_render(tmp_path: Path) -> None:
+    profile = _profile(
+        table={
+            "caption_template": "X {n}",
+            "caption_separator": " — ",
+        }
+    )
+    lines = _lines(
+        _compile(
+            "| A | B |\n|---|---|\n| 1 | 2 |\n\n: Подпись таблицы\n",
+            profile,
+            tmp_path,
+            "table-caption-separator",
+        )
+    )
+    assert "X 1 — Подпись таблицы" in lines
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    shutil.which("pandoc") is None or shutil.which("typst") is None,
+    reason="pandoc and typst must be in PATH",
+)
 def test_caption_counters_separate_render(tmp_path: Path) -> None:
     profile = _profile(
         figure={"caption_template": "Рисунок {h1}.{n} — {content}"},
@@ -267,39 +444,106 @@ def test_table_caption_without_template_has_no_english(tmp_path: Path) -> None:
     reason="pandoc and typst must be in PATH",
 )
 def test_figure_caption_around_render(tmp_path: Path) -> None:
-    profile = _profile(
-        figure={
-            "caption_template": "Рисунок {h1}.{n} — {content}",
-            "caption_around": {
-                "before": [
-                    {
-                        "type": "text",
-                        "content": "ДО",
-                        "text_override": None,
-                        "align": "left",
-                    }
-                ],
-                "after": [
-                    {
-                        "type": "text",
-                        "content": "ПОСЛЕ",
-                        "text_override": None,
-                        "align": "left",
-                    }
-                ],
-            },
-        }
+    markdown = "# Глава\n\nАбзац.\n\n![Первый](sample.png){#fig:a}\n"
+    base = {"caption_template": None}
+    no_around = _compile(
+        markdown,
+        _profile(figure=base),
+        tmp_path,
+        "figure-around-none",
     )
-    lines = _lines(
-        _compile(
-            "# Глава\n\n![Первый](sample.png){#fig:a}\n",
-            profile,
-            tmp_path,
-            "figure-caption-around",
-        )
+    no_top = _line_top(no_around, "Первый")
+
+    text_path = _compile(
+        markdown,
+        _profile(
+            figure={
+                **base,
+                "caption_around": {
+                    "before": [
+                        {
+                            "type": "text",
+                            "content": "ДО",
+                            "text_override": None,
+                            "align": "left",
+                        }
+                    ],
+                    "after": [
+                        {
+                            "type": "text",
+                            "content": "ПОСЛЕ",
+                            "text_override": None,
+                            "align": "left",
+                        }
+                    ],
+                },
+            }
+        ),
+        tmp_path,
+        "figure-around-text",
     )
+    lines = _lines(text_path)
     assert "ДО" in lines
     assert "ПОСЛЕ" in lines
+
+    blank_path = _compile(
+        markdown,
+        _profile(
+            figure={
+                **base,
+                "caption_around": {
+                    "before": [
+                        {
+                            "type": "blank",
+                            "count": 2,
+                            "line_spacing": {"mode": "multiplier", "value": 1.0},
+                        }
+                    ],
+                    "after": [],
+                },
+            }
+        ),
+        tmp_path,
+        "figure-around-blank",
+    )
+    assert _line_top(blank_path, "Первый") > no_top + 10.0
+
+    line_path = _compile(
+        markdown,
+        _profile(
+            figure={
+                **base,
+                "caption_around": {
+                    "before": [],
+                    "after": [{"type": "line", "length": 100, "stroke_mm": 0.5}],
+                },
+            }
+        ),
+        tmp_path,
+        "figure-around-line",
+    )
+    with pdfplumber.open(no_around) as pdf:
+        baseline_lines = sum(len(page.lines) for page in pdf.pages)
+    with pdfplumber.open(line_path) as pdf:
+        around_lines = sum(len(page.lines) for page in pdf.pages)
+    assert around_lines > baseline_lines
+
+    break_path = _compile(
+        markdown,
+        _profile(
+            figure={
+                **base,
+                "caption_around": {
+                    "before": [],
+                    "after": [{"type": "pagebreak", "weak": False}],
+                },
+            }
+        ),
+        tmp_path,
+        "figure-around-pagebreak",
+    )
+    with pdfplumber.open(break_path) as pdf:
+        assert len(pdf.pages) >= 2
 
 
 @pytest.mark.integration
@@ -307,10 +551,13 @@ def test_figure_caption_around_render(tmp_path: Path) -> None:
     shutil.which("pandoc") is None or shutil.which("typst") is None,
     reason="pandoc and typst must be in PATH",
 )
-def test_figure_caption_text_override_render(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "template", [None, "Рисунок {h1}.{n} — {content}"], ids=["without-template", "template"]
+)
+def test_figure_caption_text_override_render(tmp_path: Path, template: str | None) -> None:
     profile = _profile(
         figure={
-            "caption_template": "Рисунок {h1}.{n} — {content}",
+            "caption_template": template,
             "caption_text_override": {"font_size": 8.0},
         }
     )
@@ -318,14 +565,11 @@ def test_figure_caption_text_override_render(tmp_path: Path) -> None:
         "# Глава\n\n![Первый](sample.png){#fig:a}\n",
         profile,
         tmp_path,
-        "figure-caption-override",
+        f"figure-caption-override-{template is None}",
     )
-    with pdfplumber.open(path) as pdf:
-        caption_sizes = [
-            char["size"] for char in pdf.pages[0].chars if char["text"] == "Р" and char["size"] < 10
-        ]
-    assert caption_sizes
-    assert all(abs(size - 8.0) < 0.2 for size in caption_sizes)
+    sizes = _caption_sizes(path, "Первый")
+    assert sizes
+    assert all(abs(size - 8.0) < 0.2 for size in sizes)
 
 
 @pytest.mark.integration
@@ -334,31 +578,106 @@ def test_figure_caption_text_override_render(tmp_path: Path) -> None:
     reason="pandoc and typst must be in PATH",
 )
 def test_table_caption_around_render(tmp_path: Path) -> None:
-    profile = _profile(
-        table={
-            "caption_template": "Таблица {h1}.{n} — {content}",
-            "caption_around": {
-                "before": [
-                    {
-                        "type": "text",
-                        "content": "ДО",
-                        "text_override": None,
-                        "align": "left",
-                    }
-                ],
-                "after": [],
-            },
-        }
+    markdown = "Абзац.\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\n: Подпись таблицы\n"
+    base = {"caption_template": None}
+    no_around = _compile(
+        markdown,
+        _profile(table=base),
+        tmp_path,
+        "table-around-none",
     )
-    lines = _lines(
-        _compile(
-            "| A | B |\n|---|---|\n| 1 | 2 |\n\n: Таблица\n",
-            profile,
-            tmp_path,
-            "table-caption-around",
-        )
+    no_top = _line_top(no_around, "Подпись таблицы")
+
+    text_path = _compile(
+        markdown,
+        _profile(
+            table={
+                **base,
+                "caption_around": {
+                    "before": [
+                        {
+                            "type": "text",
+                            "content": "ДО",
+                            "text_override": None,
+                            "align": "left",
+                        }
+                    ],
+                    "after": [
+                        {
+                            "type": "text",
+                            "content": "ПОСЛЕ",
+                            "text_override": None,
+                            "align": "left",
+                        }
+                    ],
+                },
+            }
+        ),
+        tmp_path,
+        "table-around-text",
     )
+    lines = _lines(text_path)
     assert "ДО" in lines
+    assert "ПОСЛЕ" in lines
+
+    blank_path = _compile(
+        markdown,
+        _profile(
+            table={
+                **base,
+                "caption_around": {
+                    "before": [
+                        {
+                            "type": "blank",
+                            "count": 2,
+                            "line_spacing": {"mode": "multiplier", "value": 1.0},
+                        }
+                    ],
+                    "after": [],
+                },
+            }
+        ),
+        tmp_path,
+        "table-around-blank",
+    )
+    assert _line_top(blank_path, "Подпись таблицы") > no_top + 10.0
+
+    line_path = _compile(
+        markdown,
+        _profile(
+            table={
+                **base,
+                "caption_around": {
+                    "before": [],
+                    "after": [{"type": "line", "length": 100, "stroke_mm": 0.5}],
+                },
+            }
+        ),
+        tmp_path,
+        "table-around-line",
+    )
+    with pdfplumber.open(no_around) as pdf:
+        baseline_lines = sum(len(page.lines) for page in pdf.pages)
+    with pdfplumber.open(line_path) as pdf:
+        around_lines = sum(len(page.lines) for page in pdf.pages)
+    assert around_lines > baseline_lines
+
+    break_path = _compile(
+        markdown,
+        _profile(
+            table={
+                **base,
+                "caption_around": {
+                    "before": [],
+                    "after": [{"type": "pagebreak", "weak": False}],
+                },
+            }
+        ),
+        tmp_path,
+        "table-around-pagebreak",
+    )
+    with pdfplumber.open(break_path) as pdf:
+        assert len(pdf.pages) >= 2
 
 
 @pytest.mark.integration
@@ -366,10 +685,13 @@ def test_table_caption_around_render(tmp_path: Path) -> None:
     shutil.which("pandoc") is None or shutil.which("typst") is None,
     reason="pandoc and typst must be in PATH",
 )
-def test_table_caption_text_override_render(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "template", [None, "Таблица {h1}.{n} — {content}"], ids=["without-template", "template"]
+)
+def test_table_caption_text_override_render(tmp_path: Path, template: str | None) -> None:
     profile = _profile(
         table={
-            "caption_template": "Таблица {h1}.{n} — {content}",
+            "caption_template": template,
             "caption_text_override": {"font_size": 8.0},
         }
     )
@@ -377,11 +699,8 @@ def test_table_caption_text_override_render(tmp_path: Path) -> None:
         "| A | B |\n|---|---|\n| 1 | 2 |\n\n: Таблица\n",
         profile,
         tmp_path,
-        "table-caption-override",
+        f"table-caption-override-{template is None}",
     )
-    with pdfplumber.open(path) as pdf:
-        caption_sizes = [
-            char["size"] for char in pdf.pages[0].chars if char["text"] == "Т" and char["size"] < 10
-        ]
-    assert caption_sizes
-    assert all(abs(size - 8.0) < 0.2 for size in caption_sizes)
+    sizes = _caption_sizes(path, "Таблица")
+    assert sizes
+    assert all(abs(size - 8.0) < 0.2 for size in sizes)

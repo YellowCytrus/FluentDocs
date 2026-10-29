@@ -111,6 +111,81 @@ def test_numbered_list_level_formats_render(tmp_path: Path) -> None:
     shutil.which("pandoc") is None or shutil.which("typst") is None,
     reason="pandoc and typst must be in PATH",
 )
+def test_numbered_list_alphabet_latin_render(tmp_path: Path) -> None:
+    profile = _profile(
+        numbered_list={
+            "level_formats": [{"format": "{letter})"}],
+            "alphabet": "latin",
+        }
+    )
+    lines = _lines(
+        _compile(
+            "1. Первый\n2. Второй\n",
+            profile,
+            tmp_path,
+            "list-latin",
+        )
+    )
+    assert "a) Первый" in lines
+    assert "b) Второй" in lines
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    shutil.which("pandoc") is None or shutil.which("typst") is None,
+    reason="pandoc and typst must be in PATH",
+)
+def test_numbered_list_level_format_repeat_render(tmp_path: Path) -> None:
+    profile = _profile(
+        numbered_list={
+            "level_formats": [{"format": "1."}, {"format": "{letter})"}],
+            "alphabet": "ru_sfu",
+        }
+    )
+    lines = _lines(
+        _compile(
+            "1. Первый\n    1. Вложенный\n        1. Глубокий\n",
+            profile,
+            tmp_path,
+            "list-level-repeat",
+        )
+    )
+    assert "1. Первый" in lines
+    assert "а) Вложенный" in lines
+    assert "а) Глубокий" in lines
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    shutil.which("pandoc") is None or shutil.which("typst") is None,
+    reason="pandoc and typst must be in PATH",
+)
+def test_numbered_list_full_render(tmp_path: Path) -> None:
+    profile = _profile(
+        numbered_list={
+            "level_formats": [{"format": "1."}, {"format": "{letter})"}],
+            "alphabet": "ru_sfu",
+            "full": True,
+        }
+    )
+    lines = _lines(
+        _compile(
+            "1. Первый\n    1. Вложенный\n        1. Глубокий\n",
+            profile,
+            tmp_path,
+            "list-full",
+        )
+    )
+    assert "1. Первый" in lines
+    assert "1. а) Вложенный" in lines
+    assert "1.1. а) Глубокий" in lines
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    shutil.which("pandoc") is None or shutil.which("typst") is None,
+    reason="pandoc and typst must be in PATH",
+)
 def test_numbered_list_wrap_mode_render(tmp_path: Path) -> None:
     long_text = (
         "Длинный текст пункта списка, который должен переноситься на следующую "
@@ -132,9 +207,17 @@ def test_numbered_list_wrap_mode_render(tmp_path: Path) -> None:
     )
     with pdfplumber.open(left_path) as pdf:
         left_lines = pdf.pages[0].extract_text_lines()
+        left_words = pdf.pages[0].extract_words()
     with pdfplumber.open(body_path) as pdf:
         body_lines = pdf.pages[0].extract_text_lines()
+        body_words = pdf.pages[0].extract_words()
 
     assert len(left_lines) >= 2
     assert len(body_lines) >= 2
-    assert left_lines[1]["x0"] < body_lines[1]["x0"] - 1.0
+    margin_pt = default_values()["page"]["margin_left"] * 72 / 25.4
+    first_text_x = left_words[1]["x0"]
+    assert abs(left_lines[1]["x0"] - margin_pt) < 0.8
+    assert abs(body_lines[1]["x0"] - first_text_x) < 0.8
+    assert left_lines[1]["x0"] < body_lines[1]["x0"] - 5.0
+    assert first_text_x > margin_pt + 5.0
+    assert body_words[1]["x0"] > margin_pt + 5.0
