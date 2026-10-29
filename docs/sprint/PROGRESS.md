@@ -18,7 +18,7 @@
 | G3a — структурные сущности, приложения, оглавление | выполнен, принят владельцем | этот файл |
 | G3b — подписи и нумерация рисунков/таблиц | выполнен, принят владельцем | этот файл |
 | G4 — таблицы и оглавление | выполнен, ждёт приёмки | этот файл |
-| G5 — формулы и подпись формулы | выполнен, ждёт приёмки | этот файл |
+| G5 — формулы и подпись формулы | выполнен, ждёт приёмки | `5a9a202`, CI 40883616584 |
 | G6 — профиль СТУ СФУ и самопроверка | не начат | — |
 
 ## G0 — чек-лист
@@ -993,7 +993,9 @@ test 141 passed, integration 223 passed, frontend 17 passed, build и lint OK.
 | `uvx ruff format --check app tests scripts` | 107 files already formatted |
 | `UPDATE_GOLDEN=1 uv run pytest tests/test_typst_golden.py -m integration` | 33 passed |
 
-CI-прогон будет добавлен после пуша.
+CI run [40883616584](https://github.com/YellowCytrus/FluentDocs/actions/runs/40883616584) — lint + test success:
+test 145 passed / 241 deselected; integration 241 passed / 145 deselected;
+frontend 17 passed (4 files).
 
 ### G5: golden
 
