@@ -885,8 +885,12 @@ B-10c (`number_align`, все 4 значения и маркер в поле), B
 
 ### G4: проверки
 
+Коммит: `500478a`; CI run
+[40874969639](https://github.com/YellowCytrus/FluentDocs/actions/runs/40874969639) — test + lint success.
+
 | Команда | Результат |
 |---|---|
+| **CI, GitHub Actions** | `test`: 141 passed, 208 deselected; `integration`: 208 passed, 141 deselected; `Frontend tests`: 17 passed; `Frontend build`: OK — run `40874969639` |
 | Локально `uv run pytest tests/ -m "not integration" -q -rs` (без Postgres) | 75 passed, 66 skipped, 208 deselected |
 | Локально `uv run pytest tests/ -m integration -q -rs` (без Postgres) | 207 passed, 1 skipped, 141 deselected |
 | `cd frontend && npm test -- --run` | 17 passed (4 files) |
@@ -895,8 +899,6 @@ B-10c (`number_align`, все 4 значения и маркер в поле), B
 | `uvx ruff check app tests scripts` | All checks passed |
 | `uvx ruff format --check app tests scripts` | 106 files already formatted |
 | `UPDATE_GOLDEN=1 uv run pytest tests/test_typst_golden.py -m integration` | 33 passed |
-
-CI-прогон будет добавлен после пуша.
 
 ### G4: golden
 
