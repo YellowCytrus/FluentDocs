@@ -781,7 +781,10 @@ Postgres не запущен, поэтому DB-тесты локально пр
 | Рисунок без шаблона | ✔ `Figure 1: …` + align/around/text_override | `test_figure_caption_align_render` |
 | Форматы списков по уровням | ✔ `numbered_list.level_formats`, повтор последнего уровня, `full` | `test_numbered_list_level_formats_render`, `test_numbered_list_level_format_repeat_render`, `test_numbered_list_full_render` |
 | Алфавиты `ru_sfu`/`latin` | ✔ ru_sfu: 25 букв без Ё, З, Й, О, Ч, Ь, Ы, Ъ; latin: a…z | `test_numbered_list_alphabet_latin_render` |
-| Перенос строки пункта | ✔ `left_margin` = левое поле (x0), `body_text` = текст первой строки | `test_numbered_list_wrap_mode_render` |
+| Перенос строки пункта верхнего уровня | ✔ `left_margin` = левое поле (x0), `body_text` = текст первой строки | `test_numbered_list_wrap_mode_render` |
+| Отступ вложенных списков | ✔ в `left_margin` и `body_text` шаг уровня сохраняется | `test_numbered_list_nested_indent_render` |
+| Интервалы списка | ✔ `spacing=auto/tight/loose`, `tight=false`, `tight_spacing`/`loose_spacing` | `test_numbered_list_spacing_render`, `test_numbered_list_tight_loose_spacing_values_render` |
+| Вертикальный `number_align` | ✔ `end+bottom` ставит маркер у последней строки | `test_numbered_list_number_align_bottom_render` |
 | Значения для seed G6 | ✔ только значения, профили не создавались | `REGISTRY_SPEC.md` |
 | Golden: только блок конфига | ✔ 16 снимков; удалён только `left_margin_offset` | `tests/fixtures/golden/` |
 | Реестровый контракт | ✔ 15 новых опций с конкретными source/test_ids | `tests/test_registry.py` |
@@ -808,6 +811,10 @@ Postgres не запущен, поэтому DB-тесты локально пр
 | Полная нумерация | `test_numbered_list_full_render` | `1. а)`, `1.1. а)` |
 | Латинский алфавит | `test_numbered_list_alphabet_latin_render` | `a)`, `b)` |
 | Перенос списка | `test_numbered_list_wrap_mode_render` | x0 продолжения = левому полю (допуск 0,8 pt); body_text = тексту первой строки |
+| Вложенные уровни | `test_numbered_list_nested_indent_render` | x0 маркеров/текста растёт на каждом уровне; шаги равны; оба режима |
+| Интервалы списка | `test_numbered_list_spacing_render` | auto = 22.3 pt, tight = 13.9 pt, loose = 19.9 pt; `tight=false` = auto |
+| Значения tight/loose | `test_numbered_list_tight_loose_spacing_values_render` | изменение `tight_spacing`/`loose_spacing` на 1 em сдвигает пункты на 12 pt |
+| Низ маркера | `test_numbered_list_number_align_bottom_render` | `end+bottom`: `top` маркера у последней строки; `end+top`: у первой |
 
 ### G3b: golden
 
@@ -833,5 +840,5 @@ Postgres не запущен, поэтому DB-тесты локально пр
 | `uvx ruff format --check app tests scripts` | 104 files already formatted |
 
 DB-тесты локально пропущены из-за отсутствия Postgres; CI — авторитетный
-прогон. B-10 закрыт: точное выравнивание к левому полю реализовано
-собственным рендером enum.
+прогон. B-10 разделён: B-10a (верхний уровень), B-10b (вложенность),
+B-10c (`number_align`), B-10d (интервалы) закрыты.

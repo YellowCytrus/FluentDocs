@@ -2155,6 +2155,7 @@ def _base_options() -> list[Option]:
             ("numbered_list", "tight"),
             "Компактный",
             order=o(opts),
+            test_ids=("test_numbered_list_spacing_render",),
         ),
         _option(
             "numbered_list.indent",
@@ -2196,6 +2197,7 @@ def _base_options() -> list[Option]:
             "Межстрочный интервал",
             order=o(opts),
             enum=tuple(v for v, _ in SELECT_LABELS["spacing"]),
+            test_ids=("test_numbered_list_spacing_render",),
         ),
         _option(
             "numbered_list.tight_spacing",
@@ -2216,7 +2218,10 @@ def _base_options() -> list[Option]:
                 "списка; ранее 0.5em было зашито в fd.typ."
             ),
             source="AGENTS G2b; S1; СТУ 7.4",
-            test_ids=("test_list_spacing_options",),
+            test_ids=(
+                "test_list_spacing_options",
+                "test_numbered_list_tight_loose_spacing_values_render",
+            ),
             legacy=False,
         ),
         _option(
@@ -2238,7 +2243,10 @@ def _base_options() -> list[Option]:
                 "списка; ранее 1em было зашито в fd.typ."
             ),
             source="AGENTS G2b; S1; СТУ 7.4",
-            test_ids=("test_list_spacing_options",),
+            test_ids=(
+                "test_list_spacing_options",
+                "test_numbered_list_tight_loose_spacing_values_render",
+            ),
             legacy=False,
         ),
         _option(
@@ -2380,6 +2388,7 @@ def _base_options() -> list[Option]:
             "Выравнивание номера",
             order=o(opts),
             enum=tuple(v for v, _ in SELECT_LABELS["number_align_list"]),
+            test_ids=("test_numbered_list_number_align_bottom_render",),
         ),
         _option(
             "terms.tight",

@@ -640,14 +640,31 @@ Typst (`1)`, `1.`). Если элементов меньше глубины сп
 проверяется тестом `test_numbered_list_alphabet_latin_render`.
 
 Нумерованный список рисуется собственным `show enum` (`fd.list-render`), а не
-штатным `enum`: маркер ставится в поле через `place`, тело абзаца получает
+штатным `enum`: маркер ставится через `place`, тело абзаца получает
 `par(first-line-indent: marker_width + body_indent, all: true)`. Поэтому
-`wrap_mode = left_margin` действительно начинает перенесённые строки у левого
-поля страницы, а не «на несколько пунктов левее». `body_indent` — расстояние
-между маркером и текстом первой строки. `body_text` оставляет продолжение на
-уровне текста первой строки (висячий отступ). Точное совпадение x0 продолжения
-с левым полем проверяет `test_numbered_list_wrap_mode_render` (допуск 0,8 pt).
-Опции `numbered_list.left_margin_offset` больше нет; B-10 закрыт.
+`wrap_mode = left_margin` действительно начинает перенесённые строки верхнего
+уровня у левого поля страницы. `body_indent` — расстояние между маркером и
+текстом первой строки. `body_text` оставляет продолжение на уровне текста
+первой строки (висячий отступ). Точное совпадение x0 продолжения с левым полем
+проверяет `test_numbered_list_wrap_mode_render` (допуск 0,8 pt).
+
+Вложенные списки используют `fd.list-body-offset-state`: в `left_margin`
+следующий уровень начинается от текста родителя (`marker_width + body_indent`),
+в `body_text` — от уже сдвинутого тела родителя. Тест
+`test_numbered_list_nested_indent_render` проверяет оба режима по x0 маркеров и
+текста на трёх уровнях.
+
+Вертикальная часть `numbered_list.number_align` (`top`/`bottom`) передаётся в
+`place`, горизонтальная (`start`/`end`) — в `align` колонки маркера. Тест
+`test_numbered_list_number_align_bottom_render` проверяет `end+bottom` на
+многострочном пункте.
+
+Интервалы: `spacing = auto` даёт `line-pitch` независимо от `tight`;
+`spacing = tight` — ровно `tight_spacing`; `spacing = loose` — ровно
+`loose_spacing`. Тесты `test_numbered_list_spacing_render` и
+`test_numbered_list_tight_loose_spacing_values_render` проверяют PDF-координаты
+и изменение обоих значений. Опции `numbered_list.left_margin_offset` больше
+нет; B-10a–B-10d закрыты.
 
 ### Значения для seed G6 (профили не создаются)
 

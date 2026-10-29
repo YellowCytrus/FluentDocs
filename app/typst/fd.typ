@@ -26,10 +26,15 @@
   // Обслуживает caption.<kind> и сброс нумерации в приложении.
   let appendix-state = state("fd-appendix-letter", none)
 
-  // Глубина и номера предков для собственного рендера enum.
-  // Нужны, чтобы продолжение пункта начиналось у левого поля.
+  // Глубина, номера предков и отступы тела для собственного рендера enum.
+  // Нужны, чтобы продолжение пункта начиналось у левого поля, а вложенные
+  // списки сохраняли относительный отступ.
   let list-depth-state = state("fd-list-depth", 0)
   let list-counts-state = state("fd-list-counts", (0, 0, 0, 0, 0, 0))
+  let list-body-offset-state = state(
+    "fd-list-body-offset",
+    (0pt, 0pt, 0pt, 0pt, 0pt, 0pt),
+  )
 
   // Цвет из строки профиля; none используется для отсутствия заливки.
   let paint(s) = {
@@ -210,30 +215,53 @@
       config.numbered_list.tight_spacing,
       config.numbered_list.loose_spacing,
     )
-    let extra = if spacing == auto {
-      if config.numbered_list.tight { 0pt } else { config.par.spacing * 1mm }
+    // auto — штатный шаг строки, явные tight/loose — ровно своё значение.
+    // tight не добавляет par.spacing и не меняет auto.
+    let item-spacing = if spacing == auto { line-pitch(config) } else { spacing }
+
+    // Вложенный список в left_margin начинается от текста родителя;
+    // в body_text тело уже сдвинуто, поэтому достаточно indent.
+    let parent-offset = if depth > 0 {
+      list-body-offset-state.get().at(depth - 1)
     } else {
-      spacing
+      0pt
     }
-    // line-pitch — межстрочный шаг между пунктами; без него блоки пунктов
-    // встают вплотную, в отличие от штатного enum.
-    let item-spacing = line-pitch(config) + extra
+    let list-offset = config.numbered_list.indent * 1mm
+    if depth > 0 and config.numbered_list.wrap_mode == "left_margin" {
+      list-offset = list-offset + parent-offset
+    }
+    let body-offset = marker-width + gap
+    let vertical = if config.numbered_list.number_align.contains("bottom") {
+      bottom
+    } else {
+      top
+    }
+    let horizontal = if config.numbered_list.number_align.contains("start") {
+      start
+    } else {
+      end
+    }
 
     let rendered = ()
     for (index, entry) in entries.enumerate() {
       let marker = block(
         width: marker-width,
-        align(alignment(config.numbered_list.number_align), entry.marker),
+        align(horizontal, entry.marker),
       )
+      let next-offsets = ()
+      for (idx, value) in list-body-offset-state.get().enumerate() {
+        next-offsets.push(if idx == depth { body-offset } else { value })
+      }
       let item = block(width: 100%, {
-        place(top + left, marker)
+        place(vertical + left, marker)
         [#list-depth-state.update(depth + 1)]
         [#list-counts-state.update(entry.counts)]
+        [#list-body-offset-state.update(next-offsets)]
         if config.numbered_list.wrap_mode == "left_margin" {
-          set par(first-line-indent: (amount: marker-width + gap, all: true))
+          set par(first-line-indent: (amount: body-offset, all: true))
           entry.body
         } else {
-          block(inset: (left: marker-width + gap), entry.body)
+          block(inset: (left: body-offset), entry.body)
         }
         [#list-depth-state.update(depth)]
       })
@@ -243,7 +271,7 @@
       }
     }
     block(
-      inset: (left: config.numbered_list.indent * 1mm),
+      inset: (left: list-offset),
       stack(dir: ttb, spacing: 0pt, ..rendered),
     )
   }
