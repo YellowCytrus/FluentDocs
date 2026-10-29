@@ -405,10 +405,29 @@ def config_tree(values: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
             ),
             "caption_around": _caption_around(_value(_element(values, "figure"), "caption_around")),
         },
-        "equation": _element_tree(
-            _element(values, "equation"),
-            ("body_indent", "spacing_before", "spacing_after", "text_override"),
-        ),
+        "equation": {
+            **_element_tree(
+                _element(values, "equation"),
+                (
+                    "align",
+                    "numbering_enabled",
+                    "numbering_template",
+                    "body_indent",
+                    "caption_template",
+                    "caption_position",
+                    "caption_align",
+                    "caption_separator",
+                    "caption_text_override",
+                    "caption_around",
+                    "spacing_before",
+                    "spacing_after",
+                    "text_override",
+                ),
+            ),
+            "caption_around": _caption_around(
+                _value(_element(values, "equation"), "caption_around")
+            ),
+        },
         "quote": _element_tree(
             _element(values, "quote"),
             ("indent", "block", "quotes", "spacing_before", "spacing_after", "text_override"),

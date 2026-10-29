@@ -389,7 +389,29 @@
     }
   }
 
-  // Сопоставление текста правила: equals / contains / regex.
+  // Регистр для content с сохранением разметки (абзацные сущности).
+  let content-case(content, mode) = {
+    if mode == "upper" {
+      upper(content)
+    } else if mode == "lower" {
+      lower(content)
+    } else if mode == "first_upper" {
+      if content.func() == text {
+        let clusters = content.text.clusters()
+        if clusters.len() == 0 {
+          content
+        } else {
+          upper(clusters.at(0)) + lower(clusters.slice(1).join(""))
+        }
+      } else {
+        content
+      }
+    } else {
+      content
+    }
+  }
+
+  // Сопоставление текста правила: equals / contains / starts_with / regex.
   let matches-text(match, text) = {
     let hay = if match.case_insensitive { lower(text) } else { text }
     let needle = if match.case_insensitive { lower(match.value) } else { match.value }
@@ -397,6 +419,8 @@
       hay == needle
     } else if match.mode == "contains" {
       hay.contains(needle)
+    } else if match.mode == "starts_with" {
+      hay.starts-with(needle)
     } else {
       hay.contains(regex(needle))
     }
@@ -639,6 +663,18 @@
       } else {
         config.around.at(kind)
       }
+    } else if kind == "par" {
+      let entity = find-entity(
+        config,
+        "paragraph",
+        content-text(it).trim(),
+        0,
+      )
+      if entity != none and entity-around(config, entity) != none {
+        entity.apply.around
+      } else {
+        config.around.at(kind)
+      }
     } else {
       config.around.at(kind)
     }
@@ -835,12 +871,17 @@
               before,
               [#counter("table-h" + str(number)).update(0)],
             )
+            before = add-content(
+              before,
+              [#counter("formula-h" + str(number)).update(0)],
+            )
           }
           before = add-content(
             before,
             [
               #counter("figure-n").update(0)
               #counter("table-n").update(0)
+              #counter("formula-n").update(0)
               #counter(figure).update(0)
               #counter(math.equation).update(0)
             ],
@@ -958,6 +999,27 @@
           none-active = false
         }
         rendered
+      } else if kind == "par" {
+        let text = content-text(unit.content).trim()
+        let entity = find-entity(config, "paragraph", text, 0)
+        if entity == none {
+          unit.content
+        } else {
+          let body = content-case(unit.content, entity.apply.case)
+          let body = if entity.apply.bold { strong(body) } else { body }
+          let body = if entity.apply.text_override != none {
+            text-override-body(body, entity.apply.text_override)
+          } else {
+            body
+          }
+          let body = if entity.apply.align != "auto" {
+            align(alignment(entity.apply.align), body)
+          } else {
+            body
+          }
+          // Абзацные правила («где…») выводятся без отступа первой строки.
+          [#set par(first-line-indent: 0pt); #body]
+        }
       } else {
         unit.content
       }
@@ -1281,6 +1343,82 @@
     parts.join(".")
   }
 
+  // Номер формулы по шаблону: {n} и {h1}…{h6}.
+  let formula-number-string(data, counters, n) = {
+    let chapter-values = (:)
+    if data != none {
+      for level in data.levels {
+        chapter-values.insert("h" + str(level), caption-chapter-value(level, counters))
+      }
+    }
+    let out = none
+    if data == none {
+      out = str(n)
+    } else {
+      for (kind, value) in data.segments {
+        if kind == "literal" {
+          out = if out == none { value } else { out + value }
+        } else if kind == "n" {
+          out = if out == none { str(n) } else { out + str(n) }
+        } else if kind == "content" {
+          // В шаблоне номера {content} не используется.
+        } else {
+          let chapter = chapter-values.at(value)
+          out = if out == none { chapter } else { out + chapter }
+        }
+      }
+    }
+    if out == none { str(n) } else { out }
+  }
+
+  // Подпись формулы: {n} — готовый номер, {content} — текст после двоеточия.
+  let formula-caption-content(config, number, content, data, counters) = {
+    if data == none {
+      text-override-body(content, config.equation.caption_text_override)
+    } else {
+      let chapter-values = (:)
+      for level in data.levels {
+        chapter-values.insert("h" + str(level), caption-chapter-value(level, counters))
+      }
+      let out = none
+      for (kind, value) in data.segments {
+        let piece = if kind == "literal" {
+          value
+        } else if kind == "n" {
+          number
+        } else if kind == "content" {
+          content
+        } else {
+          chapter-values.at(value)
+        }
+        out = if out == none { piece } else { out + piece }
+      }
+      if not data.has-content {
+        out = if out == none { content } else { out + config.equation.caption_separator + content }
+      }
+      text-override-body(out, config.equation.caption_text_override)
+    }
+  }
+
+  // Формула с номером справа; без номера возвращается только тело.
+  let formula-numbered(config, body, number) = {
+    let formula-align = if config.equation.align == "auto" {
+      center
+    } else {
+      alignment(config.equation.align)
+    }
+    if number == "" {
+      block(width: 100%, align(formula-align, body))
+    } else {
+      grid(
+        columns: (1fr, auto),
+        column-gutter: 1em,
+        align(formula-align, body),
+        align(right, text(number)),
+      )
+    }
+  }
+
   let with-caption(config, body) = {
     let figure-data = if config.figure.caption_template == none {
       none
@@ -1294,8 +1432,20 @@
     }
     let figure-counters = range(1, 7).map(level => counter("figure-h" + str(level)))
     let table-counters = range(1, 7).map(level => counter("table-h" + str(level)))
+    let formula-counters = range(1, 7).map(level => counter("formula-h" + str(level)))
     let figure-n = counter("figure-n")
     let table-n = counter("table-n")
+    let formula-n = counter("formula-n")
+    let formula-data = if config.equation.numbering_enabled {
+      caption-data(config.equation.numbering_template)
+    } else {
+      none
+    }
+    let formula-caption-data = if config.equation.caption_template == none {
+      none
+    } else {
+      caption-data(config.equation.caption_template)
+    }
 
     // Отдельные счётчики и шаблоны; сброс — на заголовках уровня 1 и в приложении.
     // Таблица и её подпись стоят по левой границе (СТУ 7.7.3).
@@ -1355,30 +1505,158 @@
       around-pagebreaks(config.figure.caption_around.after)
     }
 
+    // Формула с подписью приходит из Pandoc как terms.item с math.equation
+    // в term. Обычные definition lists возвращаются без изменений.
+    show terms.item: it => {
+      if it.term.func() == math.equation {
+        {
+          around-pagebreaks(config.equation.caption_around.before)
+          context {
+            let number = if config.equation.numbering_enabled {
+              let n = formula-n.get().first() + 1
+              let value = formula-number-string(formula-data, formula-counters, n)
+              formula-n.step()
+              value
+            } else {
+              ""
+            }
+            let content = if it.description.func() == block {
+              it.description.body
+            } else {
+              it.description
+            }
+            let caption = formula-caption-content(
+              config,
+              number,
+              content,
+              formula-caption-data,
+              formula-counters,
+            )
+            // Терм из Pandoc — блочная формула; рендерим её как встроенную,
+            // чтобы show math.equation не добавил второй номер.
+            let term-equation = math.equation(it.term.body, block: false)
+            let formula-body = if config.equation.body_indent != 0 {
+              pad(
+                left: config.equation.body_indent * 1mm,
+                text-override-body(term-equation, config.equation.text_override),
+              )
+            } else {
+              text-override-body(term-equation, config.equation.text_override)
+            }
+            let formula = formula-numbered(config, formula-body, number)
+            let caption-block = block(
+              width: 100%,
+              align(alignment(config.equation.caption_align), caption),
+            )
+            let before = around-items(
+              config,
+              config.equation.caption_around.before,
+              skip-pagebreak: true,
+            )
+            let after = around-items(
+              config,
+              config.equation.caption_around.after,
+              skip-pagebreak: true,
+            )
+            let caption-stack = if before == none and after == none {
+              caption-block
+            } else if before == none {
+              caption-block + after
+            } else if after == none {
+              before + caption-block
+            } else {
+              before + caption-block + after
+            }
+            let content-body = if config.equation.caption_position == "above" {
+              caption-stack + formula
+            } else {
+              formula + caption-stack
+            }
+            block(
+              above: spacing-length(config, config.equation.spacing_before),
+              below: spacing-length(config, config.equation.spacing_after),
+              content-body,
+            )
+          }
+          around-pagebreaks(config.equation.caption_around.after)
+        }
+      } else {
+        it
+      }
+    }
+
+    show math.equation.where(block: true): it => {
+      if config.equation.numbering_enabled {
+        context {
+          let n = formula-n.get().first() + 1
+          let number = formula-number-string(formula-data, formula-counters, n)
+          formula-n.step()
+          let body = if config.equation.body_indent != 0 {
+            pad(
+              left: config.equation.body_indent * 1mm,
+              text-override-body(it, config.equation.text_override),
+            )
+          } else {
+            text-override-body(it, config.equation.text_override)
+          }
+          formula-numbered(config, body, number)
+        }
+      } else {
+        let body = if config.equation.body_indent != 0 {
+          pad(left: config.equation.body_indent * 1mm, it)
+        } else {
+          it
+        }
+        formula-numbered(
+          config,
+          text-override-body(body, config.equation.text_override),
+          "",
+        )
+      }
+    }
+
     // Шесть уровней заголовков: каждый шаблон ведёт свои счётчики.
     show heading.where(level: 1): it => caption-heading(
-      caption-heading(it, 1, figure-data, figure-counters, figure-n),
-      1, table-data, table-counters, table-n,
+      caption-heading(
+        caption-heading(it, 1, figure-data, figure-counters, figure-n),
+        1, table-data, table-counters, table-n,
+      ),
+      1, formula-data, formula-counters, formula-n,
     )
     show heading.where(level: 2): it => caption-heading(
-      caption-heading(it, 2, figure-data, figure-counters, figure-n),
-      2, table-data, table-counters, table-n,
+      caption-heading(
+        caption-heading(it, 2, figure-data, figure-counters, figure-n),
+        2, table-data, table-counters, table-n,
+      ),
+      2, formula-data, formula-counters, formula-n,
     )
     show heading.where(level: 3): it => caption-heading(
-      caption-heading(it, 3, figure-data, figure-counters, figure-n),
-      3, table-data, table-counters, table-n,
+      caption-heading(
+        caption-heading(it, 3, figure-data, figure-counters, figure-n),
+        3, table-data, table-counters, table-n,
+      ),
+      3, formula-data, formula-counters, formula-n,
     )
     show heading.where(level: 4): it => caption-heading(
-      caption-heading(it, 4, figure-data, figure-counters, figure-n),
-      4, table-data, table-counters, table-n,
+      caption-heading(
+        caption-heading(it, 4, figure-data, figure-counters, figure-n),
+        4, table-data, table-counters, table-n,
+      ),
+      4, formula-data, formula-counters, formula-n,
     )
     show heading.where(level: 5): it => caption-heading(
-      caption-heading(it, 5, figure-data, figure-counters, figure-n),
-      5, table-data, table-counters, table-n,
+      caption-heading(
+        caption-heading(it, 5, figure-data, figure-counters, figure-n),
+        5, table-data, table-counters, table-n,
+      ),
+      5, formula-data, formula-counters, formula-n,
     )
     show heading.where(level: 6): it => caption-heading(
-      caption-heading(it, 6, figure-data, figure-counters, figure-n),
-      6, table-data, table-counters, table-n,
+      caption-heading(
+        caption-heading(it, 6, figure-data, figure-counters, figure-n),
+        6, table-data, table-counters, table-n,
+      ),
+      6, formula-data, formula-counters, formula-n,
     )
     body
   }
@@ -1632,14 +1910,6 @@
       }
     }
     show outline.entry: it => outline-entry(config, it)
-    show math.equation.where(block: true): it => {
-      let equation = if config.equation.body_indent != 0 {
-        pad(left: config.equation.body_indent * 1mm, it)
-      } else {
-        it
-      }
-      text-override-body(equation, config.equation.text_override)
-    }
     show math.equation.where(block: false): it => text-override-body(
       it, config.equation.text_override,
     )

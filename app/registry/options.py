@@ -829,8 +829,8 @@ def _structural_options() -> list[Option]:
             "heading",
             "Что сопоставлять",
             0,
-            enum=("heading",),
-            enum_labels=(("heading", "Заголовок"),),
+            enum=("heading", "paragraph"),
+            enum_labels=(("heading", "Заголовок"), ("paragraph", "Абзац")),
         ),
         schema_field(
             "level",
@@ -838,6 +838,7 @@ def _structural_options() -> list[Option]:
             "any",
             "Уровень заголовка",
             1,
+            enabled_when={"key": "target", "values": ["heading"]},
             enum=("any", "1", "2", "3", "4", "5", "6"),
             enum_labels=(
                 ("any", "Любой"),
@@ -855,10 +856,11 @@ def _structural_options() -> list[Option]:
             "equals",
             "Способ сравнения",
             2,
-            enum=("equals", "contains", "regex"),
+            enum=("equals", "contains", "starts_with", "regex"),
             enum_labels=(
                 ("equals", "Совпадает"),
                 ("contains", "Содержит"),
+                ("starts_with", "Начинается с"),
                 ("regex", "Регулярное выражение"),
             ),
         ),
@@ -1331,8 +1333,15 @@ def _caption_options(
     default_align: str,
     source: str,
     start_order: int,
+    test_prefix: str | None = None,
+    schema_test_id: str = "test_caption_options_schema",
+    generation_test_id: str = "test_caption_generation_typst",
 ) -> list[Option]:
-    """Опции подписи рисунка или таблицы по одной схеме (AGENTS 5.3)."""
+    """Опции подписи рисунка, таблицы или формулы по одной схеме (AGENTS 5.3)."""
+    element_label = {"figure": "рисунка", "table": "таблицы", "equation": "формулы"}.get(
+        kind, "элемента"
+    )
+    test_name = test_prefix or kind
     around_fields = _around_item_fields()
     around_variants = (
         ("blank", ("count", "line_spacing")),
@@ -1365,7 +1374,7 @@ def _caption_options(
                 item_fields=around_fields,
                 item_variants=around_variants,
                 source=source,
-                test_ids=(f"test_{kind}_caption_around_render",),
+                test_ids=(f"test_{test_name}_caption_around_render",),
             ),
             _nested_option(
                 "after",
@@ -1379,7 +1388,7 @@ def _caption_options(
                 item_fields=around_fields,
                 item_variants=around_variants,
                 source=source,
-                test_ids=(f"test_{kind}_caption_around_render",),
+                test_ids=(f"test_{test_name}_caption_around_render",),
             ),
         ),
         rationale=(
@@ -1387,7 +1396,7 @@ def _caption_options(
             "линию или разрыв страницы; пустой список ничего не меняет."
         ),
         source=source,
-        test_ids=(f"test_{kind}_caption_around_render",),
+        test_ids=(f"test_{test_name}_caption_around_render",),
         legacy=False,
     )
     text_override_object = _option(
@@ -1403,10 +1412,10 @@ def _caption_options(
         fields=text_override_field.fields,
         rationale=(
             "Переопределяет шрифт, кегль, начертание и другие свойства только "
-            "для текста подписи, не затрагивая сам рисунок или таблицу."
+            "для текста подписи, не затрагивая сам элемент."
         ),
         source=source,
-        test_ids=(f"test_{kind}_caption_text_override_render",),
+        test_ids=(f"test_{test_name}_caption_text_override_render",),
         legacy=False,
     )
     return [
@@ -1421,16 +1430,16 @@ def _caption_options(
             order=start_order,
             nullable=True,
             rationale=(
-                f"Задаёт шаблон подписи {'рисунка' if kind == 'figure' else 'таблицы'}: "
-                "{h1}…{h6} — номер раздела или буква приложения, {n} — номер "
-                "внутри раздела, {content} — текст подписи. Пустой шаблон "
-                "оставляет подпись без автоматического номера."
+                f"Задаёт шаблон подписи {element_label}: {{h1}}…{{h6}} — номер "
+                "раздела или буква приложения, {n} — номер внутри раздела, "
+                "{content} — текст подписи. Пустой шаблон оставляет подпись "
+                "без автоматического номера."
             ),
             source=source,
             test_ids=(
-                f"test_{kind}_caption_render",
-                "test_caption_options_schema",
-                "test_caption_generation_typst",
+                f"test_{test_name}_caption_render",
+                schema_test_id,
+                generation_test_id,
             ),
             legacy=False,
         ),
@@ -1446,11 +1455,11 @@ def _caption_options(
             enum=("above", "below"),
             enum_labels=(("above", "Над элементом"), ("below", "Под элементом")),
             rationale=(
-                f"Определяет, где стоит подпись {'рисунка' if kind == 'figure' else 'таблицы'}: "
-                "СТУ требует подпись таблицы над таблицей, подпись рисунка — под рисунком."
+                f"Определяет, где стоит подпись {element_label}: над или под "
+                "элементом; для таблиц и рисунков значение задаёт СТУ."
             ),
             source=source,
-            test_ids=(f"test_{kind}_caption_position_render",),
+            test_ids=(f"test_{test_name}_caption_position_render",),
             legacy=False,
         ),
         _option(
@@ -1465,11 +1474,11 @@ def _caption_options(
             enum=("left", "center", "right"),
             enum_labels=(("left", "Слева"), ("center", "По центру"), ("right", "Справа")),
             rationale=(
-                f"Задаёт выравнивание подписи {'рисунка' if kind == 'figure' else 'таблицы'} "
-                "без изменения выравнивания самого элемента."
+                f"Задаёт выравнивание подписи {element_label} без изменения "
+                "выравнивания самого элемента."
             ),
             source=source,
-            test_ids=(f"test_{kind}_caption_align_render",),
+            test_ids=(f"test_{test_name}_caption_align_render",),
             legacy=False,
         ),
         _option(
@@ -1486,7 +1495,7 @@ def _caption_options(
                 "{content}; СТУ использует тире с пробелами."
             ),
             source=source,
-            test_ids=(f"test_{kind}_caption_separator_render",),
+            test_ids=(f"test_{test_name}_caption_separator_render",),
             legacy=False,
         ),
         around_object,
@@ -2888,6 +2897,68 @@ def _base_options() -> list[Option]:
             start_order=o(opts),
         ),
         _option(
+            "equation.align",
+            "equation",
+            ("equation",),
+            "select",
+            "auto",
+            ("equation", "align"),
+            "Выравнивание формулы",
+            order=o(opts),
+            enum=tuple(v for v, _ in SELECT_LABELS["align"]),
+            rationale=(
+                "Задаёт выравнивание блочной формулы: auto сохраняет "
+                "центрирование Typst, left соответствует СТУ 7.6.1."
+            ),
+            source="СТУ 7.6.1; plan_v2 formula.body; G5",
+            test_ids=("test_g5_equation_align_render",),
+            legacy=False,
+        ),
+        _option(
+            "equation.numbering_enabled",
+            "equation",
+            ("equation",),
+            "boolean",
+            False,
+            ("equation", "numbering_enabled"),
+            "Нумеровать формулы",
+            order=o(opts),
+            rationale=(
+                "Включает автоматическую нумерацию выключенных формул; "
+                "по умолчанию выключено, чтобы не менять существующие документы."
+            ),
+            source="СТУ 7.6; plan_v2 formula.section_numbering; G5",
+            test_ids=(
+                "test_g5_equation_numbering_global_render",
+                "test_g5_equation_numbering_section_render",
+                "test_g5_equation_numbering_appendix_render",
+                "test_g5_equation_numbering_disabled_render",
+                "test_g5_equation_number_right_render",
+            ),
+            legacy=False,
+        ),
+        _option(
+            "equation.numbering_template",
+            "equation",
+            ("equation",),
+            "string",
+            "({n})",
+            ("equation", "numbering_template"),
+            "Шаблон номера формулы",
+            order=o(opts),
+            rationale=(
+                "Задаёт вид номера формулы: {n} — номер, {h1}…{h6} — раздел "
+                "или буква приложения; по умолчанию номер в круглых скобках."
+            ),
+            source="СТУ 7.6; plan_v2 formula.section_numbering, formula.appendix_numbering; G5",
+            test_ids=(
+                "test_g5_equation_numbering_section_render",
+                "test_g5_equation_numbering_appendix_render",
+                "test_g5_equation_number_right_render",
+            ),
+            legacy=False,
+        ),
+        _option(
             "equation.body_indent",
             "equation",
             ("equation",),
@@ -2908,6 +2979,16 @@ def _base_options() -> list[Option]:
             source="СТУ 7.6.1; plan_v2 formula.body_indent",
             test_ids=("test_equation_body_indent_options", "test_equation_body_indent_render"),
             legacy=False,
+        ),
+        *_caption_options(
+            "equation",
+            default_position="below",
+            default_align="center",
+            source="СТУ 7.6; plan_v2 formula.*; AGENTS 5.3",
+            start_order=o(opts),
+            test_prefix="g5_equation",
+            schema_test_id="test_g5_formula_options_schema",
+            generation_test_id="test_g5_formula_generation_typst",
         ),
         _option(
             "quote.indent",

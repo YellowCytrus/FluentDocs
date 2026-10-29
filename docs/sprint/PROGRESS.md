@@ -18,7 +18,7 @@
 | G3a — структурные сущности, приложения, оглавление | выполнен, принят владельцем | этот файл |
 | G3b — подписи и нумерация рисунков/таблиц | выполнен, принят владельцем | этот файл |
 | G4 — таблицы и оглавление | выполнен, ждёт приёмки | этот файл |
-| G5 — формулы и подпись формулы | не начат | — |
+| G5 — формулы и подпись формулы | выполнен, ждёт приёмки | этот файл |
 | G6 — профиль СТУ СФУ и самопроверка | не начат | — |
 
 ## G0 — чек-лист
@@ -554,7 +554,7 @@ B-01…B-06 и B-08 отмечены решёнными в `BLOCKERS.md`. B-07 �
 | `figure.image` | `figure.width/height/fit` | существующие | было |
 | `figure.placement_after_reference` | `figure.placement` | существующие | покрыто (авторский порядок) |
 | `formula.spacing_before/after` | `equation.spacing_*` | `test_element_spacing_*` | реализовано |
-| `formula.explanation` («где…») | — | — | отложено владельцем (формулы) |
+| `formula.explanation` («где…») | `structural.entities` target `paragraph`, mode `starts_with` | `test_g5_formula_explanation_paragraph_render` | реализовано в G5 |
 | `formula.body_indent` | `equation.body_indent` | `test_equation_body_indent_*` | реализовано |
 | `bibliography.entry` | `structural.entities` (заголовок списка) | `test_bibliography_heading_entity` | G3a, через сопоставитель |
 | `table.caption` | — | — | отложено G3 |
@@ -593,8 +593,8 @@ baseline — текущие значения, возврат к `4e6a8c0` не �
 В G2c не реализовывались правила, требующие нового синтаксиса Markdown:
 `figure.placement_after_reference` в части «после первой ссылки» (авторский
 порядок), `formula.explanation` («где…») и любые fenced-div/атрибуты.
-Формулы, реферат и «где…» отложены владельцем (AGENTS 2.11); fenced-div
-остаются вне спринта.
+Формулы, реферат и «где…» были отложены владельцем на G2c; `formula.explanation`
+реализован в G5 через цель `paragraph`. Fenced-div остаются вне спринта.
 
 ## G2c-fix — чек-лист
 
@@ -608,7 +608,7 @@ baseline — текущие значения, возврат к `4e6a8c0` не �
 | PDF «до/после» 16 golden-документов (`4e6a8c0` → текущий) | ✔ расхождения ниже | `pdfplumber` |
 | 28 spacing-интервалов: сдвиг = ожидаемому ±0,5 pt | ✔ 28/28 | `test_element_spacing_render` |
 | `list.item`: фактический перенос строки пункта | ✔ измерен `body_indent` | `test_list_item_wrapped_line_indent` |
-| `formula.explanation`, `referat.*`, `bibliography.entry` в `PROGRESS.md` | ✔ по решениям владельца | таблица G2c |
+| `formula.explanation`, `referat.*`, `bibliography.entry` в `PROGRESS.md` | ✔ на G2c отложено; `formula.explanation` реализован в G5 | таблица G2c, G5 |
 | UI-названия столкновений | ✔ четыре политики из AGENTS 5.1 | `COLLISION_POLICY_LABELS` |
 | `terms.spacing_before` применяется один раз | ✔ обёртка `block` вместо `set block` | `app/typst/fd.typ` |
 | `git diff fd.typ` | ✔ приложен к отчёту | — |
@@ -934,3 +934,77 @@ B-10c (`number_align`, все 4 значения и маркер в поле), B
 223 deselected; integration 222 passed / 1 skipped / 141 deselected; frontend
 17 passed; build, vue-tsc и ruff — OK; golden 33 passed. CI run `40880102560`:
 test 141 passed, integration 223 passed, frontend 17 passed, build и lint OK.
+
+
+## G5 — формулы и подпись формулы
+
+Коммиты: см. отчёт на воротах G5.
+
+| Пункт | Статус | Где |
+|---|---|---|
+| Подпись формулы строкой `: Текст` после `$$…$$` | ✔ перехват `terms.item` с `math.equation`; обычные definition lists не ломаются | `test_g5_equation_caption_render`, `test_g5_definition_list_not_broken` |
+| Шаблон подписи формулы | ✔ `equation.caption_template`, `{n}` — готовый номер, `{h1}`…`{h6}`, `{content}` | `test_g5_equation_caption_render`, `test_g5_equation_caption_section_placeholders_render` |
+| Положение подписи | ✔ `equation.caption_position`: above/below | `test_g5_equation_caption_position_render` |
+| Выравнивание подписи | ✔ `equation.caption_align`: left/center/right | `test_g5_equation_caption_align_render` |
+| Разделитель подписи | ✔ `equation.caption_separator` | `test_g5_equation_caption_separator_render` |
+| `caption_text_override` | ✔ только текст подписи | `test_g5_equation_caption_text_override_render` |
+| `caption_around` | ✔ text/blank/line/pagebreak, pagebreak вынесен за блок | `test_g5_equation_caption_around_render` |
+| Нумерация формул | ✔ `equation.numbering_enabled`, `equation.numbering_template` | `test_g5_equation_numbering_global_render`, `test_g5_equation_numbering_section_render` |
+| Сброс по главам | ✔ `{h1}` в шаблоне, отдельные `formula-h*`/`formula-n` | `test_g5_equation_numbering_section_render` |
+| Сброс по приложению | ✔ `(А.1)`, буква приложения | `test_g5_equation_numbering_appendix_render` |
+| Поведение без номера | ✔ `numbering_enabled = false` по умолчанию | `test_g5_equation_numbering_disabled_render` |
+| Номер справа | ✔ grid с номером у правого поля | `test_g5_equation_number_right_render` |
+| Выравнивание формулы | ✔ `equation.align`: auto/left/center/right | `test_g5_equation_align_render` |
+| `body_indent`, `spacing_*`, `text_override` | ✔ сохранены | `test_equation_body_indent_*`, `test_element_spacing_*` |
+| «где…» | ✔ структурная сущность `paragraph` + `starts_with`, без нового Markdown | `test_g5_formula_explanation_paragraph_render` |
+| Автоперенос длинных формул | ⏸ отложено: нужен анализ формулы; остаётся ручной разрыв `\` | — |
+| Ссылки/метки формул | ⏸ отложено: нужен новый синтаксис Markdown | — |
+| Новый синтаксис Markdown | ✔ только разрешённое `: Текст` после формулы | — |
+| Golden | ✔ 16 снимков: только новые ключи `equation.*` в конфиге | `tests/fixtures/golden/` |
+| G6 не начат | ✔ | — |
+
+### G5: измерения
+
+| Правило | Тест | Измерение |
+|---|---|---|
+| Подпись формулы | `test_g5_equation_caption_render` | «Формула (1) — Подпись формулы»; формула `E = mc²` без второго номера |
+| Плейсхолдеры подписи | `test_g5_equation_caption_section_placeholders_render` | «Глава 1, формула (1.1) — Подпись»: `{h1}` и готовый `{n}` |
+| Definition list | `test_g5_definition_list_not_broken` | «Термин» и «Определение термина» остаются списком определений |
+| Нумерация по главам | `test_g5_equation_numbering_section_render` | `(1.1)` и `(2.1)` |
+| Глобальная нумерация | `test_g5_equation_numbering_global_render` | `(1)` и `(2)`, без сброса по главам |
+| Приложение | `test_g5_equation_numbering_appendix_render` | `(А.1)` |
+| Номер справа | `test_g5_equation_number_right_render` | правый край номера совпадает с правым полем (допуск 2 pt) |
+| Выравнивание формулы | `test_g5_equation_align_render` | left/center/right меняют x0/x1 формулы |
+| Положение подписи | `test_g5_equation_caption_position_render` | top подписи выше/ниже формулы |
+| Выравнивание подписи | `test_g5_equation_caption_align_render` | x0 растёт left < center < right |
+| Стиль подписи | `test_g5_equation_caption_text_override_render` | кегль подписи 8 pt |
+| «где…» | `test_g5_formula_explanation_paragraph_render` | абзац начинается у левого поля; кегль 8 pt; глобальный first-line-indent 12,5 мм не применяется |
+
+### G5: проверки
+
+| Команда | Результат |
+|---|---|
+| Локально `uv run pytest tests/ -m "not integration" -q -rs` (без Postgres) | 79 passed, 66 skipped, 241 deselected |
+| Локально `uv run pytest tests/ -m integration -q -rs` (без Postgres) | 240 passed, 1 skipped, 145 deselected |
+| `cd frontend && npm test -- --run` | 17 passed (4 files) |
+| `cd frontend && npm run build` | OK |
+| `cd frontend && npx vue-tsc --noEmit` | exit 0 |
+| `uvx ruff check app tests scripts` | All checks passed |
+| `uvx ruff format --check app tests scripts` | 107 files already formatted |
+| `UPDATE_GOLDEN=1 uv run pytest tests/test_typst_golden.py -m integration` | 33 passed |
+
+CI-прогон будет добавлен после пуша.
+
+### G5: golden
+
+16 снимков получили только новые ключи `equation.*` в блоке конфига:
+`align`, `numbering_enabled`, `numbering_template`, `caption_template`,
+`caption_position`, `caption_align`, `caption_separator`,
+`caption_text_override`, `caption_around`. Тела документов не изменились.
+
+### G5: отложено
+
+- `formula.line_continuation` — автоматический перенос по знаку операции не
+  реализован; остаётся ручной разрыв `\`. Помощник `fd.eq-break` не добавлялся.
+- `formula.cross_reference` — ссылки/метки формул требуют нового синтаксиса
+  Markdown, поэтому отложены.

@@ -779,3 +779,64 @@ Typst (`1)`, `1.`). Если элементов меньше глубины сп
 `test_g4_toc_numbering_start_and_skip_render`,
 `test_g4_toc_grouping_numbering_start_and_skip_render`,
 `test_g4_toc_appendix_group_minimum_render`.
+
+## G5: формулы и подпись формулы
+
+### Опции формулы
+
+| Опция | Тип | Дефолт | Смысл |
+|---|---|---|---|
+| `equation.align` | select | `auto` | `auto` сохраняет центрирование Typst; `left`/`center`/`right` задают выравнивание формулы |
+| `equation.numbering_enabled` | boolean | `false` | Включает автоматическую нумерацию формул |
+| `equation.numbering_template` | string | `"({n})"` | Шаблон номера: `{n}`, `{h1}`…`{h6}` |
+| `equation.caption_template` | string/null | `null` | Шаблон подписи формулы: `{n}`, `{h1}`…`{h6}`, `{content}` |
+| `equation.caption_position` | select | `below` | `above` / `below` |
+| `equation.caption_align` | select | `center` | `left` / `center` / `right` |
+| `equation.caption_separator` | string | `" — "` | Разделитель перед текстом, если в шаблоне нет `{content}` |
+| `equation.caption_text_override` | object/null | `null` | Шрифт, кегль и начертание только подписи |
+| `equation.caption_around` | object | `{before: [], after: []}` | Вставки до/после подписи |
+
+`equation.body_indent`, `equation.spacing_before/after` и
+`equation.text_override` остаются прежними. Нумерация по умолчанию выключена,
+чтобы существующие документы не менялись; для профиля СТУ G6 включает её и
+задаёт шаблон `({h1}.{n})`.
+
+### Подпись и нумерация
+
+Pandoc 3.9 превращает `$$…$$` + строку `: Текст` в `terms.item`, где `term` —
+`math.equation`. `fd` перехватывает только такие `terms.item`; обычные
+definition lists возвращаются без изменений. Терм рендерится как встроенная
+формула (`block: false`), чтобы блок-формула не получила второй номер.
+
+Формула с подписью нумеруется отдельным счётчиком `formula-n`, главы —
+`formula-h1…h6`. Номер выводится справа (grid `1fr + auto`), подпись — по
+`caption_position`/`caption_align`; `caption_around` и `caption_text_override`
+работают так же, как у таблиц и рисунков. Шаблон номера и шаблон подписи
+понимают `{n}`, `{h1}`…`{h6}`, подпись — ещё `{content}`; в подписи `{n}` —
+уже готовый номер по `numbering_template`, включая скобки и раздел. Сброс формул по
+главам выполняется, когда шаблон номера содержит `{hN}`; в приложении
+используется буква приложения, например `(А.1)`.
+
+Формула без подписи — обычный block `math.equation`; при включённой нумерации
+номер выводится справа, при выключенной вывод остаётся прежним. Формулы в
+`terms.item` не проходят через block-обработчик, поэтому двойной нумерации нет.
+
+### «где…»
+
+`structural.entities` расширены целью `paragraph` и режимом `starts_with`.
+Правило применяется к абзацу по началу текста, без нового синтаксиса Markdown:
+align, case, bold, text_override и around; отступ первой строки у такого
+абзаца сбрасывается в 0. Тест —
+`test_g5_formula_explanation_paragraph_render`.
+
+### Тесты и отложенное
+
+Тесты: `tests/test_g5_formulas.py` — схема, генерация, подпись, обычные
+definition lists, нумерация global/section/appendix/disabled, номер справа,
+выравнивание, позиция/выравнивание/разделитель/стиль/окружение подписи,
+объяснение «где…».
+
+`formula.line_continuation` отложен: автоматический перенос по знаку операции
+не реализован, остаётся ручной разрыв `\`; `fd.eq-break` не добавлялся.
+`formula.cross_reference` отложен: ссылки/метки формул требуют нового
+синтаксиса Markdown.
