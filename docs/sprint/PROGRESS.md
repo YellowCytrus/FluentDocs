@@ -859,6 +859,7 @@ B-10c (`number_align`, все 4 значения и маркер в поле), B
 | Метки продолжения/окончания таблицы | ✔ `continuation_label`, шаблоны `{n}`; метки в колонтитуле | `test_g4_table_continuation_label_render` |
 | Глубина и отступы оглавления | ✔ не переделывались, приняты в G3a | `test_outline_indent_render` |
 | Регистр записей оглавления | ✔ `outline.entry_case`: none/upper/lower/first_upper; strong/emph сохраняются | `test_g4_toc_entry_case_render`, `test_g4_toc_entry_case_formatted_render` |
+| Номера страниц TOC при `numbering_start`/`skip_first` | ✔ своя запись заголовка, `page-number` принимает total необязательно | `test_g4_toc_numbering_start_and_skip_render`, `test_g4_toc_grouping_numbering_start_and_skip_render` |
 | Заполнитель-отточие | ✔ фиксированные точки; по OWNER_DECISIONS 9 не настраивается | `test_g4_toc_fill_render` |
 | Авто-пропуск при страницах ≤ N | ✔ `outline.omit_when_pages_lte`, 0 — выключено | `test_g4_toc_skip_render` |
 | Группировка приложений | ✔ `appendix_grouping` по умолчанию `true`; структурный kind, bold и пользовательский шаблон; подзаголовки скрываются | `test_g4_toc_appendix_grouping_render`, `test_g4_toc_appendix_grouping_default_on_render`, `test_g4_toc_appendix_grouping_bold_render`, `test_g4_toc_appendix_grouping_custom_template_render` |
@@ -882,6 +883,7 @@ B-10c (`number_align`, все 4 значения и маркер в поле), B
 | Пропуск оглавления | `test_g4_toc_skip_render` | при 3 страницах порог 3 скрывает, порог 2 показывает |
 | Группировка приложений | `test_g4_toc_appendix_grouping_render`, `*_default_on_render`, `*_bold_render`, `*_custom_template_render` | по умолчанию «Приложения А–В»; работает при bold и шаблоне «Дополнение…»; диапазон 2–4 |
 | Номера страниц TOC | `test_g4_toc_roman_page_numbers_render`, `test_g4_toc_appendix_grouping_roman_pages_render` | при `page.numbering="I"` запись показывает `II`, диапазон `II–IV` |
+| TOC с `numbering_start`/`skip_first` | `test_g4_toc_numbering_start_and_skip_render`, `test_g4_toc_grouping_numbering_start_and_skip_render` | `numbering_start=5` → `6`, диапазон `6–8`; `skip_first` → `2`, диапазон `2–4`; для `entry_case` none и upper |
 | Минимум группы | `test_g4_toc_appendix_group_minimum_render` | два приложения при минимуме 3 остаются отдельными записями |
 
 ### G4: проверки
@@ -892,8 +894,8 @@ B-10c (`number_align`, все 4 значения и маркер в поле), B
 | Команда | Результат |
 |---|---|
 | **CI, GitHub Actions** | `test`: 141 passed, 215 deselected; `integration`: 215 passed, 141 deselected; `Frontend tests`: 17 passed; `Frontend build`: OK — run `40878493785` |
-| Локально `uv run pytest tests/ -m "not integration" -q -rs` (без Postgres) | 75 passed, 66 skipped, 215 deselected |
-| Локально `uv run pytest tests/ -m integration -q -rs` (без Postgres) | 214 passed, 1 skipped, 141 deselected |
+| Локально `uv run pytest tests/ -m "not integration" -q -rs` (без Postgres) | 75 passed, 66 skipped, 223 deselected |
+| Локально `uv run pytest tests/ -m integration -q -rs` (без Postgres) | 222 passed, 1 skipped, 141 deselected |
 | `cd frontend && npm test -- --run` | 17 passed (4 files) |
 | `cd frontend && npm run build` | OK |
 | `cd frontend && npx vue-tsc --noEmit` | exit 0 |
@@ -924,10 +926,10 @@ B-10c (`number_align`, все 4 значения и маркер в поле), B
 | Группировка ломается при `appendix.bold=true` | в заголовок приложения добавляется `metadata` с `fd-appendix-kind`/letter; группировка не зависит от текста и bold | `test_g4_toc_appendix_grouping_bold_render` |
 | Пользовательский `appendix.template` не группируется | группировка использует структурные метаданные, а не текст «Приложение» | `test_g4_toc_appendix_grouping_custom_template_render` |
 | TOC показывает `2` вместо `II` | `outline-page` использует `page.numbering`; `page-number` передаёт total только для шаблона с `/` | `test_g4_toc_roman_page_numbers_render`, `test_g4_toc_appendix_grouping_roman_pages_render` |
+| TOC не компилируется при `numbering_start`/`skip_first` | `page-number` принимает total через rest-аргумент; запись заголовка всегда строится своя, включая `entry_case=none` | `test_g4_toc_numbering_start_and_skip_render`, `test_g4_toc_grouping_numbering_start_and_skip_render` |
 | Регистр не работает для `**...**`/`*...*` | `content-text` и рекурсивный `outline-first-upper` сохраняют strong/emph | `test_g4_toc_entry_case_formatted_render` |
 | `border_inside_horizontal=false` оставляет линию под шапкой | hline удаляются из children таблицы, а не только скрываются show-правилом | `test_g4_table_borders_render` (ровно 2 горизонтали) |
 
 Локальные проверки после исправлений: non-integration 75 passed / 66 skipped /
-215 deselected; integration 214 passed / 1 skipped / 141 deselected; frontend
-17 passed; build, vue-tsc и ruff — OK; golden 33 passed. CI run `40878493785`:
-test 141 passed, integration 215 passed, frontend 17 passed, build и lint OK.
+223 deselected; integration 222 passed / 1 skipped / 141 deselected; frontend
+17 passed; build, vue-tsc и ruff — OK; golden 33 passed.

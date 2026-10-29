@@ -754,6 +754,11 @@ Typst (`1)`, `1.`). Если элементов меньше глубины сп
 заголовков. Номер страницы записи форматируется тем же `page.numbering`
 (`outline-page` → `page-number`), поэтому при `page.numbering = "I"` запись
 показывает `II`, а не `2`; total передаётся только для шаблона с `/`.
+Запись заголовка всегда строится своя, в том числе при `entry_case = none`:
+стандартная запись Typst не учитывает `numbering_start`/`numbering_skip_first`.
+`page-number` принимает total необязательным rest-аргументом, потому что
+стандартная запись Typst вызывает функцию номера страницы только с текущим
+номером.
 Группировка использует `metadata` в заголовке приложения
 (`fd-appendix-kind`, `fd-appendix-letter`) и подзаголовка, а не текст
 «Приложение…». Поэтому она работает при `appendix.bold = true` и при
@@ -771,4 +776,6 @@ Typst (`1)`, `1.`). Если элементов меньше глубины сп
 `test_g4_toc_appendix_grouping_custom_template_render`,
 `test_g4_toc_appendix_grouping_roman_pages_render`,
 `test_g4_toc_roman_page_numbers_render`,
+`test_g4_toc_numbering_start_and_skip_render`,
+`test_g4_toc_grouping_numbering_start_and_skip_render`,
 `test_g4_toc_appendix_group_minimum_render`.

@@ -96,7 +96,10 @@
 
   // Нумерация страниц: пропуск первой и сдвиг начального номера.
   // Два аргумента нужны Typst для видимого номера (текущий и всего).
-  let page-number(pattern, skip, start, n, total) = {
+  // total необязателен: стандартная запись Typst вызывает функцию номера
+  // страницы только с текущим номером, без общего числа страниц.
+  let page-number(pattern, skip, start, n, ..rest) = {
+    let total = if rest.pos().len() > 0 { rest.pos().at(0) } else { n }
     if skip and n == 1 {
       none
     } else if pattern.contains("/") {
@@ -1482,19 +1485,21 @@
     let meta = appendix-meta(it.element.body)
     let is-appendix = meta != none
     let normal-entry = {
-      if config.outline.entry_case == "none" or is-appendix {
-        default-entry
+      // Своя запись нужна и при entry_case = none: стандартная запись Typst
+      // не учитывает numbering_start/skip_first в номере страницы.
+      let body = if config.outline.entry_case == "none" or is-appendix {
+        it.body()
       } else {
-        let body = outline-case(it.body(), config.outline.entry_case)
-        let page = outline-page(config, it.element.location())
-        link(
-          it.element.location(),
-          it.indented(
-            it.prefix(),
-            [#body #box(width: 1fr, repeat[.]) #page],
-          ),
-        )
+        outline-case(it.body(), config.outline.entry_case)
       }
+      let page = outline-page(config, it.element.location())
+      link(
+        it.element.location(),
+        it.indented(
+          it.prefix(),
+          [#body #box(width: 1fr, repeat[.]) #page],
+        ),
+      )
     }
 
     if not config.outline.appendix_grouping {

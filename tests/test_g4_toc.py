@@ -383,6 +383,82 @@ def test_g4_toc_appendix_grouping_roman_pages_render(tmp_path: Path) -> None:
     shutil.which("pandoc") is None or shutil.which("typst") is None,
     reason="pandoc and typst must be in PATH",
 )
+@pytest.mark.parametrize(
+    ("page_changes", "expected_page"),
+    [
+        ({"numbering_start": 5}, "6"),
+        ({"numbering_skip_first": True}, "2"),
+    ],
+)
+@pytest.mark.parametrize("entry_case", ["none", "upper"])
+def test_g4_toc_numbering_start_and_skip_render(
+    tmp_path: Path,
+    page_changes: dict[str, object],
+    expected_page: str,
+    entry_case: str,
+) -> None:
+    path = _compile(
+        _outline_markdown("# ВВЕДЕНИЕ\n\nТекст.\n"),
+        _profile(
+            page=page_changes,
+            outline={"entry_case": entry_case},
+        ),
+        tmp_path,
+        f"page-number-{expected_page}-{entry_case}",
+    )
+    with pdfplumber.open(path) as pdf:
+        line = next(
+            line for line in pdf.pages[0].extract_text_lines() if "ВВЕДЕНИЕ" in line["text"]
+        )
+    assert expected_page in line["text"]
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    shutil.which("pandoc") is None or shutil.which("typst") is None,
+    reason="pandoc and typst must be in PATH",
+)
+@pytest.mark.parametrize(
+    ("page_changes", "expected_range"),
+    [
+        ({"numbering_start": 5}, "6–8"),
+        ({"numbering_skip_first": True}, "2–4"),
+    ],
+)
+@pytest.mark.parametrize("entry_case", ["none", "upper"])
+def test_g4_toc_grouping_numbering_start_and_skip_render(
+    tmp_path: Path,
+    page_changes: dict[str, object],
+    expected_range: str,
+    entry_case: str,
+) -> None:
+    body = (
+        "# Приложение А\n\nТекст.\n\n"
+        "```{=typst}\n#pagebreak()\n```\n\n"
+        "# Приложение Б\n\nТекст.\n\n"
+        "```{=typst}\n#pagebreak()\n```\n\n"
+        "# Приложение В\n\nТекст.\n"
+    )
+    path = _compile(
+        _outline_markdown(body),
+        _profile(
+            [APPENDIX_ENTITY],
+            page=page_changes,
+            outline={"appendix_grouping": True, "entry_case": entry_case},
+        ),
+        tmp_path,
+        f"group-page-{expected_range}-{entry_case}",
+    )
+    text = _first_page_text(path)
+    assert "Приложения А–В" in text
+    assert expected_range in text
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    shutil.which("pandoc") is None or shutil.which("typst") is None,
+    reason="pandoc and typst must be in PATH",
+)
 def test_g4_toc_appendix_group_minimum_render(tmp_path: Path) -> None:
     body = "# Приложение А\n\nТекст.\n\n# Приложение Б\n\nТекст.\n"
     path = _compile(
