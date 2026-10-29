@@ -1,0 +1,24 @@
+{
+  "before": "/tmp/opencode/pdfcmp/before",
+  "after": "/tmp/opencode/pdfcmp/after",
+  "files": {
+    "collision/output.pdf": {
+      "pages_before": 2,
+      "pages_after": 2,
+      "different": true,
+      "changes": [
+        "стр. 1: текст отличается",
+        "стр. 1: строк 31 → 29",
+        "стр. 2: текст отличается",
+        "стр. 2: строк 18 → 20"
+      ]
+    },
+    "s12.pdf": {
+      "pages_before": 36,
+      "pages_after": 36,
+      "different": false,
+      "changes": []
+    }
+  },
+  "missing": []
+}

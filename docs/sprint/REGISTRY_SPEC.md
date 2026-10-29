@@ -101,7 +101,7 @@ path — адрес значения в JSONB. Например, `heading.h1.bre
       "after": [
         {"type": "blank", "count": 1, "line_spacing": {"mode": "multiplier", "value": 1.0}}
       ],
-      "collapse": "max"
+      "before_collisions": [{"previous": "any", "policy": "keep_both"}]
     }
   }
 }
@@ -115,12 +115,12 @@ path — адрес значения в JSONB. Например, `heading.h1.bre
   `null` / `True` / `False`.
 - `text_override` для элемента либо `null`, либо объект со всеми 13 полями.
   Неполный объект при `PUT` дополняется дефолтами.
-- `outline.indent_mode` — `auto` / `none` / `custom`, `outline.indent_mm` — мм.
-  В режиме `auto` `indent` в `#set outline(...)` не передаётся, `none` даёт
-  `0mm`, `custom` — `indent_mm`. Произвольные строки в этих полях отвергаются.
-  Старая колонка `outline_styles.indent` и старый JSONB-ключ `outline.indent`
-  миграцией `b1c2d3e4f5a6` переводятся в `indent_mode`/`indent_mm`; колонка
-  остаётся в БД, но генератором не читается.
+- `outline.indent_mode` — `step` / `per_level`; `outline.indent_mm` — шаг в мм
+  для `step`, `outline.indent_per_level` — список `{mm}` по уровням для
+  `per_level`. Заполнитель (`fill`) не настраивается: всегда штатный Typst.
+  Индекс уровня в Typst 0-based: `indent = level * step`, для `per_level` —
+  `levels.at(level)`. Старые `auto`/`none`/`custom` при чтении старой таблицы
+  переводятся в `step`, колонка `outline_styles.indent` не читается.
 - `around.<target>.before/after` — список объектов-вставок. Обязательное поле
   `type` (`blank`, `text`, `line`, `pagebreak`); набор остальных полей зависит
   от типа. Неизвестный `type`, лишний ключ, отсутствующий обязательный ключ,
@@ -153,9 +153,10 @@ path — адрес значения в JSONB. Например, `heading.h1.bre
 объект по умолчанию отсутствует (`null`).
 
 `around` по умолчанию пуст для всех 15 целей: `before: []`, `after: []`,
-`collapse: "max"`. Пустые списки не создают вставок и не меняют вывод. В
-конфиге Typst всегда присутствует блок `around` (новый блок в golden-снимках),
-но `fd` возвращает элемент без изменений, если вставок нет.
+`before_collisions: []`. Пустые списки не создают вставок и не меняют вывод.
+Политика по умолчанию и fallback — `keep_both`. В конфиге Typst всегда
+присутствует блок `around` (новый блок в golden-снимках), но `fd` возвращает
+элемент без изменений, если вставок нет.
 
 ## Покрытие старых опций
 
@@ -312,48 +313,55 @@ Vue-кода под конкретное правило нет.
 Окружение доступно для 15 целей: `heading_1`…`heading_6`, `par`,
 `bullet_list`, `numbered_list`, `table`, `figure`, `equation`, `quote`, `raw`,
 `terms`. Для каждой цели три опции: `around.<target>.before`,
-`around.<target>.after`, `around.<target>.collapse` (45 опций).
+`around.<target>.after`, `around.<target>.before_collisions` (45 опций).
 
-Семантика `collapse`:
+`before_collisions` — список объектов `{previous, policy}`. `previous` — вид
+предыдущего элемента (`any`, `par`, `heading_1`…`heading_6`, `bullet_list`,
+`numbered_list`, `table`, `figure`, `equation`, `quote`, `raw`, `terms`).
+Правила проверяются по порядку, первое подходящее выигрывает; если ни одно не
+подошло — `keep_both`. Политика действует, только когда обе стороны непусты:
 
-| Значение | Пустая строка | Складывание |
-|---|---|---|
-| `max` | `v(..., weak: true)` | Вставка заменяет штатный интервал элемента; сверху страницы отступ исчезает |
-| `sum` | жёсткий `v(...)` | Вставка добавляется к штатному интервалу элемента |
+| Политика | Что остаётся |
+|---|---|
+| `keep_previous` | `after` предыдущего, `before` текущего отбрасывается |
+| `keep_current` | `before` текущего, `after` предыдущего отбрасывается |
+| `keep_both` | обе вставки, сначала предыдущая, затем текущая |
+| `drop_both` | ни одной |
 
-Режим `none` удалён (B-08). Старые значения `collapse: "none"` мигрируют в
-`collapse: "max"` с пустыми `before/after` при чтении JSONB. Вставка `blank`
-с `count: 0` — осознанный нулевой интервал: при `max` она заменяет штатный
-интервал нулём (`v(0, weak: true)`), при `sum` ничего не добавляет. `text`
-вставляет абзац с выравниванием и
-необязательным `text_override`; `line` рисует линию заданной длины и толщины;
-`pagebreak` вставляет `pagebreak(weak: ...)`.
+Старое поле `collapse` удалено; `max|sum` при чтении JSONB мигрируют в
+`before_collisions: [{previous: "any", policy: "keep_both"}]`. `blank` — жёсткий
+`v(count × step)`, поэтому `keep_both` складывает вставки. На верху страницы
+`blank` не создаёт зазор (проверка `here().position().y`), явный `pagebreak`
+сохраняется. Штатные интервалы `spacing_before/after` (G2c) независимы от
+вставок: `around` больше не заменяет их.
 
-Таблицы Pandoc приходят как `figure(kind: table)`, поэтому `around.table`
-применяется на уровне этой фигуры (иначе `pagebreak` попадал бы внутрь
-контейнера таблицы). `around.figure` применяется к остальным фигурам.
+Реализация — один проход по верхнеуровневым элементам тела (`body-units` в
+`fd.typ`): вид элемента определяется по функции/полям, предыдущий известен из
+соседнего элемента. Таблицы Pandoc приходят как `figure(kind: table)`, поэтому
+вид — `table`; остальные фигуры — `figure`. Заголовки в этом же проходе
+пересобираются один раз (см. G3a), поэтому `#outline()` не видит дублей.
 
-Измерения PDF (`tests/test_around_render.py`, `pdfplumber`, документ
-таблица → заголовок, `document.line_spacing = 5.08 мм`):
+Измерения PDF (`tests/test_around.py`, `pdfplumber`, документ таблица →
+заголовок, `document.line_spacing = 5.08 мм`, кегль 12 pt, шаг 22.30 pt):
 
-| Сценарий | Ожидание | Измерено |
-|---|---|---|
-| без `around` | штатный зазор | 19.52 pt |
-| `max`, по одной пустой строке с двух сторон | геометрия + один полный шаг (22.30 pt) | 20.21 pt |
-| `sum`, по одной строке с двух сторон | штатный + 2 × 22.30 pt | 64.11 pt |
-| `count: 0`, `max` | геометрия + 0 | −2.08 pt |
-| `count: 0`, `sum` | штатный зазор | 19.52 pt |
-| реальная пустая строка (абзац NBSP) | геометрия + один шаг | 20.21 pt |
-| верх страницы, `max`, 5 строк по 10 мм | отступ исчезает | 69.04 pt = без `around` |
-| верх страницы, `sum`, те же 5 строк | жёсткий сдвиг | 181.5 pt (проверяется > +50 pt) |
+| Сценарий | Зазор, pt |
+|---|---:|
+| без `around` | 19.52 |
+| вставка только с одной стороны | 41.81 |
+| `keep_previous` | 41.81 |
+| `keep_current` | 41.81 |
+| `keep_both` (default) | 64.11 |
+| `drop_both` | 19.52 |
+| верх страницы: `blank(5 × 10 мм)` | как без `around` |
 
-Геометрическое смещение строки таблицы `−2.08 pt` измеряется сценарием
-`count: 0, max` и вычитается в тестах. После калибровки `max` даёт ровно один
-полный шаг ±0.5 pt, `sum` — штатный зазор + два шага ±0.5 pt. Полный шаг для
-`document.line_spacing = 5.08 мм` и кегля 12 pt: `5.08 мм + (1.308 - 0.65)em =
-22.30 pt`. Абзац Markdown из одного неразрывного пробела трактуется в `fd` как
-такая же weak-пустая строка; поэтому реальная пустая строка и `blank(count=1)`
-при `max` дают одинаковый зазор.
+## G2c: принятые дефолтные интервалы
+
+Новые дефолты интервалов приняты владельцем 29.10.2026. PDF по умолчанию
+может отличаться от `4e6a8c0`; baseline — текущие значения, возврат не нужен.
+`tests/fixtures/baseline/g2c_geometry.json` фиксирует измеренную геометрию для
+всех 28 интервалов, включая `raw`, `quote`, `terms`.
+`tests/test_g2c_spacing.py::test_default_geometry_baseline` сравнивает PDF с
+baseline с допуском 0.5 pt.
 
 ## Паритет и скорость G1c
 
@@ -403,9 +411,9 @@ PDF через Typst CLI и Node + `typst.ts`, затем сравнивает �
 Скрытые интервалы блоков Typst вынесены в 28 опций реестра (по две на элемент):
 `heading.h1..h6.spacing_before/after`, `figure`, `table`, `equation`, `quote`,
 `raw`, `terms`, `bullet_list`, `numbered_list`. Тип — `number`, единица `em`
-от кегля документа; диапазон 0–20, шаг 0.01. Значения по умолчанию равны
-действующим интервалам Typst, поэтому PDF по умолчанию не меняется; golden
-изменяется только блоком конфига.
+от кегля документа; диапазон 0–20, шаг 0.01. Значения по умолчанию приняты
+владельцем 29.10.2026; PDF по умолчанию может отличаться от `4e6a8c0`, baseline
+фиксируется в `tests/fixtures/baseline/g2c_geometry.json`.
 
 | Элемент | before | after | Источник |
 |---|---:|---:|---|
@@ -455,30 +463,55 @@ PDF через Typst CLI и Node + `typst.ts`, затем сравнивает �
 - `bibliography.entry` — сопоставитель структурных сущностей (G3a).
 
 
-## G3a: структурные сущности и приложения
+## G3a: структурные сущности, приложения и оглавление
 
-Добавлены опции без старых колонок (только JSONB), у групп `structural` и
-`appendix` в `ui` стоит `beta: true`.
-
-`structural.entities` — список объектов, порядок задаёт приоритет. Схема:
+`structural.entities` — список объектов, порядок задаёт приоритет. Опция
+перенесена во вкладку «Заголовки», подвкладка «Шаблонные заголовки»; в `ui`
+стоит `beta: true`. Схема (AGENTS 5.2):
 
 ```
 {
   id, label,
   match: { target: "heading", level: "any"|"1".."6",
            mode: "equals"|"contains"|"regex", value, case_insensitive },
-  apply: { numbering, break_before, align, case, bold, outlined, appendix,
-           around: { before: [Item], after: [Item], collapse: "max"|"sum" },
-           text_override: null | {...} }
+  numbering: { mode: "none"|"continue"|"own",
+               template, start, sub_template, group },
+  apply: { break_before, align, case, bold, outlined,
+           around: { before, after, before_collisions }, text_override }
 }
 ```
 
-`Item` — та же схема, что у `around.*` (AGENTS 5.1). Сопоставление выполняется
-в Typst по тексту заголовка; первая подходящая сущность выигрывает.
-`apply.numbering = false` снимает номер и компенсирует `counter(heading)`, не
-сбивая счётчик следующих заголовков (S10). `apply.outlined = false` убирает
-заголовок из оглавления. `apply.appendix = true` включает режим приложения:
-шаг буквы, сброс счётчиков рисунков/формул, подзаголовки `А.1`, `А.1.1`.
+`numbering` — top-level, режим задаётся явно; автоматического переключения по
+наличию шаблона нет. `none` — заголовок без номера, общий счётчик не меняется;
+`continue` — общий номер и влияние на следующие заголовки; `own` — отдельный
+счётчик, не влияющий на общий. Для `own`: `template` — Typst-шаблон номера
+(`"1"`, `"(1)"`, `"I"`, `"A"`), `start` — начальное значение, `sub_template` —
+шаблон подзаголовков с `{prefix}` (номер семейства) и `{n}` (относительный
+номер: `1` для 2-го уровня, `1.1` для 3-го), `group` — общий счётчик для
+нескольких правил (пусто = `id`).
+
+Миграция: старое `apply.numbering: bool` → `none`/`continue`; старое
+`apply.appendix: true` → `numbering.mode = "own"`, `template = "{letter}"`,
+`group = "appendix"`. `apply.appendix` и `apply.numbering` в новой схеме
+отсутствуют. Валидация: уникальные `id`, непустой `match.value`.
+
+Приложение — пресет `own` с буквенным шаблоном `{letter}`. Буква присваивается
+автоматически и не зависит от глобального `heading.numbering`, в том числе
+`"none"`. Тело — одна строка `ПРИЛОЖЕНИЕ {letter}. {title}`; подзаголовки —
+`А.1`, `А.1.1`. Индекс буквы защищён `max(1, index)`, поэтому до первого
+шага не выводится «Я». Счётчики рисунков/формул сбрасываются на приложении.
+
+Оглавление: у заголовка ровно один авторитетный элемент. Заголовки
+пересобираются проходом по телу до показа, а не вторым `heading` внутри
+`show`; поэтому `outlined=false` убирает запись, `numbering=none` даёт ровно
+одну запись без номера, а номер в теле сохраняется при `outlined=false`.
+`case`/`bold`/`text_override` применяются к телу заголовка и попадают в запись.
+Свой номер выставляется временно в `counter(heading)` и восстанавливается
+после заголовка: оглавление получает тот же номер, что тело, а общий счётчик
+`continue` не сбивается.
+
+`outline.indent_mode`: `step` (отступ = `level * indent_mm`, level 0-based в
+Typst) или `per_level` (`indent_per_level[level]`). `fill` не настраивается.
 
 Опции приложений:
 
@@ -491,11 +524,11 @@ PDF через Typst CLI и Node + `typst.ts`, затем сравнивает �
 | `appendix.alphabet` | `ru_sfu` | 25 букв без Ё, З, Й, О, Ч, Ь, Ы, Ъ |
 | `appendix.overflow` | `double` | после Я — АА, АБ… |
 
-`stop` и `latin` остаются в enum с подписью «не реализовано»; обязателен
-только `double` (OWNER_DECISIONS 4).
+`appendix.overflow` содержит только `double`; `stop` и `latin` удалены из
+реестра, UI и кода. `heading.keep_with_next` (дефолт `true`) — `sticky: true`
+у блока заголовка. `match.target` — только `heading`; `paragraph` не
+реализуется (отложен с «где…»).
 
-`heading.keep_with_next` (дефолт `true`) — `sticky: true` у блока заголовка:
-заголовок не остаётся один внизу страницы.
-
-`match.target = "paragraph"` в G3a не реализован: вместе с «где…» отложен
-владельцем (AGENTS 2.11); в enum остался только `heading`.
+Тесты: `tests/test_g3a_structural.py` (схема, миграция, свои счётчики,
+приложения при `heading.numbering=none`, `outlined`/`numbering` в `#outline()`,
+`step`/`per_level`, сопоставление, `align`, `around`).

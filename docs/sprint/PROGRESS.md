@@ -13,11 +13,12 @@
 | G1c — UI и паритет | выполнен, принят владельцем | отчёт отправлен |
 | G2a — типы реестра и окружения «до/после» | выполнен, принят владельцем | этот файл |
 | G2b — интервал, шрифты, зашитые значения | выполнен, принят владельцем | этот файл |
-| G2c — остальные «дешёвые» правила | выполнен, принят условно; G2c-fix выполнен | этот файл |
-| G3a — структурные сущности и приложения | выполнен, ждёт приёмки владельца | этот файл |
+| G2c — остальные «дешёвые» правила | выполнен; G2c-fix ждёт приёмки | этот файл |
+| G2d — политика столкновения вставок | выполнен, ждёт приёмки | этот файл |
+| G3a — структурные сущности, приложения, оглавление | переделан, ждёт приёмки | этот файл |
 | G3b — подписи и нумерация рисунков/таблиц | не начат | — |
 | G4 — таблицы и оглавление | не начат | — |
-| G5 — расширения Markdown, формулы, ссылки | не начат | — |
+| G5 — единицы измерения и чистка интерфейса | не начат | — |
 | G6 — профиль СТУ СФУ и самопроверка | не начат | — |
 
 ## G0 — чек-лист
@@ -25,7 +26,7 @@
 | Пункт | Статус | Где |
 |---|---|---|
 | Тег `pre-sprint` | ✔ | git-тег |
-| CI зелёный | ⚠ не подтверждён локально (нет Postgres) | `BLOCKERS.md` B-04 |
+| CI зелёный | ✔ https://github.com/YellowCytrus/FluentDocs/actions/runs/40832823434 | `BLOCKERS.md` B-04 |
 | `PROGRESS.md` создан | ✔ | этот файл |
 | Эталонные документы (9 шт.) | ✔ | `tests/fixtures/docs/` |
 | Golden-снимки текущего Typst-вывода | ✔ (8 снимков, все компилируются) | `tests/fixtures/golden/` |
@@ -314,9 +315,9 @@ ORM + тело Pandoc) в `tests/fixtures/golden/<stem>.typ`. Профиль с�
 | Валидация: границы, обязательные, неизвестные ключи → 400 | ✔ рекурсивно | `validate_value`, `tests/test_around.py` |
 | API чтения/записи | ✔ GET/PUT `/profiles/{id}/options` | `app/api/profiles.py` |
 | Сохранение `around` при записи в старые таблицы | ✔ `serialize_profile` переносит JSONB-блок | `app/registry/storage.py` |
-| 15 целей `around` | ✔ 45 опций (`before`, `after`, `collapse`) | `app/registry/options.py` |
+| 15 целей `around` | ✔ 60 опций (`before`, `after`, `before_collisions`) | `app/registry/options.py` |
 | Вставки `blank`, `text`, `line`, `pagebreak` | ✔ | `app/typst/fd.typ` |
-| `collapse: max / sum` (`none` удалён в G2a-fix) | ✔ | `app/typst/fd.typ`, `REGISTRY_SPEC.md` |
+| `before_collisions`: `keep_previous` / `keep_current` / `keep_both` / `drop_both` | ✔ G2d; `collapse` удалён | `app/typst/fd.typ`, `REGISTRY_SPEC.md` |
 | Пустой `around` не меняет вывод | ✔ старые и новые PDF совпали 16/16 | сравнение `pdfplumber` |
 | Golden: только блок `around` | ✔ +77 строк на снимок, 0 удалений | `tests/fixtures/golden/` |
 | UI-рендерер списков/объектов | ✔ добавить/удалить/↑/↓, вложенные поля | `RuleField.vue` |
@@ -342,7 +343,8 @@ ORM + тело Pandoc) в `tests/fixtures/golden/<stem>.typ`. Профиль с�
 ### Golden-изменения G2a
 
 Все 16 снимков получили только новый блок `around` (77 строк, 0 удалений):
-15 целей × `before: ()`, `after: ()`, `collapse: "max"`. Тела документов и
+15 целей × `before: ()`, `after: ()`, `collapse: "max"` (на G2d заменён на
+`before_collisions: ()`). Тела документов и
 остальные опции не менялись. Для проверки «профиль без `around` не меняет
 вывод» старые и новые PDF всех 16 документов сравнены `pdfplumber`: число
 страниц, координаты, кегль, имена шрифтов и текст совпали (16/16).
@@ -582,7 +584,9 @@ B-01…B-06 и B-08 отмечены решёнными в `BLOCKERS.md`. B-07 �
 `spacing_before/after` у figure/table/equation/quote/raw/terms/списков,
 `page.margin_landscape_*`, `page.numbering_skip_first/start`,
 `equation.body_indent`, `footnote.separator_length/stroke`. Тела документов
-не изменились. PDF по умолчанию не меняется: значения совпадают с Typst.
+не изменились. Новые дефолтные интервалы приняты владельцем 29.10.2026:
+baseline — текущие значения, возврат к `4e6a8c0` не требуется.
+`tests/fixtures/baseline/g2c_geometry.json` фиксирует измеренную геометрию.
 
 ### Отложено из-за синтаксиса
 
@@ -605,7 +609,7 @@ B-01…B-06 и B-08 отмечены решёнными в `BLOCKERS.md`. B-07 �
 | 28 spacing-интервалов: сдвиг = ожидаемому ±0,5 pt | ✔ 28/28 | `test_element_spacing_render` |
 | `list.item`: фактический перенос строки пункта | ✔ измерен `body_indent` | `test_list_item_wrapped_line_indent` |
 | `formula.explanation`, `referat.*`, `bibliography.entry` в `PROGRESS.md` | ✔ по решениям владельца | таблица G2c |
-| UI-названия `collapse` | ✔ «Слить в одну» / «Сложить», id не менялись | `AROUND_COLLAPSE_LABELS` |
+| UI-названия столкновений | ✔ четыре политики из AGENTS 5.1 | `COLLISION_POLICY_LABELS` |
 | `terms.spacing_before` применяется один раз | ✔ обёртка `block` вместо `set block` | `app/typst/fd.typ` |
 | `git diff fd.typ` | ✔ приложен к отчёту | — |
 
@@ -643,64 +647,102 @@ Typst 1,0 em, `table` 1,2 em, списки 1,2 em. Это не ошибка ко
 дефолтов остаётся за владельцем. Текст, шрифты, кегль и число страниц не
 изменились.
 
-## G3a — чек-лист
+## G2d — чек-лист
 
-Коммит: `71566a4`; CI run [40646588836](https://github.com/YellowCytrus/FluentDocs/actions/runs/40646588836) — test + lint success.
+Коммит: см. отчёт на воротах G3a.
 
 | Пункт | Статус | Где |
 |---|---|---|
-| `structural.entities` (AGENTS 5.2) | ✔ список объектов, порядок = приоритет | `app/registry/options.py` |
-| Опции сущностей помечены `beta` | ✔ `ui.beta`, бейдж в UI | `RuleField.vue` |
-| Снятие номера по S10 | ✔ номер снят, счётчик следующих не сбит | `test_structural_unnumbered_keeps_counter` |
-| `apply.outlined=false` | ✔ заголовок скрыт, счётчик сохранён | `test_structural_outlined_false_keeps_counter` |
-| Разрыв страницы, регистр, жирность, выравнивание, `text_override` | ✔ | тесты G3a |
-| `around` сущности (before/after/collapse) | ✔ та же схема, что у `around.*` | `fd.typ`, `REGISTRY_SPEC.md` |
-| Приложение: `# Приложение Название` | ✔ одна строка по шаблону | `test_appendix_heading_one_line` |
-| Шаблон `{service} {letter}. {title}` | ✔ `appendix.template` | `app/registry/options.py` |
-| Регистр служебного слова и названия, жирность | ✔ отдельные опции | `test_appendix_case_render`, `test_appendix_bold_render` |
-| Перенос только по ширине | ✔ одна строка на дефолтной ширине | `test_appendix_heading_one_line` |
-| Алфавит `ru_sfu` 25 букв, затем `double` (АА, АБ…) | ✔ А…Я → АА, АБ | `test_appendix_letter_sequence` |
-| `stop`/`latin` в реестре | ✔ помечены «не реализовано» | `appendix.overflow` |
-| Подзаголовки `А.1`, `А.1.1` | ✔ буква вместо номера раздела | `test_appendix_numbering_subheadings` |
-| Источники через сопоставитель | ✔ заголовок списка как сущность | `test_bibliography_heading_entity` |
-| `keep_with_next` по умолчанию включён | ✔ `sticky: true` | `test_heading_keep_with_next_render` |
-| Не делать «где…», ключевые слова, реферат, формулы | ✔ | — |
-| Конкретные `rationale/source/test_ids` | ✔ реестровый тест | `tests/test_registry.py` |
+| `around.<element>.before_collisions` — список `{previous, policy}` | ✔ 15 целей | `app/registry/options.py` |
+| Политики `keep_previous`, `keep_current`, `keep_both`, `drop_both` | ✔ | `app/typst/fd.typ`, `COLLISION_POLICY_LABELS` |
+| Политика по умолчанию и fallback — `keep_both` | ✔ | `test_around_render_collision_policies` |
+| `collapse` удалён; `max|sum` → `keep_both` | ✔ миграция JSONB | `app/registry/storage.py`, `tests/test_around.py` |
+| Проход по верхнеуровневым элементам тела | ✔ `body-units` | `app/typst/fd.typ` |
+| Пустая строка на верху страницы пропадает | ✔ `here().position().y` | `test_around_render_one_side_top_and_previous_kind` |
+| Вставка только с одной стороны действует | ✔ | тот же тест |
+| Правило по виду предыдущего элемента | ✔ первое подходящее | тот же тест |
+| UI: четыре названия из AGENTS 5.1 | ✔ без «оставить большую» | `COLLISION_POLICY_LABELS` |
+| Golden: меняется только блок конфига | ✔ `before_collisions: ()` | `tests/fixtures/golden/` |
+| Прототип S12: 500+ элементов, typst.ts = CLI | ✔ | `SPIKES.md` |
+
+### G2d: измерения PDF
+
+Пара «таблица (after = 1 строка) → заголовок (before = 1 строка)»,
+`document.line_spacing = 5.08 мм`, кегль 12 pt; шаг строки 22.30 pt.
+
+| Политика | Зазор, pt | Ожидание |
+|---|---:|---|
+| без вставок | 19.52 | штатный интервал |
+| одна сторона | 41.81 | 19.52 + 22.30 |
+| `keep_previous` | 41.81 | 19.52 + 22.30 |
+| `keep_current` | 41.81 | 19.52 + 22.30 |
+| `keep_both` (default) | 64.11 | 19.52 + 2 × 22.30 |
+| `drop_both` | 19.52 | без вставок |
+
+## G3a — чек-лист (переделан)
+
+Коммит: см. отчёт на воротах G3a.
+
+| Пункт | Статус | Где |
+|---|---|---|
+| Схема сущности: `match`, `numbering`, `apply` | ✔ `numbering` — top-level | `app/registry/options.py` |
+| Режимы `none` / `continue` / `own` задаются явно | ✔ без авто-переключения | `app/typst/fd.typ` |
+| `none`: без номера, общий счётчик не сбит | ✔ | `test_structural_outline_numbering_none` |
+| `continue`: общий номер и влияние на следующие | ✔ | `test_structural_numbering_own` |
+| `own`: отдельный счётчик, `template`, `start`, `sub_template`, `group` | ✔ | `test_structural_numbering_own`, `test_structural_numbering_own_group` |
+| Приложение — пресет `own` с `{letter}` | ✔ буква не зависит от `heading.numbering` | `test_appendix_numbering_true_and_global_none` |
+| Подзаголовки приложения `А.1`, `А.1.1` | ✔ | `test_appendix_numbering_true_and_global_none` |
+| Защита индекса 0 (не «Я») | ✔ `calc.max(1, index)` | `app/typst/fd.typ` |
+| Тело приложения — `ПРИЛОЖЕНИЕ {letter}. {title}` | ✔ без числового префикса | `test_appendix_...` |
+| Один авторитетный `heading`, без второго в `show` | ✔ заголовки собираются проходом по телу | `app/typst/fd.typ` |
+| `outlined=false` убирает запись из `#outline()` | ✔ ровно одна запись в теле | `test_structural_outline_outlined_false` |
+| `numbering=false` — одна запись без номера | ✔ | `test_structural_outline_numbering_none` |
+| `numbering=true + outlined=false` сохраняет номер в теле | ✔ | `test_structural_outline_outlined_false` |
+| `case` / `bold` / `text_override` в записи оглавления | ✔ через тело заголовка | `test_structural_case_render` |
+| Отступы `step` и `per_level` | ✔ 0-based level Typst | `test_outline_indent_render` |
+| `match.mode` equals/contains/regex, регистр, уровень, приоритет | ✔ | `test_structural_match_modes_level_and_priority` |
+| `apply.align`, `apply.around` сущности | ✔ | `test_structural_align_and_around` |
+| `appendix.template`, пустое/многословное название | ✔ | `test_appendix_custom_template_and_empty_title` |
+| `appendix.overflow` только `double` | ✔ `stop`/`latin` удалены | `tests/test_g3a_structural.py` |
+| Миграция `apply.numbering`/`apply.appendix` | ✔ bool → mode; appendix → own | `test_structural_entity_migration` |
+| UI: подвкладка «Шаблонные заголовки» в «Заголовках», beta | ✔ универсальный рендерер | `app/registry/options.py` |
+| Прототип S13: один авторитетный заголовок | ✔ | `SPIKES.md` |
+| Отдельные счётчики рисунков/таблиц | — G3b, не начато | — |
+| «где…», реферат, формулы | ✔ не трогались | — |
 
 ### G3a: измерения
 
-| Правило | Опция | Тест | Измерение |
-|---|---|---|---|
-| Ненумерованный заголовок | `structural.entities[].apply.numbering` | `test_structural_unnumbered_keeps_counter` | «Введение» без номера, следующий раздел «1» |
-| Скрытие из оглавления | `apply.outlined` | `test_structural_outlined_false_keeps_counter` | следующий заголовок «2» |
-| Разрыв страницы | `apply.break_before` | `test_structural_break_before` | заголовок первым на стр. 2 |
-| Регистр и жирность | `apply.case`, `apply.bold` | `test_structural_case_render` | «ВВЕДЕНИЕ», шрифт Bold |
-| Свой стиль | `apply.text_override` | `test_structural_text_override_render` | кегль 21 pt |
-| Приложение одной строкой | `appendix.template` | `test_appendix_heading_one_line` | строка «ПРИЛОЖЕНИЕ А. Название приложения» |
-| Регистр приложения | `appendix.service_case/title_case` | `test_appendix_case_render` | «ПРИЛОЖЕНИЕ А. НАЗВАНИЕ ПРИЛОЖЕНИЯ» |
-| Жирное приложение | `appendix.bold` | `test_appendix_bold_render` | шрифт Bold |
-| Буквы А…Я → АА | `appendix.alphabet/overflow` | `test_appendix_letter_sequence` | 25-я «Я», 26-я «АА» |
-| Подзаголовки приложения | `apply.appendix` | `test_appendix_numbering_subheadings` | «А.1 Состав», «А.1.1 Детали» |
-| Список источников | `structural.entities` | `test_bibliography_heading_entity` | без номера, новая страница |
-| Заголовок с текстом | `heading.keep_with_next` | `test_heading_keep_with_next_render` | при `false` заголовок внизу, при `true` — нет |
-
-Отложено: `match.target = "paragraph"` (вместе с «где…», AGENTS 2.11);
-`appendix.overflow = stop|latin` — только подписи в реестре.
+| Правило | Тест | Измерение |
+|---|---|---|
+| Свой счётчик | `test_structural_numbering_own` | «I Раздел» в теле и одна запись в оглавлении |
+| Общий `group` | `test_structural_numbering_own_group` | «I Первый», «II Второй» |
+| Без номера | `test_structural_outline_numbering_none` | «Введение» без номера, следующий «1 Раздел» |
+| Скрытие из оглавления | `test_structural_outline_outlined_false` | записи «Введение» нет, номер «1 Введение» в теле |
+| Приложение при `heading.numbering=none` | `test_appendix_numbering_true_and_global_none` | «ПРИЛОЖЕНИЕ А.», «ПРИЛОЖЕНИЕ Б.», «А.1» |
+| Отступы оглавления | `test_outline_indent_render` | `step` 5 мм: +14.17 pt/уровень; `per_level` 10/30 мм |
+| Сопоставление | `test_structural_match_modes_level_and_priority` | equals/contains/regex/level/порядок |
 
 ### G3a: golden
 
-16 снимков получили только ключи конфига: `heading.keep_with_next`,
-`structural.entities: ()`, блок `appendix` (6 значений). Тела документов не
-изменились: +192 строки, 0 удалений.
+16 снимков получили только ключи конфига: `numbering` у сущностей
+(`mode`/`template`/`start`/`sub_template`/`group`), `before_collisions`,
+`outline.indent_mode: "step"`, `outline.indent_per_level`. Тела документов не
+изменились.
 
-### Проверки G2c-fix + G3a
+### Проверки G2d + G3a
+
+Окружение: CI — Postgres 16 (service), Typst 0.14.2, Pandoc 3.9; локально
+Postgres не запущен, поэтому DB-тесты локально пропущены, а в CI пройдены.
 
 | Команда | Результат |
 |---|---|
-| `POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5432 POSTGRES_DB=pizdo_test uv run pytest tests/ -m "not integration"` | 132 passed, 102 deselected |
-| `POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5432 POSTGRES_DB=pizdo_test uv run pytest tests/ -m integration` | 102 passed, 132 deselected |
+| **CI, GitHub Actions** | `test`: 133 passed, 139 deselected; `integration`: 139 passed, 133 deselected; `lint`: success — <https://github.com/YellowCytrus/FluentDocs/actions/runs/40832823434> |
+| Локально `pytest -m "not integration" -q -rs` (без Postgres) | 67 passed, 66 skipped, 139 deselected |
+| Локально `pytest -m integration -q -rs` (без Postgres) | 138 passed, 1 skipped, 133 deselected |
 | `cd frontend && npm test -- --run` | 16 passed (4 files) |
 | `cd frontend && npm run build` | OK |
-| `npx vue-tsc --noEmit` | OK |
-| `uvx ruff check app tests alembic` | All checks passed |
-| `uvx ruff format --check` для изменённых файлов | OK |
+| `npx vue-tsc --noEmit` | exit 0 |
+| `uvx ruff check app tests scripts` | All checks passed |
+| `uvx ruff format --check app tests scripts` | 102 files already formatted |
+| `uv run python scripts/pdf_compare.py ...` | рабочий скрипт, отчёт JSON/MD |
+| `node frontend/scripts/typst-parity.mjs` на S12 | 292 мс, 36 страниц, текст совпал с CLI |
