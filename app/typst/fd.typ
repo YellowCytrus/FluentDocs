@@ -173,7 +173,7 @@
     let children = it.children
     let count = children.len()
     let reversed = it.reversed or (depth == 0 and config.numbered_list.reversed)
-    let start = if depth == 0 and config.numbered_list.start != none {
+    let first-number = if depth == 0 and config.numbered_list.start != none {
       config.numbered_list.start
     } else if it.start == auto {
       if reversed { count } else { 1 }
@@ -185,9 +185,9 @@
       let number = if child.number != auto {
         child.number
       } else if reversed {
-        start - index
+        first-number - index
       } else {
-        start + index
+        first-number + index
       }
       let values = counts.slice(0, depth)
       values.push(number)
@@ -241,6 +241,14 @@
     } else {
       end
     }
+    // В left_margin продолжение идёт у левого поля, поэтому нижний маркер
+    // ушёл бы под последнюю строку. Для bottom маркер выносится в поле
+    // страницы на ширину колонки маркера с зазором body_indent.
+    let marker-shift = if vertical == bottom and config.numbered_list.wrap_mode == "left_margin" {
+      -body-offset
+    } else {
+      0pt
+    }
 
     let rendered = ()
     for (index, entry) in entries.enumerate() {
@@ -253,7 +261,7 @@
         next-offsets.push(if idx == depth { body-offset } else { value })
       }
       let item = block(width: 100%, {
-        place(vertical + left, marker)
+        place(vertical + left, dx: marker-shift, marker)
         [#list-depth-state.update(depth + 1)]
         [#list-counts-state.update(entry.counts)]
         [#list-body-offset-state.update(next-offsets)]

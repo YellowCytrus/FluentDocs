@@ -654,10 +654,15 @@ Typst (`1)`, `1.`). Если элементов меньше глубины сп
 `test_numbered_list_nested_indent_render` проверяет оба режима по x0 маркеров и
 текста на трёх уровнях.
 
-Вертикальная часть `numbered_list.number_align` (`top`/`bottom`) передаётся в
-`place`, горизонтальная (`start`/`end`) — в `align` колонки маркера. Тест
-`test_numbered_list_number_align_bottom_render` проверяет `end+bottom` на
-многострочном пункте.
+Все четыре значения `numbered_list.number_align` (`start`/`end` +
+`top`/`bottom`) работают. Вертикальная часть передаётся в `place`,
+горизонтальная — в `align` колонки маркера. При `bottom` +
+`wrap_mode = left_margin` маркер сдвигается в поле страницы на
+`marker_width + body_indent`, чтобы не накладываться на последнюю строку,
+которая начинается у левого поля; текст продолжения не сдвигается. Тест
+`test_numbered_list_number_align_render` проверяет все четыре значения, тест
+`test_numbered_list_number_align_bottom_left_margin_no_overlap_render` —
+отсутствие пересечения для `end+bottom` и `start+bottom`.
 
 Интервалы: `spacing = auto` даёт `line-pitch` независимо от `tight`;
 `spacing = tight` — ровно `tight_spacing`; `spacing = loose` — ровно

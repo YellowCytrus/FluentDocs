@@ -784,7 +784,7 @@ Postgres не запущен, поэтому DB-тесты локально пр
 | Перенос строки пункта верхнего уровня | ✔ `left_margin` = левое поле (x0), `body_text` = текст первой строки | `test_numbered_list_wrap_mode_render` |
 | Отступ вложенных списков | ✔ в `left_margin` и `body_text` шаг уровня сохраняется | `test_numbered_list_nested_indent_render` |
 | Интервалы списка | ✔ `spacing=auto/tight/loose`, `tight=false`, `tight_spacing`/`loose_spacing` | `test_numbered_list_spacing_render`, `test_numbered_list_tight_loose_spacing_values_render` |
-| Вертикальный `number_align` | ✔ `end+bottom` ставит маркер у последней строки | `test_numbered_list_number_align_bottom_render` |
+| `number_align` | ✔ все 4 значения; `bottom` + `left_margin` — маркер в поле, без наложения | `test_numbered_list_number_align_render`, `test_numbered_list_number_align_bottom_left_margin_no_overlap_render` |
 | Значения для seed G6 | ✔ только значения, профили не создавались | `REGISTRY_SPEC.md` |
 | Golden: только блок конфига | ✔ 16 снимков; удалён только `left_margin_offset` | `tests/fixtures/golden/` |
 | Реестровый контракт | ✔ 15 новых опций с конкретными source/test_ids | `tests/test_registry.py` |
@@ -814,7 +814,8 @@ Postgres не запущен, поэтому DB-тесты локально пр
 | Вложенные уровни | `test_numbered_list_nested_indent_render` | x0 маркеров 72,98 → 87,20 → 101,42 pt; текста 85,09 → 99,31 → 113,53 pt; шаг 14,22 pt; оба режима |
 | Интервалы списка | `test_numbered_list_spacing_render` | auto = 22,3 pt, tight = 13,9 pt, loose = 19,9 pt; `tight=false` = 22,3 pt |
 | Значения tight/loose | `test_numbered_list_tight_loose_spacing_values_render` | изменение `tight_spacing`/`loose_spacing` на 1 em сдвигает пункты на 12 pt |
-| Низ маркера | `test_numbered_list_number_align_bottom_render` | `end+top`: marker top 69,71 pt; `end+bottom`: 136,6 pt = top последней строки |
+| `number_align` | `test_numbered_list_number_align_render` | top: marker top 69,71 pt; bottom: 136,6 pt = top последней строки; все 4 значения |
+| Маркер в поле | `test_numbered_list_number_align_bottom_left_margin_no_overlap_render` | `end+bottom`: marker x1 66,98 pt; `start+bottom`: 64,87 pt; текст последней строки x0 70,87 pt |
 
 ### G3b: golden
 
@@ -841,4 +842,4 @@ Postgres не запущен, поэтому DB-тесты локально пр
 
 DB-тесты локально пропущены из-за отсутствия Postgres; CI — авторитетный
 прогон. B-10 разделён: B-10a (верхний уровень), B-10b (вложенность),
-B-10c (`number_align`), B-10d (интервалы) закрыты.
+B-10c (`number_align`, все 4 значения и маркер в поле), B-10d (интервалы) закрыты.

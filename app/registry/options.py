@@ -2388,7 +2388,10 @@ def _base_options() -> list[Option]:
             "Выравнивание номера",
             order=o(opts),
             enum=tuple(v for v, _ in SELECT_LABELS["number_align_list"]),
-            test_ids=("test_numbered_list_number_align_bottom_render",),
+            test_ids=(
+                "test_numbered_list_number_align_render",
+                "test_numbered_list_number_align_bottom_left_margin_no_overlap_render",
+            ),
         ),
         _option(
             "terms.tight",

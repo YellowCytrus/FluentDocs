@@ -312,39 +312,69 @@ def test_numbered_list_tight_loose_spacing_values_render(tmp_path: Path) -> None
     shutil.which("pandoc") is None or shutil.which("typst") is None,
     reason="pandoc and typst must be in PATH",
 )
-def test_numbered_list_number_align_bottom_render(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "number_align",
+    ["end+top", "start+top", "end+bottom", "start+bottom"],
+)
+def test_numbered_list_number_align_render(tmp_path: Path, number_align: str) -> None:
     long_text = (
         "Длинный текст пункта списка, который должен переноситься на следующую "
         "строку несколько раз, чтобы проверить выравнивание маркера внизу. "
     ) * 2
     markdown = f"1. {long_text}\n"
-
-    top_path = _compile(
+    path = _compile(
         markdown,
-        _profile(),
+        _profile(numbered_list={"number_align": number_align}),
         tmp_path,
-        "number-align-top",
+        f"number-align-{number_align.replace('+', '-')}",
     )
-    bottom_path = _compile(
+    with pdfplumber.open(path) as pdf:
+        page = pdf.pages[0]
+        words = page.extract_words()
+        lines = page.extract_text_lines()
+    markers = [word for word in words if word["text"] == "1."]
+    assert markers
+    marker_top = float(markers[0]["top"])
+    first_top = float(lines[0]["top"])
+    last_top = float(lines[-1]["top"])
+    expected_top = last_top if "bottom" in number_align else first_top
+    assert abs(marker_top - expected_top) < 0.8
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    shutil.which("pandoc") is None or shutil.which("typst") is None,
+    reason="pandoc and typst must be in PATH",
+)
+@pytest.mark.parametrize("number_align", ["end+bottom", "start+bottom"])
+def test_numbered_list_number_align_bottom_left_margin_no_overlap_render(
+    tmp_path: Path, number_align: str
+) -> None:
+    long_text = (
+        "Длинный текст пункта списка, который должен переноситься на следующую "
+        "строку несколько раз, чтобы проверить выравнивание маркера внизу. "
+    ) * 2
+    markdown = f"1. {long_text}\n"
+    path = _compile(
         markdown,
-        _profile(numbered_list={"number_align": "end+bottom"}),
+        _profile(numbered_list={"number_align": number_align}),
         tmp_path,
-        "number-align-bottom",
+        f"number-align-margin-{number_align.replace('+', '-')}",
     )
-
-    def marker_top(path: Path) -> float:
-        with pdfplumber.open(path) as pdf:
-            chars = pdf.pages[0].chars
-        tops = [float(char["top"]) for char in chars if char["text"] == "1"]
-        assert tops
-        return min(tops)
-
-    with pdfplumber.open(top_path) as pdf:
-        top_lines = pdf.pages[0].extract_text_lines()
-    with pdfplumber.open(bottom_path) as pdf:
-        bottom_lines = pdf.pages[0].extract_text_lines()
-    first_top = float(top_lines[0]["top"])
-    last_top = float(bottom_lines[-1]["top"])
-    assert abs(marker_top(top_path) - first_top) < 0.8
-    assert marker_top(bottom_path) > first_top + 20.0
-    assert abs(marker_top(bottom_path) - last_top) < 1.0
+    with pdfplumber.open(path) as pdf:
+        page = pdf.pages[0]
+        words = page.extract_words()
+        lines = page.extract_text_lines()
+    markers = [word for word in words if word["text"] == "1."]
+    assert markers
+    marker = markers[0]
+    margin_pt = default_values()["page"]["margin_left"] * 72 / 25.4
+    last_top = float(lines[-1]["top"])
+    assert abs(float(marker["top"]) - last_top) < 0.8
+    body_words = [
+        word for word in words if word["text"] != "1." and abs(float(word["top"]) - last_top) < 0.8
+    ]
+    assert body_words
+    body_min_x = min(float(word["x0"]) for word in body_words)
+    assert body_min_x >= margin_pt - 0.8
+    assert float(marker["x1"]) < body_min_x - 1.0
