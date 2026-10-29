@@ -697,11 +697,14 @@ Typst 1,0 em, `table` 1,2 em, списки 1,2 em. Это не ошибка ко
 | Защита индекса 0 (не «Я») | ✔ `calc.max(1, index)` | `app/typst/fd.typ` |
 | Тело приложения — `appendix.template` с `{service}`/`{letter}`/`{title}` в любом порядке | ✔ без числового префикса | `test_appendix_template_title_in_any_position`, `test_appendix_custom_template_and_empty_title` |
 | Приложение: `numbering.start` сдвигает букву, `sub_template` применяется | ✔ start=5 → Д, `Д-1`, `Д-1.1` | `test_appendix_start_and_sub_template` |
+| Приложение: `start=999` и серия после `ЯЯ` не падают | ✔ `АРЮ`, `ААА` | `test_appendix_large_start_does_not_overflow` |
+| Приложение: `apply.case`/`apply.bold` сущности работают | ✔ регистр и полужирный | `test_appendix_entity_case_and_bold_apply` |
+| Неприменимые поля приложения скрыты в UI | ✔ `numbering.mode/template/group` при `kind=appendix` | `test_structural_entities_schema`, `RuleField.test.ts` |
 | Приложение: нет `layout did not converge` на `А.1.1` | ✔ stderr проверяется | `test_appendix_numbering_subheadings` |
 | Один авторитетный `heading`, без второго в `show` | ✔ заголовки собираются проходом по телу | `app/typst/fd.typ` |
 | `outlined=false` убирает запись из `#outline()` | ✔ ровно одна запись в теле | `test_structural_outline_outlined_false` |
-| `numbering=false` — одна запись без номера | ✔ | `test_structural_outline_numbering_none` |
-| `numbering=true + outlined=false` сохраняет номер в теле | ✔ | `test_structural_outline_outlined_false` |
+| `mode="none"` — одна запись без номера | ✔ | `test_structural_outline_numbering_none` |
+| `mode="continue"` + `outlined=false` сохраняет номер в теле | ✔ | `test_structural_outline_outlined_false` |
 | `case` / `bold` / `text_override` в записи оглавления | ✔ через тело заголовка | `test_structural_case_render` |
 | Отступы `step` и `per_level` | ✔ 0-based level Typst | `test_outline_indent_render` |
 | `match.mode` equals/contains/regex, регистр, уровень, приоритет | ✔ | `test_structural_match_modes_level_and_priority` |

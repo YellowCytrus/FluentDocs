@@ -106,13 +106,23 @@ function fieldKey(field: RegistryOption): string {
   return field.path[field.path.length - 1] ?? field.id;
 }
 
-const objectFields = computed(() => props.option.fields ?? []);
 const objectValue = computed<Record<string, JsonValue> | null>(() => {
   const value = props.modelValue;
   if (value != null && typeof value === 'object' && !Array.isArray(value)) {
     return value as Record<string, JsonValue>;
   }
   return null;
+});
+const objectFields = computed(() => {
+  const fields = props.option.fields ?? [];
+  const values = objectValue.value;
+  return fields.filter((field) => {
+    const condition = field.enabled_when;
+    if (!condition) return true;
+    const source = fields.find((item) => fieldKey(item) === condition.key);
+    const current = values?.[condition.key] ?? source?.default;
+    return condition.values.includes(String(current ?? ''));
+  });
 });
 const objectEnabled = computed(
   () => !props.option.nullable || objectValue.value != null,

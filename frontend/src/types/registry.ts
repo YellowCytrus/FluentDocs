@@ -41,6 +41,7 @@ export interface RegistryOption {
   step: number | null;
   enum: string[];
   depends_on: string[];
+  enabled_when?: { key: string; values: string[] } | null;
   nullable: boolean;
   required?: boolean;
   enum_labels?: [string, string][];

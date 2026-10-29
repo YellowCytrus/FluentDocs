@@ -171,6 +171,15 @@ def test_structural_entities_schema() -> None:
     assert {value for value, _ in kind.enum_labels} == {"section", "appendix"}
     mode = next(field for field in numbering.fields if field.path[-1] == "mode")
     assert {value for value, _ in mode.enum_labels} == {"none", "continue", "own"}
+    assert mode.enabled_when == {"key": "kind", "values": ["section"]}
+    template = next(field for field in numbering.fields if field.path[-1] == "template")
+    assert template.enabled_when == {"key": "kind", "values": ["section"]}
+    group = next(field for field in numbering.fields if field.path[-1] == "group")
+    assert group.enabled_when == {"key": "kind", "values": ["section"]}
+    start = next(field for field in numbering.fields if field.path[-1] == "start")
+    sub_template = next(field for field in numbering.fields if field.path[-1] == "sub_template")
+    assert start.enabled_when is None  # start нужен и приложению
+    assert sub_template.enabled_when is None  # sub_template нужен и приложению
 
     values = default_values()
     values["structural"]["entities"] = [APPENDIX_ENTITY, _entity("Введение", mode="none")]
@@ -719,9 +728,14 @@ def test_structural_entity_migration() -> None:
 def test_structural_unnumbered_subheading_has_no_zero_prefix(tmp_path: Path) -> None:
     markdown = "# Введение\n\n## Подраздел\n\nТекст.\n\n# Раздел\n\nТекст раздела.\n"
     profile = _profile([_entity("Введение", mode="none")])
-    text = _outline_text(_render(_outline_markdown(markdown), profile, tmp_path, "none-subheading"))
+    path = _render(_outline_markdown(markdown), profile, tmp_path, "none-subheading")
+    text = _outline_text(path)
+    lines = _lines(path)
     assert "0.1" not in text
     assert text.count("Подраздел") == 2
+    subheading_lines = [line for line in lines if "Подраздел" in line]
+    assert subheading_lines
+    assert all(not line.lstrip()[0].isdigit() for line in subheading_lines)
     assert "1 Раздел" in text
 
 
@@ -773,6 +787,56 @@ def test_appendix_start_and_sub_template(tmp_path: Path) -> None:
     assert "ПРИЛОЖЕНИЕ Д. Название" in lines
     assert "Д-1 Состав" in lines
     assert "Д-1.1 Детали" in lines
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    shutil.which("pandoc") is None or shutil.which("typst") is None,
+    reason="pandoc and typst must be in PATH",
+)
+def test_appendix_large_start_does_not_overflow(tmp_path: Path) -> None:
+    # start=999 и серия после 650 не должны выходить за границы алфавита.
+    high = {
+        **APPENDIX_ENTITY,
+        "numbering": {**APPENDIX_ENTITY["numbering"], "start": 999},
+    }
+    lines = _lines(
+        _render("# Приложение Название\n\nТекст.\n", _profile([high]), tmp_path, "appendix-999")
+    )
+    assert "ПРИЛОЖЕНИЕ АРЮ. Название" in lines
+
+    edge = {
+        **APPENDIX_ENTITY,
+        "numbering": {**APPENDIX_ENTITY["numbering"], "start": 650},
+    }
+    markdown = "# Приложение Первое\n\nТекст.\n\n# Приложение Второе\n\nТекст.\n"
+    lines = _lines(_render(markdown, _profile([edge]), tmp_path, "appendix-650"))
+    assert "ПРИЛОЖЕНИЕ ЯЯ. Первое" in lines
+    assert "ПРИЛОЖЕНИЕ ААА. Второе" in lines
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    shutil.which("pandoc") is None or shutil.which("typst") is None,
+    reason="pandoc and typst must be in PATH",
+)
+def test_appendix_entity_case_and_bold_apply(tmp_path: Path) -> None:
+    entity = {
+        **APPENDIX_ENTITY,
+        "apply": {**APPENDIX_ENTITY["apply"], "case": "upper", "bold": True},
+    }
+    path = _render(
+        "# Приложение Название\n\nТекст.\n",
+        _profile([entity]),
+        tmp_path,
+        "appendix-entity-case",
+    )
+    lines = _lines(path)
+    assert "ПРИЛОЖЕНИЕ А. НАЗВАНИЕ" in lines
+    with pdfplumber.open(path) as pdf:
+        heading_chars = [char for char in pdf.pages[0].chars if char["text"] in "ПРИЛОЖЕНИЕ"]
+    assert heading_chars
+    assert any("Bold" in char["fontname"] for char in heading_chars)
 
 
 @pytest.mark.integration

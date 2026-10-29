@@ -111,6 +111,48 @@ describe('RuleField list renderer', () => {
     expect(changed[0]).toEqual({ type: 'text', content: '' });
   });
 
+  it('hides nested fields whose enabled_when does not match the object', () => {
+    const kind = field('structural.entity.numbering.kind', 'kind', 'select', {
+      default: 'section',
+      ui: {
+        control: 'select',
+        label: 'kind',
+        tab: 'Заголовки',
+        order: 0,
+        options: [
+          { value: 'section', label: 'Обычный' },
+          { value: 'appendix', label: 'Приложение' },
+        ],
+      },
+    });
+    const mode = field('structural.entity.numbering.mode', 'mode', 'select', {
+      default: 'continue',
+      enabled_when: { key: 'kind', values: ['section'] },
+      ui: {
+        control: 'select',
+        label: 'mode',
+        tab: 'Заголовки',
+        order: 1,
+        options: [{ value: 'continue', label: 'Продолжать' }],
+      },
+    });
+    const numbering = field('structural.entity.numbering', 'numbering', 'object', {
+      default: { kind: 'section', mode: 'continue' },
+      fields: [kind, mode],
+    });
+
+    const appendixWrapper = mount(RuleField, {
+      props: { option: numbering, modelValue: { kind: 'appendix', mode: 'continue' } },
+    });
+    expect(appendixWrapper.text()).toContain('kind');
+    expect(appendixWrapper.text()).not.toContain('mode');
+
+    const sectionWrapper = mount(RuleField, {
+      props: { option: numbering, modelValue: { kind: 'section', mode: 'continue' } },
+    });
+    expect(sectionWrapper.text()).toContain('mode');
+  });
+
   it('renders nested object fields and nullable object toggles', async () => {
     const nested = field('around.item.line_spacing', 'line_spacing', 'object', {
       default: { mode: 'multiplier', value: 1 },

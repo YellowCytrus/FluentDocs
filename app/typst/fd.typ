@@ -213,23 +213,29 @@
 
   // --- нумерация приложений и своих счётчиков ---
 
-  let in-appendix = state("fd-in-appendix", false)
   let appendix-alphabets = (
     ru_sfu: "АБВГДЕЖИКЛМНПРСТУФХЦШЩЭЮЯ",
     latin: "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
     arabic: "0123456789",
   )
 
-  // Буква приложения по номеру 1…; после алфавита — удвоение (АА, АБ…).
+  // Буква приложения по номеру 1…; после алфавита — удвоение (АА, АБ…),
+  // после исчерпания удвоения — те же буквы в тройном сочетании (ААА, ААБ…).
+  // Это продолжение режима double, а не отдельный режим; индекс никогда не
+  // выходит за границы массива (appendix.start до 999 и длинные серии).
   let appendix-letter(config, index) = {
     let letters = appendix-alphabets.at(config.appendix.alphabet).clusters()
-    let safe = calc.max(1, index)
-    if config.appendix.overflow == "double" and safe > letters.len() {
-      let first = calc.floor((safe - 1) / letters.len())
-      let second = calc.rem(safe - 1, letters.len())
-      letters.at(first - 1) + letters.at(second)
+    let value = calc.max(1, index)
+    if config.appendix.overflow == "double" {
+      let digits = ()
+      while value > 0 {
+        value = value - 1
+        digits.push(letters.at(calc.rem(value, letters.len())))
+        value = calc.floor(value / letters.len())
+      }
+      digits.rev().join("")
     } else {
-      letters.at(calc.min(safe, letters.len()) - 1)
+      letters.at(calc.min(value, letters.len()) - 1)
     }
   }
 
@@ -274,6 +280,8 @@
   }
 
   // Заголовок приложения целиком: шаблон appendix.template с {title} в любом месте.
+  // apply.case сущности применяется после appendix.*_case; apply.bold действует
+  // вместе с appendix.bold (достаточно одного).
   let appendix-heading-text(config, entity, heading-text, letter) = {
     let parts = heading-text.split(" ").filter(part => part != "")
     let service = if parts.len() > 0 { parts.at(0) } else { "" }
@@ -282,7 +290,8 @@
       .replace("{service}", apply-case(service, config.appendix.service_case))
       .replace("{letter}", letter)
       .replace("{title}", apply-case(title, config.appendix.title_case))
-    if config.appendix.bold { strong(rendered) } else { rendered }
+    let cased = apply-case(rendered, entity.apply.case)
+    if config.appendix.bold or entity.apply.bold { strong(cased) } else { cased }
   }
 
   // Подзаголовок приложения: буква вместо номера раздела, sub_template.
@@ -293,7 +302,8 @@
       .replace("{n}", parts.join("."))
     let title = apply-case(heading-text, config.appendix.title_case)
     let rendered = prefix + " " + title
-    if config.appendix.bold { strong(rendered) } else { rendered }
+    let cased = apply-case(rendered, entity.apply.case)
+    if config.appendix.bold or entity.apply.bold { strong(cased) } else { cased }
   }
 
   let bool-value(s) = {
@@ -567,7 +577,6 @@
           custom-body = appendix-heading-text(config, entity, text, letter)
           force-none = true
           // Сброс счётчиков рисунков/таблиц/формул в начале приложения.
-          before = add-content(before, [#in-appendix.update(true)])
           for number in range(1, 7) {
             before = add-content(
               before,

@@ -67,6 +67,7 @@ class Option:
     step: float | None = None
     enum: tuple[str, ...] = ()
     depends_on: tuple[str, ...] = ()
+    enabled_when: dict[str, JsonValue] | None = None
     nullable: bool = False
     legacy: bool = True
     required: bool = False
@@ -403,6 +404,7 @@ def _option(
     step: float | None = None,
     enum: tuple[str, ...] = (),
     depends_on: tuple[str, ...] = (),
+    enabled_when: dict[str, JsonValue] | None = None,
     nullable: bool = False,
     rationale: str | None = None,
     source: str | None = None,
@@ -444,6 +446,7 @@ def _option(
         step=step,
         enum=enum,
         depends_on=depends_on,
+        enabled_when=enabled_when,
         nullable=nullable,
         test_ids=test_ids or TEST_IDS,
         legacy=legacy,
@@ -469,6 +472,7 @@ def _nested_option(
     step: float | None = None,
     enum: tuple[str, ...] = (),
     enum_labels: tuple[tuple[str, str], ...] = (),
+    enabled_when: dict[str, JsonValue] | None = None,
     nullable: bool = False,
     required: bool = False,
     fields: tuple[Option, ...] = (),
@@ -480,6 +484,7 @@ def _nested_option(
     rationale: str | None = None,
     source: str = "plan_v2 around.item; AGENTS 5.1",
     test_ids: tuple[str, ...] = ("test_around_item_schema_contract",),
+    ui_help: str | None = None,
 ) -> Option:
     """Поле вложенной схемы (list/object); не входит в плоский OPTIONS."""
     return _option(
@@ -498,6 +503,7 @@ def _nested_option(
         step=step,
         enum=enum,
         enum_labels=enum_labels,
+        enabled_when=enabled_when,
         nullable=nullable,
         required=required,
         fields=fields,
@@ -507,6 +513,7 @@ def _nested_option(
         source=source,
         test_ids=test_ids,
         legacy=False,
+        ui_help=ui_help,
     )
 
 
@@ -905,8 +912,16 @@ def _structural_options() -> list[Option]:
                 ("continue", "Продолжать общий счётчик"),
                 ("own", "Свой счётчик"),
             ),
+            enabled_when={"key": "kind", "values": ["section"]},
         ),
-        schema_field("template", "string", "1", "Шаблон номера", 2),
+        schema_field(
+            "template",
+            "string",
+            "1",
+            "Шаблон номера",
+            2,
+            enabled_when={"key": "kind", "values": ["section"]},
+        ),
         schema_field("start", "integer", 1, "Начальный номер", 3, min=1, max=999),
         schema_field(
             "sub_template",
@@ -915,7 +930,14 @@ def _structural_options() -> list[Option]:
             "Шаблон подзаголовков",
             4,
         ),
-        schema_field("group", "string", "", "Общий счётчик (group)", 5),
+        schema_field(
+            "group",
+            "string",
+            "",
+            "Общий счётчик (group)",
+            5,
+            enabled_when={"key": "kind", "values": ["section"]},
+        ),
     )
     apply_fields = (
         schema_field("break_before", "boolean", False, "С новой страницы", 1),
@@ -946,8 +968,19 @@ def _structural_options() -> list[Option]:
                 ("lower", "строчные"),
                 ("first_upper", "С заглавной"),
             ),
+            ui_help=(
+                "Для приложения применяется после appendix.service_case/title_case "
+                "ко всей строке заголовка."
+            ),
         ),
-        schema_field("bold", "boolean", False, "Полужирный", 4),
+        schema_field(
+            "bold",
+            "boolean",
+            False,
+            "Полужирный",
+            4,
+            ui_help="Для приложения действует вместе с appendix.bold (достаточно одного).",
+        ),
         schema_field("outlined", "boolean", True, "В оглавлении", 5),
         schema_field(
             "around",
@@ -1016,6 +1049,8 @@ def _structural_options() -> list[Option]:
             "test_structural_unnumbered_subheading_has_no_zero_prefix",
             "test_own_letter_template_is_not_appendix",
             "test_appendix_start_and_sub_template",
+            "test_appendix_large_start_does_not_overflow",
+            "test_appendix_entity_case_and_bold_apply",
             "test_appendix_numbering_subheadings",
             "test_structural_own_subheadings_use_sub_template",
         ),
@@ -1148,10 +1183,15 @@ def _structural_options() -> list[Option]:
             enum_labels=(("double", "Удваивать (АА, АБ…)"),),
             rationale=(
                 "Определяет поведение после 25-й буквы: буквы удваиваются "
-                "(АА, АБ…), других режимов нет."
+                "(АА, АБ…), а после исчерпания удвоения продолжаются в тройном "
+                "сочетании, чтобы диапазон start до 999 не ронял компиляцию."
             ),
             source="СТУ 7.5.5; OWNER_DECISIONS 4; plan_v2 alphabet_overflow",
-            test_ids=("test_appendix_options", "test_appendix_letter_sequence"),
+            test_ids=(
+                "test_appendix_options",
+                "test_appendix_letter_sequence",
+                "test_appendix_large_start_does_not_overflow",
+            ),
             legacy=False,
         ),
         _option(
