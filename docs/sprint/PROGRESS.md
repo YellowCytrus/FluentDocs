@@ -18,7 +18,7 @@
 | G3a — структурные сущности, приложения, оглавление | выполнен, принят владельцем | этот файл |
 | G3b — подписи и нумерация рисунков/таблиц | выполнен, принят владельцем | этот файл |
 | G4 — таблицы и оглавление | выполнен, ждёт приёмки | этот файл |
-| G5 — формулы и подпись формулы | выполнен, ждёт приёмки после G5-fix | `G5-fix`, CI — |
+| G5 — формулы и подпись формулы | выполнен, ждёт приёмки после G5-fix | `fd1f68d`, CI 41199636006 |
 | G6 — профиль СТУ СФУ и самопроверка | не начат | — |
 
 ## G0 — чек-лист
@@ -1041,3 +1041,4 @@ frontend 17 passed (4 files); Ruff check/format OK.
 | frontend `npm test -- --run` | 17 passed |
 | `npm run build`, `npx vue-tsc --noEmit` | OK |
 | `ruff check` / `ruff format --check` | All checks passed / 107 files formatted |
+| CI [41199636006](https://github.com/YellowCytrus/FluentDocs/actions/runs/41199636006) (`d900111`) | test 143 passed / 246 deselected; integration 246 passed / 143 deselected; frontend 17 passed; lint OK |
