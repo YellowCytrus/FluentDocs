@@ -11,8 +11,8 @@ import pytest
 
 from app.registry import SCHEMA_VERSION, normalize_values
 from app.registry.options import OPTIONS_BY_ID
-from app.registry.storage import default_values
-from app.utils.typst_config import config_tree
+from app.registry.storage import default_values, options_payload
+from app.utils.typst_config import build_fd_config, config_tree
 from golden_helpers import DOCS_DIR, build_source, default_profile
 
 APPENDIX_ENTITY = {
@@ -164,7 +164,8 @@ def test_caption_generation_typst() -> None:
             "caption_separator": " — ",
         },
     )
-    source = build_source("Текст.\n", profile)
+    values, _source = options_payload(profile)
+    source = build_fd_config(values)
     assert 'caption_template: "Рисунок {h1}.{n} — {content}"' in source
     assert 'caption_template: "Таблица {h1}.{n} — {content}"' in source
     assert 'caption_position: "above"' in source

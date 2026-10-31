@@ -1336,6 +1336,7 @@ def _caption_options(
     test_prefix: str | None = None,
     schema_test_id: str = "test_caption_options_schema",
     generation_test_id: str = "test_caption_generation_typst",
+    extra_test_ids: tuple[str, ...] = (),
 ) -> list[Option]:
     """Опции подписи рисунка, таблицы или формулы по одной схеме (AGENTS 5.3)."""
     element_label = {"figure": "рисунка", "table": "таблицы", "equation": "формулы"}.get(
@@ -1440,6 +1441,7 @@ def _caption_options(
                 f"test_{test_name}_caption_render",
                 schema_test_id,
                 generation_test_id,
+                *extra_test_ids,
             ),
             legacy=False,
         ),
@@ -2989,6 +2991,12 @@ def _base_options() -> list[Option]:
             test_prefix="g5_equation",
             schema_test_id="test_g5_formula_options_schema",
             generation_test_id="test_g5_formula_generation_typst",
+            extra_test_ids=(
+                "test_g5_equation_caption_chapter_without_number_template_render",
+                "test_g5_equation_caption_chapter_reset_render",
+                "test_g5_equation_caption_appendix_letter_render",
+                "test_g5_equation_caption_section_placeholders_render",
+            ),
         ),
         _option(
             "quote.indent",

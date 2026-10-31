@@ -1085,7 +1085,17 @@
   }
 
   // Счётчики подписи: отдельные для рисунков и таблиц.
-  let caption-heading(it, level, data, counters, number-counter) = {
+  // number-data задаёт уровни, на которых сбрасывается счётчик номера;
+  // у формул он может отличаться от объединённых уровней подписи и номера.
+  let caption-heading(
+    it,
+    level,
+    data,
+    counters,
+    number-counter,
+    number-data: auto,
+  ) = {
+    let reset-data = if number-data == auto { data } else { number-data }
     if data != none and data.levels.contains(level) {
       counters.at(level - 1).step()
       for deeper in data.levels {
@@ -1093,7 +1103,9 @@
           counters.at(deeper - 1).update(0)
         }
       }
-      if number-counter != none { number-counter.update(0) }
+    }
+    if number-counter != none and reset-data != none and reset-data.levels.contains(level) {
+      number-counter.update(0)
     }
     it
   }
@@ -1436,7 +1448,7 @@
     let figure-n = counter("figure-n")
     let table-n = counter("table-n")
     let formula-n = counter("formula-n")
-    let formula-data = if config.equation.numbering_enabled {
+    let formula-number-data = if config.equation.numbering_enabled {
       caption-data(config.equation.numbering_template)
     } else {
       none
@@ -1445,6 +1457,24 @@
       none
     } else {
       caption-data(config.equation.caption_template)
+    }
+    // Счётчики глав шагают по объединению уровней обоих шаблонов: {h1}
+    // может стоять только в шаблоне подписи.
+    let formula-counter-levels = {
+      let levels = ()
+      for data in (formula-number-data, formula-caption-data) {
+        if data != none {
+          for level in data.levels {
+            if not levels.contains(level) { levels.push(level) }
+          }
+        }
+      }
+      levels.sorted()
+    }
+    let formula-counter-data = if formula-counter-levels.len() == 0 {
+      none
+    } else {
+      (levels: formula-counter-levels)
     }
 
     // Отдельные счётчики и шаблоны; сброс — на заголовках уровня 1 и в приложении.
@@ -1511,12 +1541,17 @@
       if it.term.func() == math.equation {
         {
           around-pagebreaks(config.equation.caption_around.before)
+          // Шаг счётчика — вне context, иначе блок пересчитывается и шагает дважды.
+          if config.equation.numbering_enabled {
+            formula-n.step()
+          }
           context {
             let number = if config.equation.numbering_enabled {
-              let n = formula-n.get().first() + 1
-              let value = formula-number-string(formula-data, formula-counters, n)
-              formula-n.step()
-              value
+              formula-number-string(
+                formula-number-data,
+                formula-counters,
+                formula-n.get().first(),
+              )
             } else {
               ""
             }
@@ -1587,10 +1622,15 @@
 
     show math.equation.where(block: true): it => {
       if config.equation.numbering_enabled {
+        formula-n.step()
+      }
+      if config.equation.numbering_enabled {
         context {
-          let n = formula-n.get().first() + 1
-          let number = formula-number-string(formula-data, formula-counters, n)
-          formula-n.step()
+          let number = formula-number-string(
+            formula-number-data,
+            formula-counters,
+            formula-n.get().first(),
+          )
           let body = if config.equation.body_indent != 0 {
             pad(
               left: config.equation.body_indent * 1mm,
@@ -1621,42 +1661,48 @@
         caption-heading(it, 1, figure-data, figure-counters, figure-n),
         1, table-data, table-counters, table-n,
       ),
-      1, formula-data, formula-counters, formula-n,
+      1, formula-counter-data, formula-counters, formula-n,
+      number-data: formula-number-data,
     )
     show heading.where(level: 2): it => caption-heading(
       caption-heading(
         caption-heading(it, 2, figure-data, figure-counters, figure-n),
         2, table-data, table-counters, table-n,
       ),
-      2, formula-data, formula-counters, formula-n,
+      2, formula-counter-data, formula-counters, formula-n,
+      number-data: formula-number-data,
     )
     show heading.where(level: 3): it => caption-heading(
       caption-heading(
         caption-heading(it, 3, figure-data, figure-counters, figure-n),
         3, table-data, table-counters, table-n,
       ),
-      3, formula-data, formula-counters, formula-n,
+      3, formula-counter-data, formula-counters, formula-n,
+      number-data: formula-number-data,
     )
     show heading.where(level: 4): it => caption-heading(
       caption-heading(
         caption-heading(it, 4, figure-data, figure-counters, figure-n),
         4, table-data, table-counters, table-n,
       ),
-      4, formula-data, formula-counters, formula-n,
+      4, formula-counter-data, formula-counters, formula-n,
+      number-data: formula-number-data,
     )
     show heading.where(level: 5): it => caption-heading(
       caption-heading(
         caption-heading(it, 5, figure-data, figure-counters, figure-n),
         5, table-data, table-counters, table-n,
       ),
-      5, formula-data, formula-counters, formula-n,
+      5, formula-counter-data, formula-counters, formula-n,
+      number-data: formula-number-data,
     )
     show heading.where(level: 6): it => caption-heading(
       caption-heading(
         caption-heading(it, 6, figure-data, figure-counters, figure-n),
         6, table-data, table-counters, table-n,
       ),
-      6, formula-data, formula-counters, formula-n,
+      6, formula-counter-data, formula-counters, formula-n,
+      number-data: formula-number-data,
     )
     body
   }

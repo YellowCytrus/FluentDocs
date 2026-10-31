@@ -11,8 +11,8 @@ import pytest
 
 from app.registry import SCHEMA_VERSION, normalize_values
 from app.registry.options import OPTIONS_BY_ID
-from app.registry.storage import default_values
-from app.utils.typst_config import config_tree
+from app.registry.storage import default_values, options_payload
+from app.utils.typst_config import build_fd_config, config_tree
 from golden_helpers import build_source, default_profile
 
 APPENDIX_ENTITY = {
@@ -134,7 +134,8 @@ def test_g4_toc_generation_typst() -> None:
             "appendix_min_group": 4,
         }
     )
-    source = build_source("Текст.\n", profile)
+    values, _source = options_payload(profile)
+    source = build_fd_config(values)
     assert 'entry_case: "lower"' in source
     assert "omit_when_pages_lte: 24" in source
     assert "appendix_grouping: true" in source

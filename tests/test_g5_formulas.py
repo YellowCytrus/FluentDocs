@@ -11,8 +11,8 @@ import pytest
 
 from app.registry import SCHEMA_VERSION, normalize_values
 from app.registry.options import OPTIONS_BY_ID
-from app.registry.storage import default_values
-from app.utils.typst_config import config_tree
+from app.registry.storage import default_values, options_payload
+from app.utils.typst_config import build_fd_config, config_tree
 from golden_helpers import build_source, default_profile
 
 APPENDIX_ENTITY = {
@@ -194,6 +194,7 @@ def test_g5_formula_options_schema() -> None:
 
 
 def test_g5_formula_generation_typst() -> None:
+    """Конфиг-литерал собирается без Pandoc: тест не требует внешних бинарников."""
     profile = _profile(
         equation={
             "align": "left",
@@ -205,7 +206,8 @@ def test_g5_formula_generation_typst() -> None:
             "caption_separator": ": ",
         }
     )
-    source = build_source("Текст.\n", profile)
+    values, _source = options_payload(profile)
+    source = build_fd_config(values)
     assert 'align: "left"' in source
     assert "numbering_enabled: true" in source
     assert 'numbering_template: "({h1}.{n})"' in source
@@ -259,6 +261,60 @@ def test_g5_equation_caption_section_placeholders_render(tmp_path: Path) -> None
         "equation-caption-section",
     )
     assert "Глава 1, формула (1.1) — Подпись" in _lines(path)
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    shutil.which("pandoc") is None or shutil.which("typst") is None,
+    reason="pandoc and typst must be in PATH",
+)
+def test_g5_equation_caption_chapter_without_number_template_render(
+    tmp_path: Path,
+) -> None:
+    """{h1} только в шаблоне подписи: счётчик главы обязан шагать по заголовкам."""
+    path = _compile(
+        "# Глава\n\n$$E = mc^2$$\n\n: Подпись\n",
+        _profile(
+            equation={
+                "numbering_enabled": True,
+                "numbering_template": "({n})",
+                "caption_template": "Глава {h1}, формула {n} — {content}",
+            }
+        ),
+        tmp_path,
+        "equation-caption-chapter-only",
+    )
+    lines = _lines(path)
+    assert "Глава 1, формула (1) — Подпись" in lines
+    assert not any("Глава 0" in line for line in lines)
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    shutil.which("pandoc") is None or shutil.which("typst") is None,
+    reason="pandoc and typst must be in PATH",
+)
+def test_g5_equation_caption_chapter_reset_render(tmp_path: Path) -> None:
+    """Сброс счётчика главы для подписи работает и без {h1} в шаблоне номера."""
+    markdown = (
+        "# Первая\n\n$$E = mc^2$$\n\n: Подпись один\n\n"
+        "# Вторая\n\n$$a^2 + b^2 = c^2$$\n\n: Подпись два\n"
+    )
+    path = _compile(
+        markdown,
+        _profile(
+            equation={
+                "numbering_enabled": True,
+                "numbering_template": "({n})",
+                "caption_template": "Глава {h1}, формула {n} — {content}",
+            }
+        ),
+        tmp_path,
+        "equation-caption-chapter-reset",
+    )
+    lines = _lines(path)
+    assert "Глава 1, формула (1) — Подпись один" in lines
+    assert "Глава 2, формула (2) — Подпись два" in lines
 
 
 @pytest.mark.integration
@@ -353,6 +409,29 @@ def test_g5_equation_numbering_appendix_render(tmp_path: Path) -> None:
     shutil.which("pandoc") is None or shutil.which("typst") is None,
     reason="pandoc and typst must be in PATH",
 )
+def test_g5_equation_caption_appendix_letter_render(tmp_path: Path) -> None:
+    """{h1} в подписи в режиме приложения даёт букву приложения."""
+    path = _compile(
+        "# Приложение А\n\n$$E = mc^2$$\n\n: Подпись\n",
+        _profile(
+            [APPENDIX_ENTITY],
+            equation={
+                "numbering_enabled": True,
+                "numbering_template": "({h1}.{n})",
+                "caption_template": "Приложение {h1}, формула {n} — {content}",
+            },
+        ),
+        tmp_path,
+        "equation-caption-appendix",
+    )
+    assert "Приложение А, формула (А.1) — Подпись" in _lines(path)
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    shutil.which("pandoc") is None or shutil.which("typst") is None,
+    reason="pandoc and typst must be in PATH",
+)
 def test_g5_equation_numbering_disabled_render(tmp_path: Path) -> None:
     path = _compile(
         "$$E = mc^2$$\n",
@@ -404,11 +483,6 @@ def test_g5_equation_align_render(tmp_path: Path, align: str) -> None:
     shutil.which("pandoc") is None or shutil.which("typst") is None,
     reason="pandoc and typst must be in PATH",
 )
-@pytest.mark.integration
-@pytest.mark.skipif(
-    shutil.which("pandoc") is None or shutil.which("typst") is None,
-    reason="pandoc and typst must be in PATH",
-)
 def test_g5_equation_number_right_render(tmp_path: Path) -> None:
     path = _compile(
         "$$E = mc^2$$\n",
@@ -428,6 +502,11 @@ def test_g5_equation_number_right_render(tmp_path: Path) -> None:
     assert abs(float(number["x1"]) - (page.width - right_margin)) < 2.0
 
 
+@pytest.mark.integration
+@pytest.mark.skipif(
+    shutil.which("pandoc") is None or shutil.which("typst") is None,
+    reason="pandoc and typst must be in PATH",
+)
 @pytest.mark.parametrize(("position", "above"), [("above", True), ("below", False)])
 def test_g5_equation_caption_position_render(tmp_path: Path, position: str, above: bool) -> None:
     path = _compile(
