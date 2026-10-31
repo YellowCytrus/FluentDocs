@@ -18,7 +18,7 @@
 | G3a — структурные сущности, приложения, оглавление | выполнен, принят владельцем | этот файл |
 | G3b — подписи и нумерация рисунков/таблиц | выполнен, принят владельцем | этот файл |
 | G4 — таблицы и оглавление | выполнен, ждёт приёмки | этот файл |
-| G5 — формулы и подпись формулы | выполнен, ждёт приёмки | `5a9a202`, CI 40883616584 |
+| G5 — формулы и подпись формулы | выполнен, ждёт приёмки после G5-fix | `G5-fix`, CI — |
 | G6 — профиль СТУ СФУ и самопроверка | не начат | — |
 
 ## G0 — чек-лист
@@ -969,6 +969,9 @@ test 141 passed, integration 223 passed, frontend 17 passed, build и lint OK.
 |---|---|---|
 | Подпись формулы | `test_g5_equation_caption_render` | «Формула (1) — Подпись формулы»; формула `E = mc²` без второго номера |
 | Плейсхолдеры подписи | `test_g5_equation_caption_section_placeholders_render` | «Глава 1, формула (1.1) — Подпись»: `{h1}` и готовый `{n}` |
+| `{h1}` только в подписи | `test_g5_equation_caption_chapter_without_number_template_render` | «Глава 1, формула (1) — Подпись»; «Глава 0» отсутствует |
+| Сброс главы подписи | `test_g5_equation_caption_chapter_reset_render` | главы 1 и 2, номера формул (1) и (2) не сбрасываются |
+| Буква приложения в подписи | `test_g5_equation_caption_appendix_letter_render` | «Приложение А, формула (А.1) — Подпись» |
 | Definition list | `test_g5_definition_list_not_broken` | «Термин» и «Определение термина» остаются списком определений |
 | Нумерация по главам | `test_g5_equation_numbering_section_render` | `(1.1)` и `(2.1)` |
 | Глобальная нумерация | `test_g5_equation_numbering_global_render` | `(1)` и `(2)`, без сброса по главам |
@@ -1011,3 +1014,30 @@ frontend 17 passed (4 files); Ruff check/format OK.
   реализован; остаётся ручной разрыв `\`. Помощник `fd.eq-break` не добавлялся.
 - `formula.cross_reference` — ссылки/метки формул требуют нового синтаксиса
   Markdown, поэтому отложены.
+
+
+## G5-fix — замечания владельца
+
+Коммиты: см. отчёт на воротах G5-fix.
+
+| Замечание | Исправление | Тест |
+|---|---|---|
+| `caption_template` с `{h1}` при `numbering_template` без `{h1}` давал «Глава 0» | Уровни счётчиков формулы — объединение уровней `numbering_template` и `caption_template` (`formula-counter-data`); сброс счётчика номера — только по уровням шаблона номера (`number-data`) | `test_g5_equation_caption_chapter_without_number_template_render`, `test_g5_equation_caption_chapter_reset_render`, `test_g5_equation_caption_appendix_letter_render` |
+| `test_g5_equation_caption_position_render` не был помечен `integration` | Добавлены `@pytest.mark.integration` и `skipif` pandoc/typst | `pytest -m "not integration"` без бинарников больше не падает |
+| Дубли декораторов у `test_g5_equation_number_right_render` | Дубли убраны | — |
+| Генерационные тесты G3b/G4 падали без pandoc (та же категория) | `test_caption_generation_typst`, `test_g4_table_generation_typst`, `test_g4_toc_generation_typst`, `test_g5_formula_generation_typst` собирают конфиг-литерал через `options_payload` + `build_fd_config`, без Pandoc | `env PATH=/usr/bin:/bin pytest tests/ -m "not integration"` |
+
+Дополнительно найден и исправлен скрытый дефект: `formula-n.step()` вызывался внутри `context`, из-за чего счётчик шагал дважды (второй номер формулы был `(3)`). Шаг вынесен из `context` в обоих обработчиках формулы.
+
+### G5-fix: проверки
+
+| Команда | Результат |
+|---|---|
+| `pytest tests/ -m "not integration"` (pandoc 3.9, typst 0.14.2) | 77 passed, 66 skipped, 246 deselected |
+| `pytest tests/ -m "not integration"` без pandoc/typst | 74 passed, 69 skipped, 246 deselected (3 skip — версии, с причиной) |
+| `pytest tests/ -m integration` | 245 passed, 1 skipped, 143 deselected |
+| `tests/test_g5_formulas.py` | 25 passed |
+| golden | 33 passed, снимки не менялись |
+| frontend `npm test -- --run` | 17 passed |
+| `npm run build`, `npx vue-tsc --noEmit` | OK |
+| `ruff check` / `ruff format --check` | All checks passed / 107 files formatted |
