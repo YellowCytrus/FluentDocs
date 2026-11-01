@@ -25,6 +25,10 @@
   // Буква текущего приложения для подписей рисунков/таблиц.
   // Обслуживает caption.<kind> и сброс нумерации в приложении.
   let appendix-state = state("fd-appendix-letter", none)
+  // Участвует ли текущий заголовок в нумерации разделов: у структурных
+  // заголовков счётчики подписей не должны шагать (иначе «Введение» даёт
+  // подписи «2.1» вместо «1.1»).
+  let heading-counts-state = state("fd-heading-counts", true)
 
   // Глубина, номера предков и отступы тела для собственного рендера enum.
   // Нужны, чтобы продолжение пункта начиналось у левого поля, а вложенные
@@ -969,6 +973,14 @@
             [#appendix-state.update(appendix-letter-value)],
           )
         }
+        before = add-content(
+          before,
+          [
+            #heading-counts-state.update(
+              not (mode == "none") and not (none-active and level > 1),
+            )
+          ],
+        )
         let rendered = heading-content(
           config,
           heading,
@@ -1094,9 +1106,10 @@
     counters,
     number-counter,
     number-data: auto,
-  ) = {
+  ) = context {
     let reset-data = if number-data == auto { data } else { number-data }
-    if data != none and data.levels.contains(level) {
+    let counts = heading-counts-state.get()
+    if counts and data != none and data.levels.contains(level) {
       counters.at(level - 1).step()
       for deeper in data.levels {
         if deeper > level {
@@ -1104,7 +1117,7 @@
         }
       }
     }
-    if number-counter != none and reset-data != none and reset-data.levels.contains(level) {
+    if counts and number-counter != none and reset-data != none and reset-data.levels.contains(level) {
       number-counter.update(0)
     }
     it
