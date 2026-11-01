@@ -1,0 +1,1001 @@
+{
+  "name": "СТУ СФУ",
+  "schema_version": 1,
+  "sources": {
+    "appendix.alphabet": "СТУ 7.5.5; common.appendix",
+    "appendix.bold": "СТУ 7.5.5; common.appendix",
+    "appendix.overflow": "СТУ 7.5.5; common.appendix",
+    "appendix.service_case": "СТУ 7.5.5; common.appendix",
+    "appendix.template": "СТУ 7.5.5; common.appendix",
+    "appendix.title_case": "СТУ 7.5.5; common.appendix",
+    "bullet_list.body_indent": "СТУ 7.4; common.list.indent",
+    "bullet_list.marker": "СТУ 7.4; common.list.bullet",
+    "bullet_list.text_override.font": "СТУ 7.3; common.text.font.name",
+    "bullet_list.text_override.font_size": "СТУ 7.3; common.text.font.name",
+    "bullet_list.text_override.lang": "СТУ 7.3; common.text.font.name",
+    "document.font": "СТУ 7.3; common.text.font.name",
+    "document.font_size": "СТУ 7.3; common.text.font.size",
+    "document.hyphenate": "СТУ 7.3; common.text.hyphenation",
+    "document.justify": "СТУ 7.3; common.text.alignment",
+    "document.lang": "СТУ 7.3; common.text.font.name",
+    "document.line_spacing": "СТУ 7.3; common.text.line_spacing; AGENTS 5.4",
+    "equation.align": "СТУ 7.6.1; common.formula.body",
+    "equation.body_indent": "СТУ 7.6.1; common.formula.body_indent",
+    "equation.caption_text_override": "СТУ 7.6.1; common.formula.body",
+    "equation.numbering_enabled": "СТУ 7.6; common.formula.section_numbering",
+    "equation.numbering_template": "СТУ 7.6; common.formula.section_numbering",
+    "equation.text_override.font": "СТУ 7.3; common.text.font.name",
+    "equation.text_override.font_size": "СТУ 7.3; common.text.font.name",
+    "equation.text_override.lang": "СТУ 7.3; common.text.font.name",
+    "figure.caption_align": "СТУ 7.8.2; common.figure.caption",
+    "figure.caption_position": "СТУ 7.8.2; common.figure.caption",
+    "figure.caption_separator": "СТУ 7.8.2; common.figure.caption",
+    "figure.caption_template": "СТУ 7.8.2; common.figure.section_numbering",
+    "figure.caption_text_override": "СТУ 7.8.2; common.figure.caption",
+    "figure.fit": "СТУ 7.8.1; common.figure.image",
+    "figure.text_override.font": "СТУ 7.3; common.text.font.name",
+    "figure.text_override.font_size": "СТУ 7.3; common.text.font.name",
+    "figure.text_override.lang": "СТУ 7.3; common.text.font.name",
+    "figure.width": "СТУ 7.8.1; common.figure.image",
+    "footnote.marker_format": "СТУ 7.9; common.footnote",
+    "footnote.separator_length": "СТУ 7.9; common.footnote",
+    "footnote.text_override.font": "СТУ 7.3; common.text.font.name",
+    "footnote.text_override.font_size": "СТУ 7.3; common.text.font.name",
+    "footnote.text_override.lang": "СТУ 7.3; common.text.font.name",
+    "heading.h1.break_before": "СТУ 7.4; common.heading.h1",
+    "heading.h2.break_before": "СТУ 7.4; common.heading.h2",
+    "heading.h3.break_before": "СТУ 7.4; common.heading.h3",
+    "heading.h4.break_before": "СТУ 7.4; common.heading.h4",
+    "heading.h5.break_before": "СТУ 7.4; common.heading.h5",
+    "heading.h6.break_before": "СТУ 7.4; common.heading.h6",
+    "heading.keep_with_next": "СТУ 7.4; common.heading.h1",
+    "heading.numbering": "СТУ 7.4; common.heading.h1-h6",
+    "numbered_list.alphabet": "СТУ 7.4; common.list.lettered",
+    "numbered_list.body_indent": "СТУ 7.4; common.list.indent",
+    "numbered_list.level_formats": "СТУ 7.4; common.list.numbered; common.list.lettered",
+    "numbered_list.numbering": "СТУ 7.4; common.list.numbered",
+    "numbered_list.text_override.font": "СТУ 7.3; common.text.font.name",
+    "numbered_list.text_override.font_size": "СТУ 7.3; common.text.font.name",
+    "numbered_list.text_override.lang": "СТУ 7.3; common.text.font.name",
+    "outline.appendix_grouping": "СТУ 6.4; common.toc.appendix",
+    "outline.appendix_min_group": "СТУ 6.4; common.toc.appendix",
+    "outline.depth": "СТУ 6.4; common.toc.depth",
+    "outline.entry_case": "СТУ 6.4; common.toc.entries",
+    "outline.indent_mode": "СТУ 6.4; common.toc.indent",
+    "outline.indent_per_level": "СТУ 6.4; common.toc.indent",
+    "outline.omit_when_pages_lte": "СТУ 6.4; common.toc",
+    "outline.text_override.font": "СТУ 7.3; common.text.font.name",
+    "outline.text_override.font_size": "СТУ 7.3; common.text.font.name",
+    "outline.text_override.lang": "СТУ 7.3; common.text.font.name",
+    "page.margin_bottom": "СТУ 7.1.2; common.page.margins.portrait",
+    "page.margin_landscape_bottom": "СТУ 7.1.2; common.page.margins.landscape",
+    "page.margin_landscape_left": "СТУ 7.1.2; common.page.margins.landscape",
+    "page.margin_landscape_right": "СТУ 7.1.2; common.page.margins.landscape",
+    "page.margin_landscape_top": "СТУ 7.1.2; common.page.margins.landscape",
+    "page.margin_left": "СТУ 7.1.2; common.page.margins.portrait",
+    "page.margin_right": "СТУ 7.1.2; common.page.margins.portrait",
+    "page.margin_top": "СТУ 7.1.2; common.page.margins.portrait",
+    "page.number_align": "СТУ 7.2; common.page.numbering",
+    "page.numbering": "СТУ 7.2; common.page.numbering",
+    "page.numbering_skip_first": "СТУ 7.2; common.page.numbering",
+    "page.numbering_start": "СТУ 7.2; common.page.numbering",
+    "page.paper": "СТУ 7.1.2; common.page.margins.portrait",
+    "par.first_line_indent": "СТУ 7.3; common.text.indent.first_line",
+    "par.linebreaks": "СТУ 7.3; common.text",
+    "par.spacing": "СТУ 7.3; common.text",
+    "par.text_override.font": "СТУ 7.3; common.text.font.name",
+    "par.text_override.font_size": "СТУ 7.3; common.text.font.name",
+    "par.text_override.lang": "СТУ 7.3; common.text.font.name",
+    "quote.text_override.font": "СТУ 7.3; common.text.font.name",
+    "quote.text_override.font_size": "СТУ 7.3; common.text.font.name",
+    "quote.text_override.lang": "СТУ 7.3; common.text.font.name",
+    "raw.text_override.font": "СТУ 7.3; common.text.font.name",
+    "raw.text_override.font_size": "СТУ 7.3; common.text.font.name",
+    "raw.text_override.lang": "СТУ 7.3; common.text.font.name",
+    "structural.entities": "СТУ 7.5; common.structural",
+    "table.caption_align": "СТУ 7.7.3; common.table.caption",
+    "table.caption_position": "СТУ 7.7.3; common.table.caption",
+    "table.caption_separator": "СТУ 7.7.3; common.table.caption",
+    "table.caption_template": "СТУ 7.7.3; common.table.section_numbering",
+    "table.caption_text_override": "СТУ 7.7.3; common.table.caption",
+    "table.header_double_line": "СТУ 7.7.2; common.table.header_line",
+    "table.header_double_stroke": "СТУ 7.7.2; common.table.header_line",
+    "table.inset": "СТУ 7.7.3; common.table.cell",
+    "table.italic_letters": "СТУ 7.7.3; common.table.cell",
+    "table.repeat_header": "СТУ 7.7.2; common.table.header_repeat",
+    "table.stroke": "СТУ 7.7.2; common.table.grid",
+    "table.text_override.font": "СТУ 7.3; common.text.font.name",
+    "table.text_override.font_size": "СТУ 7.3; common.text.font.name",
+    "table.text_override.lang": "СТУ 7.3; common.text.font.name",
+    "terms.text_override.font": "СТУ 7.3; common.text.font.name",
+    "terms.text_override.font_size": "СТУ 7.3; common.text.font.name",
+    "terms.text_override.lang": "СТУ 7.3; common.text.font.name"
+  },
+  "values": {
+    "appendix": {
+      "alphabet": "ru_sfu",
+      "bold": true,
+      "overflow": "double",
+      "service_case": "upper",
+      "template": "{service} {letter}. {title}",
+      "title_case": "none"
+    },
+    "around": {
+      "bullet_list": {
+        "after": [],
+        "before": [],
+        "before_collisions": []
+      },
+      "equation": {
+        "after": [],
+        "before": [],
+        "before_collisions": []
+      },
+      "figure": {
+        "after": [],
+        "before": [],
+        "before_collisions": []
+      },
+      "heading_1": {
+        "after": [],
+        "before": [],
+        "before_collisions": []
+      },
+      "heading_2": {
+        "after": [],
+        "before": [],
+        "before_collisions": []
+      },
+      "heading_3": {
+        "after": [],
+        "before": [],
+        "before_collisions": []
+      },
+      "heading_4": {
+        "after": [],
+        "before": [],
+        "before_collisions": []
+      },
+      "heading_5": {
+        "after": [],
+        "before": [],
+        "before_collisions": []
+      },
+      "heading_6": {
+        "after": [],
+        "before": [],
+        "before_collisions": []
+      },
+      "numbered_list": {
+        "after": [],
+        "before": [],
+        "before_collisions": []
+      },
+      "par": {
+        "after": [],
+        "before": [],
+        "before_collisions": []
+      },
+      "quote": {
+        "after": [],
+        "before": [],
+        "before_collisions": []
+      },
+      "raw": {
+        "after": [],
+        "before": [],
+        "before_collisions": []
+      },
+      "table": {
+        "after": [],
+        "before": [],
+        "before_collisions": []
+      },
+      "terms": {
+        "after": [],
+        "before": [],
+        "before_collisions": []
+      }
+    },
+    "bullet_list": {
+      "body_indent": 12.5,
+      "indent": 0.0,
+      "loose_spacing": 1.0,
+      "marker": [
+        "- ",
+        "- ",
+        "- "
+      ],
+      "spacing": "auto",
+      "spacing_after": 1.2,
+      "spacing_before": 1.2,
+      "text_override": {
+        "fill": "black",
+        "font": "Times New Roman",
+        "font_size": 14.0,
+        "hyphenate": null,
+        "lang": "ru",
+        "ligatures": true,
+        "number_type": "auto",
+        "number_width": "auto",
+        "region": null,
+        "style": "normal",
+        "tracking": 0.0,
+        "weight": "regular",
+        "word_spacing": 100.0
+      },
+      "tight": true,
+      "tight_spacing": 0.5
+    },
+    "document": {
+      "fill": "black",
+      "font": "Times New Roman",
+      "font_size": 14.0,
+      "hyphenate": "false",
+      "justify": true,
+      "lang": "ru",
+      "ligatures": true,
+      "line_height_em": 1.308,
+      "line_spacing": {
+        "mode": "multiplier",
+        "value": 1.5
+      },
+      "number_type": "auto",
+      "number_width": "auto",
+      "region": null,
+      "style": "normal",
+      "tracking": 0.0,
+      "weight": "regular",
+      "word_spacing": 100.0
+    },
+    "equation": {
+      "align": "left",
+      "body_indent": 12.5,
+      "caption_align": "center",
+      "caption_around": {
+        "after": [],
+        "before": []
+      },
+      "caption_position": "below",
+      "caption_separator": " — ",
+      "caption_template": null,
+      "caption_text_override": {
+        "fill": "black",
+        "font": "Times New Roman",
+        "font_size": 14.0,
+        "hyphenate": null,
+        "lang": "ru",
+        "ligatures": true,
+        "number_type": "auto",
+        "number_width": "auto",
+        "region": null,
+        "style": "normal",
+        "tracking": 0.0,
+        "weight": "regular",
+        "word_spacing": 100.0
+      },
+      "numbering_enabled": true,
+      "numbering_template": "({h1}.{n})",
+      "spacing_after": 1.2,
+      "spacing_before": 1.2,
+      "text_override": {
+        "fill": "black",
+        "font": "Times New Roman",
+        "font_size": 14.0,
+        "hyphenate": null,
+        "lang": "ru",
+        "ligatures": true,
+        "number_type": "auto",
+        "number_width": "auto",
+        "region": null,
+        "style": "normal",
+        "tracking": 0.0,
+        "weight": "regular",
+        "word_spacing": 100.0
+      }
+    },
+    "figure": {
+      "caption_align": "center",
+      "caption_around": {
+        "after": [],
+        "before": []
+      },
+      "caption_position": "below",
+      "caption_separator": " — ",
+      "caption_template": "Рисунок {h1}.{n} — {content}",
+      "caption_text_override": {
+        "fill": "black",
+        "font": "Times New Roman",
+        "font_size": 14.0,
+        "hyphenate": null,
+        "lang": "ru",
+        "ligatures": true,
+        "number_type": "auto",
+        "number_width": "auto",
+        "region": null,
+        "style": "normal",
+        "tracking": 0.0,
+        "weight": "regular",
+        "word_spacing": 100.0
+      },
+      "fit": "contain",
+      "gap": 2.7516666667,
+      "height": 0.0,
+      "outlined": true,
+      "placement": "none",
+      "spacing_after": 1.2,
+      "spacing_before": 1.2,
+      "text_override": {
+        "fill": "black",
+        "font": "Times New Roman",
+        "font_size": 14.0,
+        "hyphenate": null,
+        "lang": "ru",
+        "ligatures": true,
+        "number_type": "auto",
+        "number_width": "auto",
+        "region": null,
+        "style": "normal",
+        "tracking": 0.0,
+        "weight": "regular",
+        "word_spacing": 100.0
+      },
+      "width": 165.0
+    },
+    "footnote": {
+      "clearance": 4.2333333333,
+      "gap": 2.1166666667,
+      "indent": 4.2333333333,
+      "marker_format": "1",
+      "separator_length": 30.0,
+      "separator_stroke": 0.1764,
+      "text_override": {
+        "fill": "black",
+        "font": "Times New Roman",
+        "font_size": 12.0,
+        "hyphenate": null,
+        "lang": "ru",
+        "ligatures": true,
+        "number_type": "auto",
+        "number_width": "auto",
+        "region": null,
+        "style": "normal",
+        "tracking": 0.0,
+        "weight": "regular",
+        "word_spacing": 100.0
+      }
+    },
+    "heading": {
+      "keep_with_next": true,
+      "numbering": "1.1.1.1.1.1",
+      "unnumbered_indent": -0.3
+    },
+    "heading_levels": {
+      "1": {
+        "break_before": true,
+        "numbering_enabled": true,
+        "spacing_after": 0.75,
+        "spacing_before": 1.8,
+        "text_override": null
+      },
+      "2": {
+        "break_before": false,
+        "numbering_enabled": true,
+        "spacing_after": 0.75,
+        "spacing_before": 1.44,
+        "text_override": null
+      },
+      "3": {
+        "break_before": false,
+        "numbering_enabled": true,
+        "spacing_after": 0.75,
+        "spacing_before": 1.44,
+        "text_override": null
+      },
+      "4": {
+        "break_before": false,
+        "numbering_enabled": true,
+        "spacing_after": 0.75,
+        "spacing_before": 1.44,
+        "text_override": null
+      },
+      "5": {
+        "break_before": false,
+        "numbering_enabled": true,
+        "spacing_after": 0.75,
+        "spacing_before": 1.44,
+        "text_override": null
+      },
+      "6": {
+        "break_before": false,
+        "numbering_enabled": true,
+        "spacing_after": 0.75,
+        "spacing_before": 1.44,
+        "text_override": null
+      }
+    },
+    "numbered_list": {
+      "alphabet": "ru_sfu",
+      "body_indent": 12.5,
+      "full": false,
+      "indent": 0.0,
+      "level_formats": [
+        {
+          "format": "1)"
+        },
+        {
+          "format": "а)"
+        },
+        {
+          "format": "1)"
+        }
+      ],
+      "loose_spacing": 1.0,
+      "number_align": "end+top",
+      "numbering": "1)",
+      "reversed": false,
+      "spacing": "auto",
+      "spacing_after": 1.2,
+      "spacing_before": 1.2,
+      "start": null,
+      "text_override": {
+        "fill": "black",
+        "font": "Times New Roman",
+        "font_size": 14.0,
+        "hyphenate": null,
+        "lang": "ru",
+        "ligatures": true,
+        "number_type": "auto",
+        "number_width": "auto",
+        "region": null,
+        "style": "normal",
+        "tracking": 0.0,
+        "weight": "regular",
+        "word_spacing": 100.0
+      },
+      "tight": true,
+      "tight_spacing": 0.5,
+      "wrap_mode": "left_margin"
+    },
+    "outline": {
+      "appendix_group_template": "Приложения {first}–{last}",
+      "appendix_grouping": true,
+      "appendix_min_group": 3,
+      "depth": 4,
+      "entry_case": "none",
+      "indent_mm": 0.0,
+      "indent_mode": "per_level",
+      "indent_per_level": [
+        {
+          "mm": 0.0
+        },
+        {
+          "mm": 5.0
+        },
+        {
+          "mm": 10.0
+        },
+        {
+          "mm": 15.0
+        }
+      ],
+      "omit_when_pages_lte": 24,
+      "text_override": {
+        "fill": "black",
+        "font": "Times New Roman",
+        "font_size": 14.0,
+        "hyphenate": null,
+        "lang": "ru",
+        "ligatures": true,
+        "number_type": "auto",
+        "number_width": "auto",
+        "region": null,
+        "style": "normal",
+        "tracking": 0.0,
+        "weight": "regular",
+        "word_spacing": 100.0
+      }
+    },
+    "page": {
+      "columns": 1,
+      "flipped": false,
+      "margin_bottom": 20.0,
+      "margin_landscape_bottom": 10.0,
+      "margin_landscape_left": 20.0,
+      "margin_landscape_right": 20.0,
+      "margin_landscape_top": 30.0,
+      "margin_left": 30.0,
+      "margin_right": 10.0,
+      "margin_top": 20.0,
+      "number_align": "center+bottom",
+      "numbering": "1",
+      "numbering_skip_first": true,
+      "numbering_start": 1,
+      "paper": "a4"
+    },
+    "par": {
+      "first_line_indent": 12.5,
+      "hanging_indent": 0.0,
+      "linebreaks": "auto",
+      "spacing": 0.0,
+      "text_override": {
+        "fill": "black",
+        "font": "Times New Roman",
+        "font_size": 14.0,
+        "hyphenate": null,
+        "lang": "ru",
+        "ligatures": true,
+        "number_type": "auto",
+        "number_width": "auto",
+        "region": null,
+        "style": "normal",
+        "tracking": 0.0,
+        "weight": "regular",
+        "word_spacing": 100.0
+      }
+    },
+    "quote": {
+      "block": true,
+      "indent": 6.35,
+      "quotes": "auto",
+      "spacing_after": 1.8,
+      "spacing_before": 2.4,
+      "text_override": {
+        "fill": "black",
+        "font": "Times New Roman",
+        "font_size": 14.0,
+        "hyphenate": null,
+        "lang": "ru",
+        "ligatures": true,
+        "number_type": "auto",
+        "number_width": "auto",
+        "region": null,
+        "style": "normal",
+        "tracking": 0.0,
+        "weight": "regular",
+        "word_spacing": 100.0
+      }
+    },
+    "raw": {
+      "align": "start",
+      "spacing_after": 1.2,
+      "spacing_before": 1.2,
+      "tab_size": 2,
+      "text_override": {
+        "fill": "black",
+        "font": "Times New Roman",
+        "font_size": 12.0,
+        "hyphenate": null,
+        "lang": "ru",
+        "ligatures": true,
+        "number_type": "auto",
+        "number_width": "auto",
+        "region": null,
+        "style": "normal",
+        "tracking": 0.0,
+        "weight": "regular",
+        "word_spacing": 100.0
+      },
+      "theme": "auto"
+    },
+    "structural": {
+      "entities": [
+        {
+          "apply": {
+            "align": "center",
+            "around": {
+              "after": [
+                {
+                  "count": 1,
+                  "line_spacing": {
+                    "mode": "multiplier",
+                    "value": 1.0
+                  },
+                  "type": "blank"
+                }
+              ],
+              "before": [],
+              "before_collisions": []
+            },
+            "bold": true,
+            "break_before": true,
+            "case": "upper",
+            "outlined": true,
+            "text_override": {
+              "fill": "black",
+              "font": "Times New Roman",
+              "font_size": 14.0,
+              "hyphenate": null,
+              "lang": "ru",
+              "ligatures": true,
+              "number_type": "auto",
+              "number_width": "auto",
+              "region": null,
+              "style": "normal",
+              "tracking": 0.0,
+              "weight": "regular",
+              "word_spacing": 100.0
+            }
+          },
+          "id": "содержание",
+          "label": "Содержание",
+          "match": {
+            "case_insensitive": true,
+            "level": "1",
+            "mode": "equals",
+            "target": "heading",
+            "value": "СОДЕРЖАНИЕ"
+          },
+          "numbering": {
+            "group": "",
+            "kind": "section",
+            "mode": "none",
+            "start": 1,
+            "sub_template": "{prefix}.{n}",
+            "template": "1"
+          }
+        },
+        {
+          "apply": {
+            "align": "center",
+            "around": {
+              "after": [
+                {
+                  "count": 1,
+                  "line_spacing": {
+                    "mode": "multiplier",
+                    "value": 1.0
+                  },
+                  "type": "blank"
+                }
+              ],
+              "before": [],
+              "before_collisions": []
+            },
+            "bold": true,
+            "break_before": true,
+            "case": "upper",
+            "outlined": true,
+            "text_override": {
+              "fill": "black",
+              "font": "Times New Roman",
+              "font_size": 14.0,
+              "hyphenate": null,
+              "lang": "ru",
+              "ligatures": true,
+              "number_type": "auto",
+              "number_width": "auto",
+              "region": null,
+              "style": "normal",
+              "tracking": 0.0,
+              "weight": "regular",
+              "word_spacing": 100.0
+            }
+          },
+          "id": "введение",
+          "label": "Введение",
+          "match": {
+            "case_insensitive": true,
+            "level": "1",
+            "mode": "equals",
+            "target": "heading",
+            "value": "ВВЕДЕНИЕ"
+          },
+          "numbering": {
+            "group": "",
+            "kind": "section",
+            "mode": "none",
+            "start": 1,
+            "sub_template": "{prefix}.{n}",
+            "template": "1"
+          }
+        },
+        {
+          "apply": {
+            "align": "center",
+            "around": {
+              "after": [
+                {
+                  "count": 1,
+                  "line_spacing": {
+                    "mode": "multiplier",
+                    "value": 1.0
+                  },
+                  "type": "blank"
+                }
+              ],
+              "before": [],
+              "before_collisions": []
+            },
+            "bold": true,
+            "break_before": true,
+            "case": "upper",
+            "outlined": true,
+            "text_override": {
+              "fill": "black",
+              "font": "Times New Roman",
+              "font_size": 14.0,
+              "hyphenate": null,
+              "lang": "ru",
+              "ligatures": true,
+              "number_type": "auto",
+              "number_width": "auto",
+              "region": null,
+              "style": "normal",
+              "tracking": 0.0,
+              "weight": "regular",
+              "word_spacing": 100.0
+            }
+          },
+          "id": "заключение",
+          "label": "Заключение",
+          "match": {
+            "case_insensitive": true,
+            "level": "1",
+            "mode": "equals",
+            "target": "heading",
+            "value": "ЗАКЛЮЧЕНИЕ"
+          },
+          "numbering": {
+            "group": "",
+            "kind": "section",
+            "mode": "none",
+            "start": 1,
+            "sub_template": "{prefix}.{n}",
+            "template": "1"
+          }
+        },
+        {
+          "apply": {
+            "align": "center",
+            "around": {
+              "after": [
+                {
+                  "count": 1,
+                  "line_spacing": {
+                    "mode": "multiplier",
+                    "value": 1.0
+                  },
+                  "type": "blank"
+                }
+              ],
+              "before": [],
+              "before_collisions": []
+            },
+            "bold": true,
+            "break_before": true,
+            "case": "upper",
+            "outlined": true,
+            "text_override": {
+              "fill": "black",
+              "font": "Times New Roman",
+              "font_size": 14.0,
+              "hyphenate": null,
+              "lang": "ru",
+              "ligatures": true,
+              "number_type": "auto",
+              "number_width": "auto",
+              "region": null,
+              "style": "normal",
+              "tracking": 0.0,
+              "weight": "regular",
+              "word_spacing": 100.0
+            }
+          },
+          "id": "список_сокращений",
+          "label": "Список Сокращений",
+          "match": {
+            "case_insensitive": true,
+            "level": "1",
+            "mode": "equals",
+            "target": "heading",
+            "value": "СПИСОК СОКРАЩЕНИЙ"
+          },
+          "numbering": {
+            "group": "",
+            "kind": "section",
+            "mode": "none",
+            "start": 1,
+            "sub_template": "{prefix}.{n}",
+            "template": "1"
+          }
+        },
+        {
+          "apply": {
+            "align": "center",
+            "around": {
+              "after": [
+                {
+                  "count": 1,
+                  "line_spacing": {
+                    "mode": "multiplier",
+                    "value": 1.0
+                  },
+                  "type": "blank"
+                }
+              ],
+              "before": [],
+              "before_collisions": []
+            },
+            "bold": true,
+            "break_before": true,
+            "case": "upper",
+            "outlined": true,
+            "text_override": {
+              "fill": "black",
+              "font": "Times New Roman",
+              "font_size": 14.0,
+              "hyphenate": null,
+              "lang": "ru",
+              "ligatures": true,
+              "number_type": "auto",
+              "number_width": "auto",
+              "region": null,
+              "style": "normal",
+              "tracking": 0.0,
+              "weight": "regular",
+              "word_spacing": 100.0
+            }
+          },
+          "id": "список_использованных_источников",
+          "label": "Список Использованных Источников",
+          "match": {
+            "case_insensitive": true,
+            "level": "1",
+            "mode": "equals",
+            "target": "heading",
+            "value": "СПИСОК ИСПОЛЬЗОВАННЫХ ИСТОЧНИКОВ"
+          },
+          "numbering": {
+            "group": "",
+            "kind": "section",
+            "mode": "none",
+            "start": 1,
+            "sub_template": "{prefix}.{n}",
+            "template": "1"
+          }
+        },
+        {
+          "apply": {
+            "align": "center",
+            "around": {
+              "after": [
+                {
+                  "count": 1,
+                  "line_spacing": {
+                    "mode": "multiplier",
+                    "value": 1.0
+                  },
+                  "type": "blank"
+                }
+              ],
+              "before": [],
+              "before_collisions": []
+            },
+            "bold": true,
+            "break_before": true,
+            "case": "upper",
+            "outlined": true,
+            "text_override": {
+              "fill": "black",
+              "font": "Times New Roman",
+              "font_size": 14.0,
+              "hyphenate": null,
+              "lang": "ru",
+              "ligatures": true,
+              "number_type": "auto",
+              "number_width": "auto",
+              "region": null,
+              "style": "normal",
+              "tracking": 0.0,
+              "weight": "regular",
+              "word_spacing": 100.0
+            }
+          },
+          "id": "appendix",
+          "label": "Приложение",
+          "match": {
+            "case_insensitive": true,
+            "level": "1",
+            "mode": "equals",
+            "target": "heading",
+            "value": "ПРИЛОЖЕНИЕ"
+          },
+          "numbering": {
+            "group": "appendix",
+            "kind": "appendix",
+            "mode": "own",
+            "start": 1,
+            "sub_template": "{prefix}.{n}",
+            "template": "{letter}"
+          }
+        }
+      ]
+    },
+    "table": {
+      "align": "auto",
+      "border_bottom": true,
+      "border_inside_horizontal": true,
+      "border_inside_vertical": true,
+      "border_left": true,
+      "border_right": true,
+      "border_top": true,
+      "caption_align": "left",
+      "caption_around": {
+        "after": [],
+        "before": []
+      },
+      "caption_position": "above",
+      "caption_separator": " — ",
+      "caption_template": "Таблица {h1}.{n} — {content}",
+      "caption_text_override": {
+        "fill": "black",
+        "font": "Times New Roman",
+        "font_size": 14.0,
+        "hyphenate": null,
+        "lang": "ru",
+        "ligatures": true,
+        "number_type": "auto",
+        "number_width": "auto",
+        "region": null,
+        "style": "normal",
+        "tracking": 0.0,
+        "weight": "regular",
+        "word_spacing": 100.0
+      },
+      "continuation_label": false,
+      "continuation_template": "Продолжение таблицы {n}",
+      "fill": "none",
+      "final_template": "Окончание таблицы {n}",
+      "header_double_gap": 0.5,
+      "header_double_line": true,
+      "header_double_stroke": 0.2646,
+      "inset": 2.1167,
+      "italic_letters": true,
+      "repeat_header": true,
+      "spacing_after": 1.2,
+      "spacing_before": 1.2,
+      "stroke": 0.1764,
+      "text_override": {
+        "fill": "black",
+        "font": "Times New Roman",
+        "font_size": 12.0,
+        "hyphenate": null,
+        "lang": "ru",
+        "ligatures": true,
+        "number_type": "auto",
+        "number_width": "auto",
+        "region": null,
+        "style": "normal",
+        "tracking": 0.0,
+        "weight": "regular",
+        "word_spacing": 100.0
+      }
+    },
+    "terms": {
+      "hanging_indent": 8.4666666667,
+      "indent": 0.0,
+      "loose_spacing": 1.0,
+      "spacing": "auto",
+      "spacing_after": 1.2,
+      "spacing_before": 1.2,
+      "text_override": {
+        "fill": "black",
+        "font": "Times New Roman",
+        "font_size": 14.0,
+        "hyphenate": null,
+        "lang": "ru",
+        "ligatures": true,
+        "number_type": "auto",
+        "number_width": "auto",
+        "region": null,
+        "style": "normal",
+        "tracking": 0.0,
+        "weight": "regular",
+        "word_spacing": 100.0
+      },
+      "tight": true,
+      "tight_spacing": 0.5
+    }
+  }
+}
