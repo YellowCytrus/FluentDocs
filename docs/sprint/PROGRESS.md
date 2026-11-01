@@ -19,7 +19,7 @@
 | G3b — подписи и нумерация рисунков/таблиц | выполнен, принят владельцем | этот файл |
 | G4 — таблицы и оглавление | выполнен, ждёт приёмки | этот файл |
 | G5 — формулы и подпись формулы | ✔ принят владельцем 01.11.2026 | `fd1f68d`, CI 41199636006, `862006a` |
-| G6 — профиль СТУ СФУ и самопроверка | в работе | этот файл |
+| G6 — профиль СТУ СФУ и самопроверка | выполнен, ждёт приёмки | `CONFORMANCE.md`, `sfu_profile.json` |
 
 ## G0 — чек-лист
 
@@ -1042,3 +1042,56 @@ frontend 17 passed (4 files); Ruff check/format OK.
 | `npm run build`, `npx vue-tsc --noEmit` | OK |
 | `ruff check` / `ruff format --check` | All checks passed / 107 files formatted |
 | CI [41199636006](https://github.com/YellowCytrus/FluentDocs/actions/runs/41199636006) (`d900111`) | test 143 passed / 246 deselected; integration 246 passed / 143 deselected; frontend 17 passed; lint OK |
+
+
+## G6 — профиль «СТУ СФУ» и самопроверка
+
+Подход: профиль — данные реестра, кода оформления под СФУ нет (AGENTS 6).
+
+| Пункт | Статус | Где |
+|---|---|---|
+| Seed-профиль «СТУ СФУ» | ✔ 108 значений с источником (пункт СТУ + id правила референса) | `app/registry/sfu_seed.py` |
+| Скрипт создания | ✔ JSON-снимок; `--db` создаёт профиль в базе | `scripts/seed_sfu_profile.py` |
+| Снимок значений | ✔ | `docs/sprint/sfu_profile.json` |
+| Тесты seed | ✔ 12 тестов: id, источники, валидация, снимок, структурные разделы, config tree | `tests/test_g6_seed.py` |
+| Таблица соответствия | ✔ 78 правил класса A + 2 AUTO; каждое с тестом или пометкой | `docs/sprint/CONFORMANCE.md` |
+| Тест соответствия | ✔ эталонный документ + профиль СФУ → PDF; 13 измеримых свойств | `tests/test_g6_conformance.py` |
+| Контроль полноты CONFORMANCE | ✔ тест падает, если правило класса A без строки или строка без теста/пометки | `test_conformance_covers_all_class_a_rules` |
+| Интервал 1,5 | ✔ отношение шага строк 1,0/1,5 = 1,5 ±0,12 | `test_sfu_line_spacing_multiplier_render` |
+| Счётчики подписей и структурные заголовки | ✔ «Введение» без номера не сдвигает главы подписей (1.1, не 2.1) | `test_structural_heading_does_not_offset_caption_counters` |
+| Golden | ✔ не менялись: `fd` в снимки не входит | `tests/fixtures/golden/` |
+
+### G6: что не реализовано и отложено
+
+| Правило | Причина |
+|---|---|
+| `referat.*` | отложено владельцем (`OWNER_DECISIONS` 12) |
+| `formula.line_continuation`, `formula.cross_reference` | отложено в G5: нет безопасного механизма / нужен синтаксис |
+| `figure.placement_after_reference`, `figure.explanatory_data`, `figure.multi_sheet_label` | нужен новый синтаксис Markdown |
+| `table.unit_label`, `table.footnote`, `abbreviations.two_column_layout` | нужен новый синтаксис Markdown |
+| `table.numbering_row_replacement` | рекомендация, вне объёма G4 |
+| `appendix.continuation_label`, `appendix.sheet_format` | не реализованы; листы кроме A4 и смена ориентации в середине вне спринта |
+| `bibliography.entry`, `reference.*`, `appendix.in_text_reference` | библиография и ссылки вне спринта (AGENTS 7) или требуют синтаксиса |
+| `coursework.*`, `graduation_qualification_work.*` | значения seed зафиксированы в `REGISTRY_SPEC.md`; отдельные профили и рендер-тесты не создавались |
+| `text.font.color`, `text.alignment`, `heading.no_hyphenation`, `list.marker_alphabetical`, `table.body`, `toc.matches_headings` | «не измеряется»: свойство есть, устойчивой метрики pdfplumber нет или оно проверяется структурно |
+
+### G6: проверки
+
+| Команда | Результат |
+|---|---|
+| `pytest tests/test_g6_seed.py` | 12 passed |
+| `pytest tests/test_g6_conformance.py` | 4 passed |
+| `pytest tests/ -m "not integration"` | см. отчёт |
+| `pytest tests/ -m integration` | см. отчёт |
+| golden | 33 passed, снимки не менялись |
+
+### G6: известные ограничения профиля
+
+- `document.font = "Times New Roman"` — алиас `Libertinus Serif` (`FONT_ALIASES`),
+  метрически совместимый шрифт с открытой лицензией; профиль хранит имя TNR.
+- Подпись рисунка — alt-текст изображения с меткой `{#fig:...}`; строка
+  `: подпись` после изображения без метки разбирается Pandoc как список
+  определений (ограничение Pandoc, не профиля).
+- Размер и отступ первой строки заголовков не вынесены в опции: СТУ задаёт для
+  них выравнивание, жирность и интервалы; соответствующие правила отмечены в
+  `CONFORMANCE.md`.

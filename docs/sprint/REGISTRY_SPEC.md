@@ -845,3 +845,33 @@ definition lists, нумерация global/section/appendix/disabled, номе�
 не реализован, остаётся ручной разрыв `\`; `fd.eq-break` не добавлялся.
 `formula.cross_reference` отложен: ссылки/метки формул требуют нового
 синтаксиса Markdown.
+
+
+## G6: seed-профиль «СТУ СФУ»
+
+Профиль не имеет отдельного кода: `app/registry/sfu_seed.py` описывает 108
+отличий от дефолтов реестра парами «значение → источник», скрипт
+`scripts/seed_sfu_profile.py` собирает полный набор значений и пишет снимок
+`docs/sprint/sfu_profile.json` (значения + источники + версия схемы).
+`--db` создаёт профиль в базе с `options` JSONB.
+
+Источник каждого значения — пункт СТУ и/или id правила из
+`SFU_FORMATTING_FULL_REFERENCE.md` (`common.page.margins.portrait`,
+`common.text.*`, `common.heading.*`, `common.toc.*` и т.д.). Тест
+`test_sfu_seed_sources_and_ids` требует непустой источник с «СТУ» для каждого
+отличия, `test_sfu_seed_matches_snapshot` — совпадения снимка с кодом.
+
+Структурные разделы (СОДЕРЖАНИЕ, ВВЕДЕНИЕ, ЗАКЛЮЧЕНИЕ, СПИСОК СОКРАЩЕНИЙ,
+СПИСОК ИСПОЛЬЗОВАННЫХ ИСТОЧНИКОВ) — правила `structural.entities` с
+`numbering.mode = none`, `break_before`, по центру, ПРОПИСНЫМИ, жирным и пустой
+строкой после. Приложение — сущность `numbering.kind = appendix`, заголовок
+пишется как `# Приложение Название`, буква добавляется `appendix.template`.
+
+Счётчики подписей (рисунки, таблицы, формулы) шагают только на заголовках,
+участвующих в нумерации разделов: структурные заголовки без номера не сдвигают
+`{h1}` (иначе «Введение» давало бы «Таблица 2.1»). Состояние передаётся
+`heading-counts-state` в `fd`.
+
+Таблица соответствия правил класса A — `docs/sprint/CONFORMANCE.md`, проверка
+полноты — `test_conformance_covers_all_class_a_rules`; рендер-проверка —
+`tests/test_g6_conformance.py`.
