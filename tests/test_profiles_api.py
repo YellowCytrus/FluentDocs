@@ -78,3 +78,25 @@ async def test_delete_profile_returns_204(client):
 async def test_delete_profile_returns_404(client):
     resp = await client.delete("/profiles/99999")
     assert resp.status_code == 404
+
+
+async def test_create_profile_with_existing_name_returns_409(client):
+    name = f"Duplicate {uuid.uuid4().hex[:8]}"
+    first = await client.post("/profiles", json={"name": name})
+    assert first.status_code == 200
+    second = await client.post("/profiles", json={"name": name})
+    assert second.status_code == 409
+    detail = second.json()["detail"]
+    assert name in detail
+    assert "уже существует" in detail
+
+
+async def test_rename_profile_to_existing_name_returns_409(client):
+    first_name = f"First {uuid.uuid4().hex[:8]}"
+    second_name = f"Second {uuid.uuid4().hex[:8]}"
+    await client.post("/profiles", json={"name": first_name})
+    second = await client.post("/profiles", json={"name": second_name})
+    pid = second.json()["id"]
+    resp = await client.patch(f"/profiles/{pid}", json={"name": first_name})
+    assert resp.status_code == 409
+    assert first_name in resp.json()["detail"]

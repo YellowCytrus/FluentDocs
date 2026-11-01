@@ -6,6 +6,7 @@ import { API_BASE } from '../../config';
 const profilesStore = useProfilesStore();
 const newName = ref('');
 const creating = ref(false);
+const createError = ref('');
 const editingId = ref<number | null>(null);
 const editingName = ref('');
 const confirmDeleteId = ref<number | null>(null);
@@ -18,10 +19,13 @@ async function createProfile() {
   const name = newName.value.trim();
   if (!name) return;
   creating.value = true;
+  createError.value = '';
   try {
     const p = await profilesStore.createProfile(name);
     profilesStore.setCurrent(p.id);
     newName.value = '';
+  } catch (error) {
+    createError.value = error instanceof Error ? error.message : 'Не удалось создать профиль';
   } finally {
     creating.value = false;
   }
@@ -134,6 +138,7 @@ async function deleteProfile(id: number) {
         +
       </button>
     </div>
+    <p v-if="createError" class="create-error">{{ createError }}</p>
 
     <!-- Delete confirmation overlay -->
     <Teleport to="body">
@@ -289,6 +294,13 @@ async function deleteProfile(id: number) {
 
 .create-btn:hover:not(:disabled) {
   background: #52525b;
+}
+
+.create-error {
+  margin: 4px 12px 0;
+  font-size: 11px;
+  line-height: 1.3;
+  color: #f87171;
 }
 
 .create-btn:disabled {

@@ -66,7 +66,13 @@ export const useProfilesStore = defineStore('profiles', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name }),
     });
-    if (!res.ok) throw new Error('Failed to create profile');
+    if (!res.ok) {
+      const detail = await res
+        .json()
+        .then((body: { detail?: string }) => body.detail)
+        .catch(() => undefined);
+      throw new Error(detail || 'Не удалось создать профиль');
+    }
     const profile = await res.json();
     list.value = [...list.value, profile];
     return profile;

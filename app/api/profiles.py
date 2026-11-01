@@ -18,17 +18,27 @@ from app.registry import (
     normalize_values,
     options_payload,
 )
-from app.repositories.profile_repository import ProfileRepository
+from app.repositories.profile_repository import ProfileNameConflictError, ProfileRepository
 
 router = APIRouter(prefix="/profiles", tags=["profiles"])
 
 
-@router.post("", response_model=ProfileRead)
+@router.post(
+    "",
+    response_model=ProfileRead,
+    responses={409: {"description": "Имя профиля уже занято"}},
+)
 async def create_profile(
     body: ProfileCreate,
     repo: ProfileRepository = Depends(get_profile_repository),
 ) -> Profile:
-    return await repo.create(body.name)
+    try:
+        return await repo.create(body.name)
+    except ProfileNameConflictError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Профиль с именем «{exc.name}» уже существует",
+        ) from exc
 
 
 @router.get("", response_model=list[ProfileRead])
@@ -57,7 +67,13 @@ async def update_profile(
     body: ProfileUpdate,
     repo: ProfileRepository = Depends(get_profile_repository),
 ) -> Profile:
-    profile = await repo.update(profile_id, body)
+    try:
+        profile = await repo.update(profile_id, body)
+    except ProfileNameConflictError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Профиль с именем «{exc.name}» уже существует",
+        ) from exc
     if profile is None:
         raise HTTPException(status_code=404, detail="Profile not found")
     return profile

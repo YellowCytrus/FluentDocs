@@ -1,6 +1,7 @@
 """Profile repository: data access for profiles."""
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -20,6 +21,14 @@ from app.models.sqlalchemy.styles import (
     TableStyle,
     TermsStyle,
 )
+
+
+class ProfileNameConflictError(Exception):
+    """Имя профиля уже занято: API отвечает 409, а не 500."""
+
+    def __init__(self, name: str) -> None:
+        super().__init__(name)
+        self.name = name
 
 
 class ProfileRepository:
@@ -71,10 +80,22 @@ class ProfileRepository:
         )
         return list(result.scalars().all())
 
+    async def _ensure_name_is_free(self, name: str, profile_id: int | None = None) -> None:
+        query = select(Profile.id).where(Profile.name == name)
+        if profile_id is not None:
+            query = query.where(Profile.id != profile_id)
+        existing = await self._session.scalar(query)
+        if existing is not None:
+            raise ProfileNameConflictError(name)
+
     async def create(self, name: str) -> Profile:
+        await self._ensure_name_is_free(name)
         profile = Profile(name=name)
         self._session.add(profile)
-        await self._session.flush()
+        try:
+            await self._session.flush()
+        except IntegrityError as exc:  # гонка двух одновременных запросов
+            raise ProfileNameConflictError(name) from exc
         await self._session.refresh(profile)
         return profile
 
@@ -82,9 +103,13 @@ class ProfileRepository:
         profile = await self.get_by_id(profile_id)
         if profile is None:
             return None
-        if data.name is not None:
+        if data.name is not None and data.name != profile.name:
+            await self._ensure_name_is_free(data.name, profile_id)
             profile.name = data.name
-        await self._session.flush()
+        try:
+            await self._session.flush()
+        except IntegrityError as exc:
+            raise ProfileNameConflictError(data.name or profile.name) from exc
         await self._session.refresh(profile)
         return profile
 

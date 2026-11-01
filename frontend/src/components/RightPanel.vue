@@ -16,6 +16,7 @@ const editorStore = useEditorStore();
 const expandedSection = ref<string | null>('profiles');
 const newProfileName = ref('');
 const creatingProfile = ref(false);
+const createProfileError = ref('');
 
 const currentProfileId = computed(() => profilesStore.currentId);
 
@@ -90,10 +91,14 @@ async function createProfile() {
   const name = newProfileName.value.trim();
   if (!name) return;
   creatingProfile.value = true;
+  createProfileError.value = '';
   try {
     const p = await profilesStore.createProfile(name);
     profilesStore.setCurrent(p.id);
     newProfileName.value = '';
+  } catch (error) {
+    createProfileError.value =
+      error instanceof Error ? error.message : 'Не удалось создать профиль';
   } finally {
     creatingProfile.value = false;
   }
@@ -147,6 +152,9 @@ function toggleSection(s: string) {
               +
             </button>
           </div>
+          <p v-if="createProfileError" class="text-xs text-red-400">
+            {{ createProfileError }}
+          </p>
         </div>
       </section>
 
