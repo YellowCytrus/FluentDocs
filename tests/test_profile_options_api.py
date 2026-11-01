@@ -21,9 +21,11 @@ async def test_options_api_roundtrip(client):
 
     initial = await client.get(f"/profiles/{profile_id}/options")
     assert initial.status_code == 200
-    assert initial.json()["source"] == "legacy"
+    assert initial.json()["source"] == "jsonb"
     assert initial.json()["schema_version"] == SCHEMA_VERSION
     assert initial.json()["values"]["page"]["paper"] == "a4"
+    assert initial.json()["values"]["page"]["margin_left"] == 30.0
+    assert initial.json()["values"]["document"]["font"] == "Times New Roman"
 
     updated = await client.put(
         f"/profiles/{profile_id}/options",

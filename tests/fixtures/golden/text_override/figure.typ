@@ -61,7 +61,6 @@
   ),
   heading: (
     numbering: "1.1.1",
-    unnumbered_indent: -0.3,
     keep_with_next: true,
   ),
   heading_levels: (

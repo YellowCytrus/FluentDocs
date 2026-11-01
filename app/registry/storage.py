@@ -319,6 +319,10 @@ def _normalize_element(
         if key == "text_override":
             _normalize_text_override((element,), value, values)
             continue
+        # Удалённый в G6 технический костыль: старые JSONB-профили
+        # могут ещё содержать это поле.
+        if element == "heading" and key == "unnumbered_indent":
+            continue
         option = OPTIONS_BY_PATH.get((element, key))
         if option is None:
             raise RegistryError(f"Неизвестная опция: {element}.{key}")

@@ -2009,30 +2009,6 @@ def _base_options() -> list[Option]:
             order=o(opts),
         )
     )
-    opts.append(
-        _option(
-            "heading.unnumbered_indent",
-            "heading",
-            ("heading",),
-            "number",
-            -0.3,
-            ("heading", "unnumbered_indent"),
-            "Компенсация отступа ненумерованного заголовка",
-            order=o(opts),
-            unit="em",
-            allowed_units=EM_UNITS,
-            min=-2.0,
-            max=0.0,
-            step=0.01,
-            rationale=(
-                "Сдвигает ненумерованный заголовок так, чтобы его текст совпал "
-                "с началом нумерованного; значение em зависит от кегля."
-            ),
-            source="S10; СТУ 7.4.1",
-            test_ids=("test_heading_unnumbered_indent_option",),
-            legacy=False,
-        )
-    )
     for level in HEADING_LEVELS:
         opts += [
             _option(

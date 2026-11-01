@@ -126,7 +126,7 @@ async def test_invariant_after_options_put(client, test_session_factory):
     await _assert_invariant(test_session_factory, profile_id)
 
 
-async def test_profile_create_delete_do_not_write_legacy_tables(client, test_session_factory):
+async def test_profile_create_seeds_legacy_tables_and_jsonb(client, test_session_factory):
     profile_id = await _create_profile(client)
 
     async with test_session_factory() as session:
@@ -135,7 +135,7 @@ async def test_profile_create_delete_do_not_write_legacy_tables(client, test_ses
                 text(f"SELECT count(*) FROM {model.__tablename__} WHERE profile_id = :profile_id"),
                 {"profile_id": profile_id},
             )
-            assert count == 0, model.__tablename__
+            assert count == 1, model.__tablename__
         heading_count = await session.scalar(
             text(
                 f"SELECT count(*) FROM {HeadingLevelStyle.__tablename__} "
@@ -143,10 +143,11 @@ async def test_profile_create_delete_do_not_write_legacy_tables(client, test_ses
             ),
             {"profile_id": profile_id},
         )
-        assert heading_count == 0
+        assert heading_count == 6
 
-    # Пустой JSONB — штатное состояние fallback на старые таблицы.
-    assert await _stored_options(test_session_factory, profile_id) == {}
+    stored = await _stored_options(test_session_factory, profile_id)
+    assert stored["document"]["font"] == "Times New Roman"
+    assert stored["page"]["margin_left"] == 30.0
 
     deleted = await client.delete(f"/profiles/{profile_id}")
     assert deleted.status_code == 204

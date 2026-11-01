@@ -293,7 +293,7 @@ def config_tree(values: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
         ),
         "heading": _element_tree(
             _element(values, "heading"),
-            ("numbering", "unnumbered_indent", "keep_with_next"),
+            ("numbering", "keep_with_next"),
         ),
         "heading_levels": _heading_levels(values),
         "bullet_list": _element_tree(

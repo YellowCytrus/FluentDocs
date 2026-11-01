@@ -1,7 +1,8 @@
 """Создание seed-профиля «СТУ СФУ» из значений реестра (G6).
 
 По умолчанию пишет JSON-снимок `docs/sprint/sfu_profile.json`.
-С флагом `--db` создаёт профиль в базе (если профиля с таким именем нет).
+С флагом `--db` создаёт профиль в базе, если его нет; с `--update` —
+перезаписывает существующий профиль «СТУ СФУ» значениями seed.
 """
 
 from __future__ import annotations
@@ -14,6 +15,7 @@ from pathlib import Path
 from app.registry import SCHEMA_VERSION, normalize_values
 from app.registry.options import OPTIONS_BY_ID
 from app.registry.sfu_seed import SFU_PROFILE_NAME, build_sfu_values, sfu_overrides
+from app.registry.storage import apply_values_to_legacy
 
 DEFAULT_OUTPUT = Path("docs/sprint/sfu_profile.json")
 
@@ -40,7 +42,7 @@ def _write_snapshot(output: Path, sources: dict[str, str]) -> None:
     )
 
 
-async def _create_profile() -> None:
+async def _create_profile(update: bool = False) -> None:
     from sqlalchemy import select
 
     from app.database import async_session_factory, engine
@@ -49,17 +51,26 @@ async def _create_profile() -> None:
     values = _validate()
     async with async_session_factory() as session:
         existing = await session.scalar(select(Profile).where(Profile.name == SFU_PROFILE_NAME))
-        if existing is not None:
+        if existing is not None and not update:
             print(f"профиль «{SFU_PROFILE_NAME}» уже существует (id={existing.id})")
             return
-        profile = Profile(
-            name=SFU_PROFILE_NAME,
-            options=values,
-            options_schema_version=SCHEMA_VERSION,
-        )
-        session.add(profile)
+        if existing is None:
+            profile = Profile(
+                name=SFU_PROFILE_NAME,
+                options=values,
+                options_schema_version=SCHEMA_VERSION,
+            )
+            session.add(profile)
+            await session.flush()
+            action = "создан"
+        else:
+            profile = existing
+            profile.options = values
+            profile.options_schema_version = SCHEMA_VERSION
+            action = "обновлён"
+        await apply_values_to_legacy(session, profile.id, values)
         await session.commit()
-        print(f"создан профиль «{SFU_PROFILE_NAME}» (id={profile.id})")
+        print(f"{action} профиль «{SFU_PROFILE_NAME}» (id={profile.id})")
     await engine.dispose()
 
 
@@ -67,13 +78,18 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--db", action="store_true", help="создать профиль в базе")
+    parser.add_argument(
+        "--update",
+        action="store_true",
+        help="перезаписать существующий профиль СТУ СФУ значениями seed",
+    )
     args = parser.parse_args()
 
     sources = {option_id: source for option_id, (_value, source) in sfu_overrides().items()}
     _write_snapshot(args.output, sources)
     print(f"записан снимок {args.output} ({len(sources)} значений с источником)")
     if args.db:
-        asyncio.run(_create_profile())
+        asyncio.run(_create_profile(update=args.update))
 
 
 if __name__ == "__main__":

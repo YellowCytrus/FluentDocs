@@ -392,11 +392,11 @@ PDF через Typst CLI и Node + `typst.ts`, затем сравнивает �
   не делается — открытый вопрос в `BLOCKERS.md`.
 - `document.default_leading_em = 0.65` — техническое значение Typst, вынесено
   из `fd.typ` в данные реестра.
-- В опции вынесены: `heading.unnumbered_indent` (было `-0.3em`),
-  `bullet_list.tight_spacing` / `loose_spacing`,
+- В опции вынесены: `bullet_list.tight_spacing` / `loose_spacing`,
   `numbered_list.tight_spacing` / `loose_spacing`,
   `terms.tight_spacing` / `loose_spacing` (было `0.5em` / `1em`).
   Дефолты равны прежним константам, поэтому тела golden-снимков не меняются.
+  Отрицательный `heading.unnumbered_indent` удалён в G6.
 - Шрифты: `assets/fonts/` содержит PT Astra Serif (4 TTF + OFL) и набор
   typst-assets v0.13.1 (Libertinus, New Computer Modern, DejaVu Sans Mono).
   Сервер получает `--font-path assets/fonts`, `typst.ts` —
@@ -853,7 +853,14 @@ definition lists, нумерация global/section/appendix/disabled, номе�
 отличий от дефолтов реестра парами «значение → источник», скрипт
 `scripts/seed_sfu_profile.py` собирает полный набор значений и пишет снимок
 `docs/sprint/sfu_profile.json` (значения + источники + версия схемы).
-`--db` создаёт профиль в базе с `options` JSONB.
+`--db` создаёт профиль в базе с `options` JSONB, `--update` перезаписывает
+существующий профиль «СТУ СФУ». `POST /profiles` сразу создаёт новый профиль
+из этих значений и пишет их в старые таблицы; UI при первом открытии выбирает
+«СТУ СФУ» (ключ `sfuLastProfileId`).
+
+Отрицательный `heading.unnumbered_indent` удалён: он сдвигал ненумерованный
+заголовок влево от текста нумерованного. Старые JSONB с этим полем читаются
+без ошибки; ключ игнорируется.
 
 Источник каждого значения — пункт СТУ и/или id правила из
 `SFU_FORMATTING_FULL_REFERENCE.md` (`common.page.margins.portrait`,

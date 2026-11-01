@@ -87,12 +87,12 @@ def test_list_spacing_options() -> None:
         assert config["loose_spacing"] == 1.25
 
 
-def test_heading_unnumbered_indent_option() -> None:
+def test_heading_unnumbered_indent_removed() -> None:
+    """В G6 убран отрицательный inset-костыль для ненумерованных заголовков."""
     values = default_values()
-    assert values["heading"]["unnumbered_indent"] == -0.3
-    values["heading"]["unnumbered_indent"] = -0.6
+    assert "unnumbered_indent" not in values["heading"]
     source = build_fd_config(normalize_values(values))
-    assert "unnumbered_indent: -0.6" in source
+    assert "unnumbered_indent" not in source
 
 
 def test_line_height_coefficient_table() -> None:

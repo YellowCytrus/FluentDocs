@@ -388,7 +388,7 @@ Playwright + Chromium (Xvfb, headed), документ 4 000 абзацев → 
 | PT Astra Serif (OFL-1.1) в репозитории | ✔ 4 TTF + лицензия | `assets/fonts/` |
 | Сервер и `typst.ts` загружают одни файлы | ✔ `--font-path assets/fonts`, `preloadFonts` | `typst_compiler.py`, `frontend/src/typstFonts.ts` |
 | Паритет с PT Astra | ✔ 3 passed (2 профиля + версии) | `tests/test_preview_parity.py` |
-| Вынести `-0.3em` | ✔ `heading.unnumbered_indent` | `app/registry/options.py` |
+| Вынести `-0.3em` | ✔ удалено в G6: отрицательный inset-костыль не нужен | — |
 | Вынести `0.5em` / `1em` | ✔ `tight_spacing` / `loose_spacing` у трёх списков | `app/registry/options.py` |
 | Вынести `0.65em` | ✔ `document.default_leading_em` | `app/registry/options.py` |
 | Дефолты сохранены | ✔ тела golden не изменились | `tests/fixtures/golden/` |
@@ -411,9 +411,10 @@ Playwright + Chromium (Xvfb, headed), документ 4 000 абзацев → 
 
 Все 16 снимков получили только новые ключи конфига: `document.line_spacing`
 стал объектом `{mode, value}`, добавлены `document.line_height_em = 1.308`,
-`document.default_leading_em = 0.65`, `heading.unnumbered_indent = -0.3`,
+`document.default_leading_em = 0.65`,
 `tight_spacing = 0.5`, `loose_spacing = 1.0` у маркированного, нумерованного
-списков и списка определений. Тела документов не изменились.
+списков и списка определений. Тела документов не изменились. Костыль
+`heading.unnumbered_indent` удалён в G6.
 
 ### Шрифты G2b: SHA-256
 
@@ -1051,7 +1052,10 @@ frontend 17 passed (4 files); Ruff check/format OK.
 | Пункт | Статус | Где |
 |---|---|---|
 | Seed-профиль «СТУ СФУ» | ✔ 108 значений с источником (пункт СТУ + id правила референса) | `app/registry/sfu_seed.py` |
-| Скрипт создания | ✔ JSON-снимок; `--db` создаёт профиль в базе | `scripts/seed_sfu_profile.py` |
+| Скрипт создания | ✔ JSON-снимок; `--db` создаёт профиль, `--update` перезаписывает seed | `scripts/seed_sfu_profile.py` |
+| Новые профили | ✔ `POST /profiles` создаёт профиль сразу из значений СТУ СФУ, в JSONB и старых таблицах | `app/api/profiles.py` |
+| Профиль по умолчанию в UI | ✔ при первом открытии выбирается «СТУ СФУ» | `frontend/src/stores/profiles.ts` |
+| Существующий профиль «СТУ СФУ» | ✔ обновляется `seed_sfu_profile.py --db --update`; локальная БД обновлена | `scripts/seed_sfu_profile.py` |
 | Снимок значений | ✔ | `docs/sprint/sfu_profile.json` |
 | Тесты seed | ✔ 12 тестов: id, источники, валидация, снимок, структурные разделы, config tree | `tests/test_g6_seed.py` |
 | Таблица соответствия | ✔ 78 правил класса A + 2 AUTO; каждое с тестом или пометкой | `docs/sprint/CONFORMANCE.md` |
@@ -1059,7 +1063,8 @@ frontend 17 passed (4 files); Ruff check/format OK.
 | Контроль полноты CONFORMANCE | ✔ тест падает, если правило класса A без строки или строка без теста/пометки | `test_conformance_covers_all_class_a_rules` |
 | Интервал 1,5 | ✔ отношение шага строк 1,0/1,5 = 1,5 ±0,12 | `test_sfu_line_spacing_multiplier_render` |
 | Счётчики подписей и структурные заголовки | ✔ «Введение» без номера не сдвигает главы подписей (1.1, не 2.1) | `test_structural_heading_does_not_offset_caption_counters` |
-| Golden | ✔ не менялись: `fd` в снимки не входит | `tests/fixtures/golden/` |
+| Убран `heading.unnumbered_indent` | ✔ отрицательный inset удалён; ненумерованный заголовок выравнивается штатно | `test_heading_unnumbered_indent_removed` |
+| Golden | ✔ 16 снимков: удалён только ключ `heading.unnumbered_indent` | `tests/fixtures/golden/` |
 
 ### G6: что не реализовано и отложено
 
@@ -1081,9 +1086,9 @@ frontend 17 passed (4 files); Ruff check/format OK.
 |---|---|
 | `pytest tests/test_g6_seed.py` | 12 passed |
 | `pytest tests/test_g6_conformance.py` | 4 passed |
-| `pytest tests/ -m "not integration"` (pandoc 3.9, typst 0.14.2) | 89 passed, 66 skipped, 250 deselected |
-| `pytest tests/ -m integration` | 249 passed, 1 skipped, 155 deselected |
-| golden | 33 passed, снимки не менялись |
+| `pytest tests/ -m "not integration"` (Postgres, pandoc 3.9, typst 0.14.2) | 158 passed, 250 deselected |
+| `pytest tests/ -m integration` (Postgres) | 250 passed |
+| golden | 33 passed; 16 снимков без удалённого `heading.unnumbered_indent` |
 | frontend `npm test -- --run`, build, `vue-tsc --noEmit` | 17 passed, OK, OK |
 | `ruff check` / `ruff format --check` | OK, 111 files formatted |
 | CI [41299986741](https://github.com/YellowCytrus/FluentDocs/actions/runs/41299986741) (`5b60337`) | test 155 passed / 250 deselected; integration 250 passed / 155 deselected; frontend 17; lint OK |
@@ -1098,3 +1103,26 @@ frontend 17 passed (4 files); Ruff check/format OK.
 - Размер и отступ первой строки заголовков не вынесены в опции: СТУ задаёт для
   них выравнивание, жирность и интервалы; соответствующие правила отмечены в
   `CONFORMANCE.md`.
+
+### G6-fix: профиль по умолчанию и чистка заголовков
+
+Исправлено после замечания владельца:
+
+- `POST /profiles` создаёт профиль сразу из значений «СТУ СФУ»: JSONB и старые
+  таблицы заполняются seed-значениями, первый GET element API не откатывает их
+  к нейтральным дефолтам.
+- `scripts/seed_sfu_profile.py --db --update` перезаписывает существующий
+  профиль «СТУ СФУ»; локальная БД обновлена.
+- UI при первом открытии выбирает профиль «СТУ СФУ»; выбор пользователя
+  сохраняется в отдельном ключе `sfuLastProfileId`.
+- Удалён `heading.unnumbered_indent` («Компенсация отступа ненумерованного
+  заголовка»): отрицательный inset не нужен, Typst уже выравнивает текст
+  ненумерованного заголовка по тексту нумерованного. Старые JSONB с этим
+  полем читаются с игнорированием удалённого ключа.
+- Golden: из 16 снимков удалена только строка `heading.unnumbered_indent`;
+  `sfu_profile.json` перегенерирован.
+- Добавлены проверки `POST /profiles` с seed-значениями, seed в старых
+  таблицах и отсутствия удалённой опции.
+
+Проверки: non-integration 158 passed / 250 deselected; integration 250 passed;
+frontend 17 passed; build, `vue-tsc`, ruff — OK; golden 33 passed.

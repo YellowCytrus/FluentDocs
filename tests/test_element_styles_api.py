@@ -13,7 +13,7 @@ async def test_post_bullet_list_creates_styles(client):
     assert resp.status_code == 200
     data = resp.json()
     assert data["tight"] is False
-    assert data["marker"] == ["*", "- ", "‣"]  # padded to 3 from default
+    assert data["marker"] == ["*", "- ", "‣"]  # padded to 3 by style DTO
     assert data["spacing"] == "loose"
 
 
@@ -36,11 +36,12 @@ async def test_get_bullet_list_creates_defaults_if_missing(client):
     assert "marker" in data
 
 
-async def test_patch_bullet_list_returns_404_when_not_set(client):
+async def test_patch_bullet_list_returns_200_when_seeded(client):
     create = await client.post("/profiles", json={"name": f"P4 {uuid.uuid4().hex[:8]}"})
     pid = create.json()["id"]
     resp = await client.patch(f"/profiles/{pid}/bullet_list", json={"tight": False})
-    assert resp.status_code == 404
+    assert resp.status_code == 200
+    assert resp.json()["tight"] is False
 
 
 async def test_patch_bullet_list_returns_200_after_post(client):
@@ -74,23 +75,22 @@ async def test_bullet_list_default_values(client):
     assert resp.status_code == 200
     data = resp.json()
     assert data["tight"] is True
-    assert data["marker"] == ["- ", "‣", "–"]
+    assert data["marker"] == ["- ", "- ", "- "]
     assert data["spacing"] == "auto"
     assert data["indent"] == 0.0
-    assert data["body_indent"] == 2.1166666667
+    assert data["body_indent"] == 12.5
 
 
 async def test_document_default_values(client):
-    """Document style defaults: font, line_spacing, justify."""
+    """Document style defaults: seeded СТУ СФУ values."""
     create = await client.post("/profiles", json={"name": f"P {uuid.uuid4().hex[:8]}"})
     pid = create.json()["id"]
     resp = await client.get(f"/profiles/{pid}/document")
     assert resp.status_code == 200
     data = resp.json()
-    assert data["font"] == "Merriweather"
-    assert data["font_size"] == 12.0
-    assert data["line_spacing"] == 5.08
-    assert data["justify"] is False
+    assert data["font"] == "Times New Roman"
+    assert data["font_size"] == 14.0
+    assert data["justify"] is True
 
 
 async def test_page_default_values(client):
@@ -102,29 +102,29 @@ async def test_page_default_values(client):
     data = resp.json()
     assert data["paper"] == "a4"
     assert data["columns"] == 1
-    assert data["numbering"] == "none"
+    assert data["numbering"] == "1"
     assert data["flipped"] is False
 
 
 async def test_figure_default_values(client):
-    """Figure style defaults: width, placement, outlined, fit."""
+    """Figure style defaults: seeded СТУ СФУ values."""
     create = await client.post("/profiles", json={"name": f"P {uuid.uuid4().hex[:8]}"})
     pid = create.json()["id"]
     resp = await client.get(f"/profiles/{pid}/figure")
     assert resp.status_code == 200
     data = resp.json()
-    assert data["width"] == 4.2333333333
+    assert data["width"] == 165.0
     assert data["placement"] == "none"
     assert data["outlined"] is True
-    assert data["fit"] == "cover"
+    assert data["fit"] == "contain"
 
 
 async def test_par_default_values(client):
-    """Par style defaults: spacing, linebreaks."""
+    """Par style defaults: seeded СТУ СФУ values."""
     create = await client.post("/profiles", json={"name": f"P {uuid.uuid4().hex[:8]}"})
     pid = create.json()["id"]
     resp = await client.get(f"/profiles/{pid}/par")
     assert resp.status_code == 200
     data = resp.json()
-    assert data["spacing"] == 4.2333333333
+    assert data["spacing"] == 0.0
     assert data["linebreaks"] == "auto"

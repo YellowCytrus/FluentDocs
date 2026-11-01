@@ -9,7 +9,7 @@ export const useProfilesStore = defineStore('profiles', () => {
   const currentId = ref<number | null>(null);
   const styleCache = ref<Map<number, string>>(new Map());
   const loading = ref(false);
-  const lastProfileId = useLocalStorage<number | null>('lastProfileId', null);
+  const lastProfileId = useLocalStorage<number | null>('sfuLastProfileId', null);
 
   const current = computed(() =>
     list.value.find((p) => p.id === currentId.value) ?? null
@@ -22,12 +22,15 @@ export const useProfilesStore = defineStore('profiles', () => {
       if (!res.ok) throw new Error('Failed to fetch profiles');
       list.value = await res.json();
       if (list.value.length > 0 && !currentId.value) {
-        const first = list.value[0];
-        const id = lastProfileId.value ?? first?.id;
+        // При первом открытии новых профилей по умолчанию показываем
+        // профиль СТУ СФУ, если он есть (OWNER_DECISIONS 15).
+        const preferred =
+          list.value.find((profile) => profile.name === 'СТУ СФУ') ?? list.value[0];
+        const id = lastProfileId.value ?? preferred?.id;
         if (id != null && list.value.some((p) => p.id === id)) {
           currentId.value = id;
-        } else if (first) {
-          currentId.value = first.id;
+        } else if (preferred) {
+          currentId.value = preferred.id;
         }
         if (currentId.value != null) lastProfileId.value = currentId.value;
       }

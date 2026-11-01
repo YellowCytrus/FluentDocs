@@ -18,6 +18,7 @@ from app.registry import (
     normalize_values,
     options_payload,
 )
+from app.registry.sfu_seed import build_sfu_values
 from app.repositories.profile_repository import ProfileNameConflictError, ProfileRepository
 
 router = APIRouter(prefix="/profiles", tags=["profiles"])
@@ -31,9 +32,19 @@ router = APIRouter(prefix="/profiles", tags=["profiles"])
 async def create_profile(
     body: ProfileCreate,
     repo: ProfileRepository = Depends(get_profile_repository),
+    session: AsyncSession = Depends(get_session),
 ) -> Profile:
     try:
-        return await repo.create(body.name)
+        profile = await repo.create(body.name)
+        # Новый профиль стартует с профиля СТУ СФУ, а не с нейтральных
+        # дефолтов реестра (OWNER_DECISIONS 15). Значения пишутся в JSONB
+        # и сразу в старые таблицы, чтобы первый GET element API их не затёр.
+        values = normalize_values(build_sfu_values())
+        profile.options = values
+        profile.options_schema_version = SCHEMA_VERSION
+        await apply_values_to_legacy(session, profile.id, values)
+        await session.flush()
+        return profile
     except ProfileNameConflictError as exc:
         raise HTTPException(
             status_code=409,

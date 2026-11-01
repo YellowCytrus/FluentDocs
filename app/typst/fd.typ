@@ -737,8 +737,6 @@
       custom-body
     } else if entity != none {
       entity-text(entity, it.body)
-    } else if not level-cfg.numbering_enabled {
-      box(it.body, inset: (left: config.heading.unnumbered_indent * 1em))
     } else {
       it.body
     }

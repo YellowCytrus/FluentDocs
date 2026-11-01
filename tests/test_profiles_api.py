@@ -12,6 +12,20 @@ async def test_create_profile_returns_200_and_body(client):
     assert "id" in data and isinstance(data["id"], int)
 
 
+async def test_create_profile_starts_from_sfu_seed(client):
+    unique_name = f"Seeded {uuid.uuid4().hex[:8]}"
+    created = await client.post("/profiles", json={"name": unique_name})
+    assert created.status_code == 200
+    profile_id = created.json()["id"]
+    options = await client.get(f"/profiles/{profile_id}/options")
+    assert options.status_code == 200
+    body = options.json()
+    assert body["source"] == "jsonb"
+    assert body["values"]["page"]["margin_left"] == 30.0
+    assert body["values"]["document"]["font"] == "Times New Roman"
+    assert body["values"]["structural"]["entities"]
+
+
 async def test_get_profiles_returns_list(client):
     name_a = f"A {uuid.uuid4().hex[:8]}"
     name_b = f"B {uuid.uuid4().hex[:8]}"
