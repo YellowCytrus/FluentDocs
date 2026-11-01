@@ -185,8 +185,10 @@ def _structural_entity(value: str, *, appendix: bool = False) -> dict[str, JsonV
         "match": {
             "target": "heading",
             "level": "1",
-            "mode": "equals",
-            "value": value,
+            # Приложение пишется как «Приложение Название»: буква добавляется
+            # шаблоном appendix.template (OWNER_DECISIONS 4).
+            "mode": "starts_with" if appendix else "equals",
+            "value": "ПРИЛОЖЕНИЕ" if appendix else value,
             "case_insensitive": True,
         },
         "numbering": numbering,

@@ -897,7 +897,7 @@
           "match": {
             "case_insensitive": true,
             "level": "1",
-            "mode": "equals",
+            "mode": "starts_with",
             "target": "heading",
             "value": "ПРИЛОЖЕНИЕ"
           },
