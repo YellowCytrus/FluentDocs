@@ -19,7 +19,7 @@
 | G3b — подписи и нумерация рисунков/таблиц | выполнен, принят владельцем | этот файл |
 | G4 — таблицы и оглавление | выполнен, ждёт приёмки | этот файл |
 | G5 — формулы и подпись формулы | ✔ принят владельцем 01.11.2026 | `fd1f68d`, CI 41199636006, `862006a` |
-| G6 — профиль СТУ СФУ и самопроверка | выполнен, ждёт приёмки | `CONFORMANCE.md`, `sfu_profile.json` |
+| G6 — профиль СТУ СФУ и самопроверка | выполнен, ждёт приёмки | `5b60337`, CI 41299986741 |
 
 ## G0 — чек-лист
 
@@ -1081,9 +1081,12 @@ frontend 17 passed (4 files); Ruff check/format OK.
 |---|---|
 | `pytest tests/test_g6_seed.py` | 12 passed |
 | `pytest tests/test_g6_conformance.py` | 4 passed |
-| `pytest tests/ -m "not integration"` | см. отчёт |
-| `pytest tests/ -m integration` | см. отчёт |
+| `pytest tests/ -m "not integration"` (pandoc 3.9, typst 0.14.2) | 89 passed, 66 skipped, 250 deselected |
+| `pytest tests/ -m integration` | 249 passed, 1 skipped, 155 deselected |
 | golden | 33 passed, снимки не менялись |
+| frontend `npm test -- --run`, build, `vue-tsc --noEmit` | 17 passed, OK, OK |
+| `ruff check` / `ruff format --check` | OK, 111 files formatted |
+| CI [41299986741](https://github.com/YellowCytrus/FluentDocs/actions/runs/41299986741) (`5b60337`) | test 155 passed / 250 deselected; integration 250 passed / 155 deselected; frontend 17; lint OK |
 
 ### G6: известные ограничения профиля
 
